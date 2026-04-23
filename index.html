@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pairs Cricket Scorer</title>
+<style>
+:root{
+  --purple:#7c3aed;--purple-l:#ede9fe;
+  --blue:#2563eb;--blue-l:#dbeafe;
+  --grey:#4b5563;--grey-l:#f3f4f6;
+  --red:#dc2626;--red-l:#fee2e2;
+  --green:#16a34a;--green-l:#dcfce7;
+  --orange:#ea580c;--orange-l:#ffedd5;
+  --pink:#db2777;--pink-l:#fce7f3;
+  --bg:#f9fafb;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;
+  --r:12px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;color:var(--text)}
+.screen{display:none;min-height:100vh;padding-bottom:32px}
+.screen.active{display:block}
+.c-purple{background:var(--purple-l);border-left:4px solid var(--purple)}
+.c-blue{background:var(--blue-l);border-left:4px solid var(--blue)}
+.c-grey{background:var(--grey-l);border-left:4px solid var(--grey)}
+.c-red{background:var(--red-l);border-left:4px solid var(--red)}
+.c-green{background:var(--green-l);border-left:4px solid var(--green)}
+.c-orange{background:var(--orange-l);border-left:4px solid var(--orange)}
+.c-pink{background:var(--pink-l);border-left:4px solid var(--pink)}
+.t-purple{color:var(--purple)}.t-blue{color:var(--blue)}.t-grey{color:var(--grey)}
+.t-red{color:var(--red)}.t-green{color:var(--green)}.t-orange{color:var(--orange)}.t-pink{color:var(--pink)}
+.d-purple{background:var(--purple)}.d-blue{background:var(--blue)}.d-grey{background:var(--grey)}
+.d-red{background:var(--red)}.d-green{background:var(--green)}.d-orange{background:var(--orange)}.d-pink{background:var(--pink)}
+.hdr{background:var(--card);border-bottom:1px solid var(--border);padding:14px 16px 10px;position:sticky;top:0;z-index:100}
+.hdr-row{display:flex;align-items:center;justify-content:space-between}
+.hdr-title{font-size:17px;font-weight:700;letter-spacing:-.3px}
+.hdr-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.back{font-size:15px;color:var(--blue);font-weight:500;border:none;background:none;padding:4px 0;cursor:pointer}
+.pad{padding:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:12px}
+.card-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.btn{display:block;width:100%;padding:14px;border-radius:var(--r);font-size:16px;font-weight:600;border:none;cursor:pointer;text-align:center}
+.btn+.btn{margin-top:10px}.btn:active{opacity:.75}
+.btn-primary{background:var(--text);color:#fff}
+.btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.cnt-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.cnt-btn{padding:16px 4px;border-radius:var(--rs);border:2px solid var(--border);background:var(--card);font-size:17px;font-weight:700;cursor:pointer;text-align:center}
+.cnt-btn.sel{border-color:var(--text);background:var(--text);color:#fff}
+.inp{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--rs);font-size:15px;background:var(--card);color:var(--text)}
+.inp:focus{outline:2px solid var(--text);outline-offset:-1px}
+.lbl{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.pi-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pi-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pi-tag{font-size:11px;font-weight:700;width:44px;flex-shrink:0;text-align:right}
+.pair-card{border-radius:var(--r);padding:12px 14px;margin-bottom:8px}
+.pair-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.lock-btn{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid rgba(0,0,0,.15);background:rgba(255,255,255,.6);cursor:pointer}
+.pair-players{display:flex;gap:8px}
+.pchip{background:rgba(255,255,255,.7);border-radius:20px;padding:6px 12px;font-size:14px;font-weight:500;flex:1;text-align:center;cursor:pointer;border:1px solid rgba(0,0,0,.1)}
+.pchip.pending{outline:3px solid var(--text);outline-offset:2px}
+.pchip.locked-chip{cursor:default;opacity:.65}
+.bo-row{display:flex;align-items:center;gap:7px;padding:8px 0;border-bottom:1px solid var(--border)}
+.bo-row:last-child{border-bottom:none}
+.bo-over{font-size:12px;color:var(--muted);width:36px;flex-shrink:0;font-weight:600}
+.bo-sel{flex:1;padding:7px 8px;border:1px solid var(--border);border-radius:var(--rs);font-size:13px;background:var(--card);color:var(--text)}
+.no-bonus{font-size:10px;color:var(--orange);background:var(--orange-l);padding:2px 6px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.warn-bar{background:var(--red-l);color:var(--red);font-size:13px;font-weight:600;padding:10px 14px;border-radius:var(--rs);margin-bottom:12px;display:none}
+.sc-hdr{background:var(--card);border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:100}
+.band{border-radius:var(--rs);padding:10px 12px;margin-bottom:6px}
+.band:last-child{margin-bottom:0}
+.band-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.6}
+.band-row{display:flex;align-items:center;justify-content:space-between}
+.band-name{font-size:14px;font-weight:700}
+.band-score{font-size:26px;font-weight:800}
+.band-sub{font-size:11px;color:var(--muted)}
+.ball-row{display:flex;gap:6px;padding:10px 16px;flex-wrap:wrap}
+.bdot{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:1.5px solid var(--border);background:var(--grey-l);color:var(--muted);flex-shrink:0}
+.bdot.b-run{background:var(--green-l);border-color:var(--green);color:var(--green)}
+.bdot.b-four{background:#d1fae5;border-color:#059669;color:#065f46}
+.bdot.b-six{background:var(--purple-l);border-color:var(--purple);color:#4c1d95}
+.bdot.b-wkt{background:var(--red-l);border-color:var(--red);color:#7f1d1d}
+.bdot.b-wide{background:var(--orange-l);border-color:var(--orange);color:#7c2d12}
+.bdot.b-nb{background:#fef9c3;border-color:#ca8a04;color:#713f12}
+.bdot.b-bye{background:var(--blue-l);border-color:var(--blue);color:#1e3a8a}
+.bdot.b-cur{border:2px dashed var(--text);background:#fff}
+.t-strip{padding:8px 16px;font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.t-strip.ontrack{background:#f0fdf4;color:#166534}
+.t-strip.late{background:var(--red-l);color:#991b1b}
+.t-strip.early{background:var(--blue-l);color:#1e40af}
+.sel-row{padding:10px 16px 4px;display:flex;gap:8px}
+.sel-wrap{flex:1}
+.sel-lbl{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.sel-sel{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:14px;background:var(--card);color:var(--text)}
+/* Score pad - 4 cols */
+.sp{padding:10px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.sb{padding:13px 2px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--card);font-size:13px;font-weight:700;cursor:pointer;text-align:center;color:var(--text);line-height:1.3}
+.sb:active{transform:scale(.93)}
+.sb.four{background:#d1fae5;border-color:#059669;color:#065f46}
+.sb.six{background:var(--purple-l);border-color:var(--purple);color:#4c1d95}
+.sb.wide{background:var(--orange-l);border-color:var(--orange);color:#7c2d12}
+.sb.nb{background:#fef9c3;border-color:#ca8a04;color:#713f12}
+.sb.bye{background:var(--blue-l);border-color:var(--blue);color:#1e3a8a}
+.sb.wkt{background:var(--red-l);border-color:var(--red);color:#7f1d1d}
+.sb.undo{background:var(--grey-l);color:var(--muted);font-size:18px}
+.fb{text-align:center;font-size:13px;font-weight:600;padding:5px 16px;min-height:28px}
+.fb.good{color:var(--green)}.fb.bad{color:var(--red)}.fb.info{color:var(--blue)}
+.tot-bar{padding:10px 16px 20px;border-top:1px solid var(--border)}
+.tot-title{font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:.05em;margin-bottom:8px}
+.tot-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--rs);background:var(--grey-l);margin-bottom:5px}
+.tot-row.bat-now{background:var(--green-l)}
+.pdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.tot-name{flex:1;font-size:13px;font-weight:500}
+.tot-score{font-size:16px;font-weight:800}
+.tot-note{font-size:10px;color:var(--muted)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:flex-end}
+.sheet{background:var(--card);border-radius:20px 20px 0 0;padding:20px 16px 40px;width:100%;max-height:85vh;overflow-y:auto}
+.sheet-title{font-size:17px;font-weight:700;margin-bottom:4px}
+.sheet-sub{font-size:13px;color:var(--muted);margin-bottom:16px}
+.dis-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.dis-btn{padding:14px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--grey-l);font-size:14px;font-weight:600;cursor:pointer;text-align:center}
+.dis-btn.dis-sel{background:var(--red-l);border-color:var(--red);color:#7f1d1d}
+.runs-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.runs-inp{width:72px;padding:10px;border:1px solid var(--border);border-radius:var(--rs);font-size:20px;font-weight:700;text-align:center;background:var(--card);color:var(--text)}
+.step-btn{width:42px;height:42px;border-radius:50%;border:1px solid var(--border);background:var(--grey-l);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.pod-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r);margin-bottom:8px}
+.pod-rank{font-size:22px;font-weight:800;width:32px}
+.pod-info{flex:1}
+.pod-pname{font-size:15px;font-weight:700}
+.pod-players{font-size:12px;opacity:.7}
+.pod-breakdown{font-size:11px;color:var(--muted)}
+.pod-total{font-size:24px;font-weight:800}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-card{background:var(--grey-l);border-radius:var(--rs);padding:12px}
+.stat-val{font-size:22px;font-weight:800}
+.stat-lbl{font-size:12px;color:var(--muted)}
+.hidden{display:none!important}
+.gap{height:16px}
+.odd-note{font-size:13px;color:var(--orange);padding:8px 0 2px;line-height:1.5}
+.time-setting-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+/* ── STATS CARDS ── */
+.stats-screen-card{width:390px;max-width:100%;margin:0 auto 20px;background:var(--card);border-radius:16px;overflow:hidden;border:1px solid var(--border)}
+.stats-card-header{padding:18px 16px 14px;display:flex;align-items:center;gap:12px}
+.stats-avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0}
+.stats-player-name{font-size:17px;font-weight:700}
+.stats-pair-label{font-size:12px;opacity:.7}
+.stats-section{padding:10px 16px;border-top:1px solid var(--border)}
+.stats-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.stats-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.stats-label{font-size:13px;color:var(--muted)}
+.stats-val{font-size:14px;font-weight:700}
+.stats-big{font-size:28px;font-weight:800;line-height:1}
+.stats-sub{font-size:11px;color:var(--muted)}
+.stats-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.stats-mini{background:var(--grey-l);border-radius:8px;padding:8px 10px;text-align:center}
+.stats-mini-val{font-size:18px;font-weight:800}
+.stats-mini-lbl{font-size:10px;color:var(--muted)}
+.bowler-lb-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.bowler-lb-row:last-child{border-bottom:none}
+.bowler-lb-rank{font-size:14px;font-weight:700;width:24px;color:var(--muted)}
+.bowler-lb-name{flex:1;font-size:14px;font-weight:600}
+.bowler-lb-pair{font-size:11px;color:var(--muted)}
+.bowler-lb-net{font-size:16px;font-weight:800}
+.bowler-lb-net.good{color:var(--green)}
+.bowler-lb-net.bad{color:var(--red)}
+.nav-pills{display:flex;gap:8px;padding:12px 16px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav-pill{padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.nav-pill.active{background:var(--text);color:#fff;border-color:var(--text)}
+.screenshot-hint{font-size:12px;color:var(--muted);text-align:center;padding:8px 16px 0}
+
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="s-setup" class="screen active">
+  <div class="hdr"><div class="hdr-title">🏏 Pairs Cricket</div><div class="hdr-sub">New match setup</div></div>
+  <div class="pad">
+    <div class="card">
+      <div class="card-title">Number of players</div>
+      <div class="cnt-grid">
+        <div class="cnt-btn" onclick="selCount(8,this)">8</div>
+        <div class="cnt-btn" onclick="selCount(9,this)">9</div>
+        <div class="cnt-btn" onclick="selCount(10,this)">10</div>
+        <div class="cnt-btn" onclick="selCount(11,this)">11</div>
+        <div class="cnt-btn" onclick="selCount(12,this)">12</div>
+        <div class="cnt-btn" onclick="selCount(13,this)">13</div>
+        <div class="cnt-btn" onclick="selCount(14,this)">14</div>
+        <div class="cnt-btn" onclick="selCount(15,this)">15</div>
+      </div>
+      <div class="odd-note hidden" id="odd-note">⚠️ Odd number: the leaders pair bowl 2 extra overs at the end, no bowling bonus for those.</div>
+    </div>
+    <div class="card hidden" id="names-card">
+      <div class="card-title">Player names</div>
+      <div id="player-inputs"></div>
+    </div>
+    <div class="card hidden" id="settings-card">
+      <div class="card-title">Match settings</div>
+      <label class="lbl">Venue type</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <button class="btn btn-secondary" id="venue-indoor" onclick="setVenue('indoor')">🏠 Indoor (50 min)</button>
+        <button class="btn btn-secondary" id="venue-outdoor" onclick="setVenue('outdoor')">☀️ Outdoor (80 min)</button>
+      </div>
+      <label class="lbl">Match start time</label>
+      <input class="inp" type="time" id="start-time" value="14:00">
+      <div style="font-size:12px;color:var(--muted);margin-top:6px" id="time-note">Pacing is calculated by dividing the total match time equally across all overs.</div>
+    </div>
+    <div class="hidden" id="next-btn"><div class="gap"></div>
+      <button class="btn btn-primary" onclick="goToPairs()">Next: Assign pairs →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAIRS -->
+<div id="s-pairs" class="screen">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="back" onclick="show('s-setup')">← Back</button>
+      <div class="hdr-title">Assign pairs</div>
+      <button class="back" onclick="shufflePairs()">Shuffle</button>
+    </div>
+    <div class="hdr-sub">Tap a name to swap · lock pairs to protect them</div>
+  </div>
+  <div class="pad">
+    <div id="pair-list"></div>
+    <div class="gap"></div>
+    <button class="btn btn-primary" onclick="goToBowling()">Next: Bowling order →</button>
+    <button class="btn btn-secondary" onclick="shufflePairs()">🔀 Re-shuffle</button>
+  </div>
+</div>
+
+<!-- BOWLING ORDER -->
+<div id="s-bowling" class="screen">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="back" onclick="show('s-pairs')">← Back</button>
+      <div class="hdr-title">Bowling order</div>
+      <button class="back" onclick="resetBowling()">Reset</button>
+    </div>
+    <div class="hdr-sub">Change any over · everyone must bowl ≥2 overs</div>
+  </div>
+  <div class="pad">
+    <div class="warn-bar" id="bowl-warn">⚠️ <span id="warn-txt"></span></div>
+    <div class="card"><div class="card-title">Over by over</div><div id="bowl-list"></div></div>
+    <button class="btn btn-primary" onclick="startMatch()">Start match 🏏</button>
+  </div>
+</div>
+
+<!-- SCORING -->
+<div id="s-score" class="screen" style="padding-bottom:0">
+  <div class="sc-hdr">
+    <div id="bat-band" class="band c-purple">
+      <div class="band-row">
+        <div>
+          <div class="band-lbl">Batting</div>
+          <div class="band-name" id="bat-name">—</div>
+          <div class="band-sub" id="bat-info"></div>
+        </div>
+        <div class="band-score" id="bat-score">0</div>
+      </div>
+    </div>
+    <div id="bowl-band" class="band c-blue">
+      <div class="band-row">
+        <div>
+          <div class="band-lbl">Bowling</div>
+          <div class="band-name" id="bowl-name">—</div>
+          <div class="band-sub" id="bowl-note"></div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;color:var(--muted)">Bowl bonus</div>
+          <div style="font-size:20px;font-weight:800" id="bowl-bonus">+0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="t-strip ontrack" id="t-strip"><span id="t-msg">⏱ —</span><span id="t-end" style="font-size:12px;opacity:.7"></span></div>
+  <div class="ball-row" id="ball-row"></div>
+  <div class="sel-row">
+    <div class="sel-wrap"><div class="sel-lbl">Facing</div><select class="sel-sel" id="facing-sel"></select></div>
+    <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="bowling-sel"></select></div>
+  </div>
+  <div class="fb" id="fb"></div>
+  <div class="sp">
+    <button class="sb" onclick="ball(0,'0')">0</button>
+    <button class="sb" onclick="ball(1,'1')">1</button>
+    <button class="sb" onclick="ball(2,'2')">2</button>
+    <button class="sb" onclick="ball(3,'3')">3</button>
+    <button class="sb four" onclick="ball(4,'4r')">4<br><span style="font-size:10px;font-weight:500">ran</span></button>
+    <button class="sb four" onclick="ball(4,'4b')">4<br><span style="font-size:10px;font-weight:500">boundary</span></button>
+    <button class="sb six" onclick="ball(6,'6')">6</button>
+    <button class="sb" onclick="ball(5,'5')">5</button>
+    <button class="sb wide" onclick="showExtra('wide')">Wide</button>
+    <button class="sb nb" onclick="showExtra('nb')">No ball</button>
+    <button class="sb bye" onclick="showExtra('bye')">Bye/<br>Leg bye</button>
+    <button class="sb wkt" onclick="showWkt()">Wicket</button>
+    <button class="sb undo" style="grid-column:span 1" onclick="undoBall()">↩</button>
+    <div></div><div></div><div></div>
+  </div>
+  <div class="tot-bar">
+    <div class="tot-title">All pairs — running totals</div>
+    <div id="tot-list"></div>
+  </div>
+</div>
+
+<!-- END -->
+<div id="s-end" class="screen">
+  <div class="hdr"><div class="hdr-title">🏆 Final scores</div><div class="hdr-sub" id="end-sub"></div></div>
+  <div class="pad">
+    <div class="card"><div class="card-title">Leaderboard</div><div id="leaderboard"></div></div>
+    <div class="card"><div class="card-title">Match stats</div><div class="stat-grid" id="stat-grid"></div></div>
+    <div class="gap"></div>
+    <button class="btn btn-primary" onclick="exportCSV()">📊 Export to CSV</button>
+    <button class="btn btn-secondary" onclick="showStats()">📋 Player stats cards</button>
+    <button class="btn btn-secondary" onclick="showBowlerLB()">🎳 Bowling leaderboard</button>
+    <button class="btn btn-secondary" onclick="newMatch()">New match</button>
+    <div class="gap"></div>
+    <div class="card">
+      <div class="card-title">Saved matches</div>
+      <div id="saved-matches"><div style="font-size:13px;color:var(--muted)">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- STATS SCREEN -->
+<div id="s-stats" class="screen">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="back" onclick="show('s-end')">← Results</button>
+      <div class="hdr-title">Player stats</div>
+      <div style="width:60px"></div>
+    </div>
+    <div class="hdr-sub">Screenshot each card to save · swipe through pairs</div>
+  </div>
+  <div class="nav-pills" id="stats-nav"></div>
+  <div class="screenshot-hint">📸 Screenshot this card to save it</div>
+  <div class="pad" id="stats-card-area" style="padding-top:10px"></div>
+</div>
+
+<!-- BOWLER LEADERBOARD SCREEN -->
+<div id="s-bowlers" class="screen">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="back" onclick="show('s-end')">← Results</button>
+      <div class="hdr-title">Bowling leaderboard</div>
+      <div style="width:60px"></div>
+    </div>
+    <div class="hdr-sub">Net score = runs conceded − (5 × wickets). Lower is better.</div>
+  </div>
+  <div class="pad">
+    <div class="card" id="bowler-lb-card"></div>
+  </div>
+</div>
+
+<!-- TRANSITION MODAL -->
+<div class="overlay hidden" id="trans-modal">
+  <div class="sheet" id="trans-sheet" style="border-top:4px solid var(--grey);text-align:center;padding:32px 24px 48px">
+    <div style="font-size:36px;margin-bottom:8px">🏏</div>
+    <div class="sheet-title" id="trans-title" style="text-align:center;font-size:20px;margin-bottom:12px"></div>
+    <div id="trans-body" style="font-size:15px;color:var(--muted);margin-bottom:24px;line-height:1.6"></div>
+    <button class="btn btn-primary" onclick="hideTransitionModal()">Got it — continue</button>
+  </div>
+</div>
+
+<!-- EXTRA MODAL (wide / no ball / bye) -->
+<div class="overlay hidden" id="extra-modal">
+  <div class="sheet">
+    <div class="sheet-title" id="extra-title">Wide</div>
+    <div class="sheet-sub" id="extra-sub">Does not count as a ball. Add runs scored.</div>
+    <div class="card-title">Runs scored</div>
+    <div class="runs-row">
+      <button class="step-btn" onclick="stepE(-1)">−</button>
+      <input class="runs-inp" id="extra-runs" type="number" min="0" value="2">
+      <button class="step-btn" onclick="stepE(1)">+</button>
+      <span style="font-size:14px;color:var(--muted)" id="extra-unit">runs</span>
+    </div>
+    <button class="btn btn-primary" onclick="confirmExtra()">Add to score</button>
+    <button class="btn btn-secondary" onclick="hideExtra()" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- WICKET MODAL -->
+<div class="overlay hidden" id="wkt-modal">
+  <div class="sheet">
+    <div class="sheet-title">Wicket!</div>
+    <div class="sheet-sub">Batting pair loses 5 runs. Bowling pair gets +2 bonus (except run outs).</div>
+    <div class="card-title">Dismissal</div>
+    <div class="dis-grid">
+      <button class="dis-btn" id="d-Bowled" onclick="selDis('Bowled')">Bowled</button>
+      <button class="dis-btn" id="d-Caught" onclick="selDis('Caught')">Caught</button>
+      <button class="dis-btn" id="d-Stumped" onclick="selDis('Stumped')">Stumped</button>
+      <button class="dis-btn" id="d-Ceiling" onclick="selDis('Ceiling hit')">Ceiling hit</button>
+      <button class="dis-btn" id="d-Runout" onclick="selDis('Run out')">Run out</button>
+      <button class="dis-btn" id="d-Other" onclick="selDis('Other')">Other</button>
+    </div>
+    <div class="hidden" id="runout-sec">
+      <div class="card-title">Runs scored before the run out</div>
+      <div class="runs-row">
+        <button class="step-btn" onclick="stepRO(-1)">−</button>
+        <input class="runs-inp" id="ro-runs" type="number" min="0" max="6" value="0">
+        <button class="step-btn" onclick="stepRO(1)">+</button>
+        <span style="font-size:13px;color:var(--muted)">runs, then −5 penalty</span>
+      </div>
+    </div>
+    <button class="btn btn-primary hidden" id="wkt-confirm" onclick="confirmWkt()">Confirm wicket</button>
+    <button class="btn btn-secondary" onclick="hideWkt()" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════
+const COLORS=['purple','blue','grey','red','green','orange','pink'];
+const CNAMES=['Purple','Blue','Grey','Red','Green','Orange','Pink'];
+const DEFAULTS=['Alice','Bob','Charlie','Diana','Ed','Fiona','George','Hannah','Ivan','Jane','Karl','Laura','Mike','Nadia','Oli'];
+
+// ══════════════════════════════════════════
+// EXACT BOWLING SCHEDULES FROM EXCEL
+// Pair indices: 0=Purple,1=Blue,2=Grey,3=Red,4=Green,5=Orange,6=Pink
+// 'L' = current leaders, '2' = current 2nd place
+// Each sub-array = bowlers for each over when that pair bats
+// ══════════════════════════════════════════
+const SCHED = {
+  8: { opp:5, slots:{
+    0:[2,2,1,1,3],        // Purple bats: Grey,Grey,Blue,Blue,Red
+    1:[3,0,0,2,2],        // Blue bats: Red,Purple,Purple,Grey,Grey
+    2:[3,3,1,1,0],        // Grey bats: Red,Red,Blue,Blue,Purple
+    3:[0,'2','2','L','L'] // Red bats: Purple,2nd,2nd,Leaders,Leaders
+  }},
+  10: { opp:4, slots:{
+    0:[2,2,3,3],  // Purple: Grey,Grey,Red,Red
+    1:[4,4,0,0],  // Blue: Green,Green,Purple,Purple
+    2:[1,1,3,3],  // Grey: Blue,Blue,Red,Red
+    3:[2,2,4,4],  // Red: Grey,Grey,Green,Green
+    4:[0,0,1,1]   // Green: Purple,Purple,Blue,Blue
+  }},
+  12: { opp:4, slots:{
+    0:[2,2,3,3],  // Purple: Grey,Grey,Red,Red
+    1:[4,4,5,5],  // Blue: Green,Green,Orange,Orange
+    2:[0,0,1,1],  // Grey: Purple,Purple,Blue,Blue
+    3:[4,4,5,5],  // Red: Green,Green,Orange,Orange  -- NOTE: from Excel Green,Orange
+    4:[2,2,3,3],  // Green: Grey,Grey,Red,Red  -- from Excel Grey,Red
+    5:[0,0,1,1]   // Orange: Purple,Purple,Blue,Blue
+  }},
+  14: { opp:4, slots:{
+    0:[2,2,3,3],  // Purple: Grey,Grey,Red,Red
+    1:[4,4,5,5],  // Blue: Green,Green,Orange,Orange
+    2:[6,6,0,0],  // Grey: Pink,Pink,Purple,Purple
+    3:[1,1,4,4],  // Red: Blue,Blue,Green,Green
+    4:[2,2,5,5],  // Green: Grey,Grey,Orange,Orange  -- from Excel Grey,Orange
+    5:[6,6,3,3],  // Orange: Pink,Pink,Red,Red
+    6:[0,0,1,1]   // Pink: Purple,Purple,Blue,Blue
+  }},
+  // ODD COUNTS — same structure, leaders bowl 2 extra at end
+  9: { opp:4, odd:true, slots:{
+    0:[2,2,3,3],  // Purple: Grey,Grey,Red,Red
+    1:[4,4,0,0],  // Blue: Green,Green,Purple,Purple  -- from Excel over1=Green,over2=Purple,over3=Purple,over4=Red -> [4,0,0,3]
+    2:[3,1,1,4],  // Grey: Red,Blue,Blue,Green
+    3:[2,2,0,0],  // Red: Grey,Grey,Purple,Purple
+    4:[1,1,'L','L'] // Green: Blue,Blue,Leaders,Leaders
+  }},
+  11: { opp:4, odd:true, slots:{
+    0:[2,2,3,3],    // Purple: Grey,Grey,Red,Red
+    1:[4,4,5,0],    // Blue: Green,Green,Orange,Purple
+    2:[0,1,1,4],    // Grey: Purple,Blue,Blue,Green
+    3:[4,5,2,2],    // Red: Green,Orange,Grey,Grey
+    4:[3,3,0,0],    // Green: Red,Red,Purple,Purple
+    5:[1,1,'L','L'] // Orange: Blue,Blue,Leaders,Leaders
+  }},
+  13: { opp:4, odd:true, slots:{
+    0:[2,2,3,3],    // Purple: Grey,Grey,Red,Red
+    1:[4,4,5,5],    // Blue: Green,Green,Orange,Orange
+    2:[6,0,0,1],    // Grey: Pink,Purple,Purple,Blue
+    3:[1,2,2,3],    // Red: Blue,Grey,Grey,Red -- NOTE Red can't bowl to Red, checking...
+    4:[3,5,5,6],    // Green: Red,Orange,Orange,Pink
+    5:[4,4,0,0],    // Orange: Green,Green,Purple,Purple
+    6:[1,1,'L','L'] // Pink: Blue,Blue,Leaders,Leaders
+  }},
+  15: { opp:4, odd:true, slots:{
+    0:[2,2,3,3],
+    1:[4,4,5,5],
+    2:[6,6,0,0],
+    3:[1,1,4,4],
+    4:[2,2,5,5],
+    5:[6,6,3,3],
+    6:[0,0,1,1],
+    7:[2,2,3,3]
+  }}
+};
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let G={};
+function freshState(){
+  return{numPlayers:0,numPairs:0,isOdd:false,players:[],pairs:[],locked:[],
+    startTime:'14:00',matchDurMins:50,matchStartMs:0,
+    opp:4,totalOvers:0,
+    batSched:[],bowlSched:[],noBonusOvers:new Set(),
+    overIdx:0,ballInOver:0,
+    scores:[],  // [{bat, bowl}] — bat can go negative, display as-is
+    history:[],
+    pendingTransition:null,
+    oddExtraStart:-1};
+}
+G=freshState();
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
+
+// ══════════════════════════════════════════
+// SETUP
+// ══════════════════════════════════════════
+let venueMins = 50;
+function setVenue(type){
+  venueMins = type==='indoor'?50:80;
+  document.getElementById('venue-indoor').className='btn '+(type==='indoor'?'btn-primary':'btn-secondary');
+  document.getElementById('venue-outdoor').className='btn '+(type==='outdoor'?'btn-primary':'btn-secondary');
+  document.getElementById('time-note').textContent = `Pacing divides ${venueMins} minutes equally across all overs. Each over should take ~${(venueMins / (G.numPairs * (G.numPairs===4?5:4) || 20)).toFixed(1)} min.`;
+}
+
+function selCount(n,el){
+  G.numPlayers=n;G.numPairs=Math.ceil(n/2);G.isOdd=n%2!==0;
+  document.querySelectorAll('.cnt-btn').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');
+  document.getElementById('odd-note').classList.toggle('hidden',!G.isOdd);
+  buildNames(n);
+  ['names-card','settings-card','next-btn'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+  // update time note with rough per-over time
+  const totalOvers = G.numPairs * (n===8?5:4);
+  document.getElementById('time-note').textContent=`Pacing divides the match duration equally across all ${totalOvers} overs.`;
+}
+
+function buildNames(n){
+  const c=document.getElementById('player-inputs');c.innerHTML='';
+  for(let i=0;i<n;i++){
+    const pi=Math.floor(i/2),row=document.createElement('div');row.className='pi-row';
+    row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}">`;
+    c.appendChild(row);
+  }
+}
+
+function goToPairs(){
+  if(!G.numPlayers)return;
+  G.players=Array.from({length:G.numPlayers},(_,i)=>document.getElementById('p'+i).value.trim()||'Player '+(i+1));
+  G.startTime=document.getElementById('start-time').value||'14:00';
+  G.matchDurMins=venueMins;
+  G.locked=new Array(G.numPairs).fill(false);
+  initPairs();renderPairs();show('s-pairs');
+}
+
+// ══════════════════════════════════════════
+// PAIRS
+// ══════════════════════════════════════════
+function initPairs(){
+  G.pairs=Array.from({length:G.numPairs},(_,p)=>({
+    color:COLORS[p],cname:CNAMES[p],
+    players:G.isOdd&&p===G.numPairs-1?[G.players[p*2]||'TBC']:[G.players[p*2]||'TBC',G.players[p*2+1]||'TBC']
+  }));
+}
+
+let swapQ=null;
+function renderPairs(){
+  const c=document.getElementById('pair-list');c.innerHTML='';
+  G.pairs.forEach((pair,p)=>{
+    const locked=G.locked[p],div=document.createElement('div');div.className=`pair-card c-${pair.color}`;
+    div.innerHTML=`<div class="pair-hdr"><span style="font-size:15px;font-weight:700" class="t-${pair.color}">${pair.cname} pair</span><button class="lock-btn" onclick="toggleLock(${p})">${locked?'🔒 Locked':'🔓 Lock'}</button></div>
+    <div class="pair-players">${pair.players.map((pl,pos)=>`<div class="pchip${locked?' locked-chip':''}${swapQ&&swapQ.p===p&&swapQ.pos===pos?' pending':''}" onclick="${locked?'':'doSwap('+p+','+pos+')'}">${pl}</div>`).join('')}${pair.players.length===1?`<div class="pchip" style="opacity:.4;cursor:default">Solo</div>`:''}</div>`;
+    c.appendChild(div);
+  });
+}
+
+function toggleLock(p){G.locked[p]=!G.locked[p];renderPairs();}
+function doSwap(p,pos){
+  if(!swapQ){swapQ={p,pos};renderPairs();setFb('Tap another player to swap','info');}
+  else if(swapQ.p===p&&swapQ.pos===pos){swapQ=null;renderPairs();setFb('','');}
+  else{
+    const a=G.pairs[swapQ.p].players[swapQ.pos],b=G.pairs[p].players[pos];
+    G.pairs[swapQ.p].players[swapQ.pos]=b;G.pairs[p].players[pos]=a;
+    swapQ=null;renderPairs();setFb('Swapped!','good');setTimeout(()=>setFb('',''),1500);
+  }
+}
+function shufflePairs(){
+  let pool=[];G.pairs.forEach((pair,p)=>{if(!G.locked[p])pool.push(...pair.players);});
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
+  let fi=0;G.pairs.forEach((pair,p)=>{if(!G.locked[p])pair.players=pair.players.map(()=>pool[fi++]);});
+  renderPairs();
+}
+
+// ══════════════════════════════════════════
+// BOWLING SCHEDULE
+// ══════════════════════════════════════════
+function rankByScore(){
+  // Returns pair indices sorted by total score desc
+  return G.pairs.map((_,i)=>i).sort((a,b)=>(G.scores[b].bat+G.scores[b].bowl)-(G.scores[a].bat+G.scores[a].bowl));
+}
+
+function resolveL(val,batIdx){
+  if(val==='L'){
+    const ranked=rankByScore();
+    for(const ri of ranked){if(ri!==batIdx)return ri;}
+    return (batIdx+1)%G.numPairs;
+  }
+  if(val==='2'){
+    const ranked=rankByScore();
+    for(let i=1;i<ranked.length;i++){if(ranked[i]!==batIdx)return ranked[i];}
+    return (batIdx+2)%G.numPairs;
+  }
+  return Math.min(typeof val==='number'?val:0, G.numPairs-1);
+}
+
+function buildSchedule(){
+  const s=SCHED[G.numPlayers]||SCHED[10];
+  G.opp=s.opp||4;
+  G.batSched=[];G.bowlSched=[];G.noBonusOvers=new Set();
+  G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
+  const np=G.numPairs;
+  for(let bi=0;bi<np;bi++){
+    const slot=s.slots[bi]||s.slots[0];
+    for(let o=0;o<G.opp;o++){
+      G.batSched.push(bi);
+      let raw=slot[o]??0;
+      let bowler=resolveL(raw,bi);
+      if(bowler===bi)bowler=(bi+1)%np;
+      bowler=Math.min(bowler,np-1);
+      G.bowlSched.push(bowler);
+    }
+  }
+  if(s.odd){
+    // Leaders bowl 2 extra overs at end — but the solo pair (np-1) already has 4 overs above.
+    // We tag these as a SEPARATE virtual batting pair index = np (out of range)
+    // so updateUI handles them specially (no batting pair changes, just extra bowling).
+    // Actually simplest: just mark these overs so the batting band shows "Extra overs".
+    G.oddExtraStart=G.batSched.length; // save where extras begin
+    for(let e=0;e<2;e++){
+      const oi=G.batSched.length;
+      G.batSched.push(99); // 99 = sentinel for "extra over, no batting pair"
+      G.bowlSched.push(np-1); // solo/leaders pair bowls
+      G.noBonusOvers.add(oi);
+    }
+  } else {
+    G.oddExtraStart=-1;
+  }
+  G.totalOvers=G.batSched.length;
+}
+
+function goToBowling(){buildSchedule();renderBowling();show('s-bowling');}
+function resetBowling(){buildSchedule();renderBowling();}
+
+function renderBowling(){
+  const c=document.getElementById('bowl-list');c.innerHTML='';
+  for(let o=0;o<G.totalOvers;o++){
+    const bi=G.batSched[o],bwi=G.bowlSched[o],bp=G.pairs[bi],noB=G.noBonusOvers.has(o);
+    const row=document.createElement('div');row.className='bo-row';
+    const opts=G.pairs.map((p,i)=>`<option value="${i}"${i===bwi?' selected':''}>${p.cname}</option>`).join('');
+    row.innerHTML=`<div class="bo-over">O${o+1}</div><div style="padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap;flex-shrink:0" class="c-${bp.color} t-${bp.color}" style="border-left:none">${bp.cname} bats</div><select class="bo-sel" onchange="changeBowler(${o},this.value)">${opts}</select>${noB?'<span class="no-bonus">no bonus</span>':''}`;
+    c.appendChild(row);
+  }
+  validateBowling();
+}
+
+function changeBowler(o,v){
+  const ni=parseInt(v),bi=G.batSched[o];
+  if(ni===bi){alert('A pair cannot bowl to themselves!');renderBowling();return;}
+  G.bowlSched[o]=ni;validateBowling();
+}
+function validateBowling(){
+  const cnt=new Array(G.numPairs).fill(0);
+  G.bowlSched.forEach((p,o)=>{if(!G.noBonusOvers.has(o))cnt[p]++;});
+  const vio=G.pairs.map((p,i)=>cnt[i]<2?p.cname:null).filter(Boolean);
+  const w=document.getElementById('bowl-warn');
+  if(vio.length){document.getElementById('warn-txt').textContent=vio.join(', ')+' bowl fewer than 2 overs';w.style.display='block';}
+  else w.style.display='none';
+}
+
+// ══════════════════════════════════════════
+// SCORING
+// ══════════════════════════════════════════
+function startMatch(){
+  G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
+  G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();
+  show('s-score');updateUI();
+}
+
+const batIdx=()=>G.batSched[G.overIdx]??0;
+const bowlIdx=()=>G.bowlSched[G.overIdx]??0;
+
+function updateUI(){
+  if(G.overIdx>=G.totalOvers){endMatch();return;}
+  const bi=batIdx(),bwi=bowlIdx(),noB=G.noBonusOvers.has(G.overIdx);
+  const isExtraOver=(bi===99);
+  const bp=isExtraOver?{color:'grey',cname:'Extra overs',players:['—']}:G.pairs[bi];
+
+  // Resolve bowling pair — for extra overs, avoid self-bowl: pick first pair != np-1
+  let resolvedBwi=bwi;
+  if(isExtraOver){
+    // Extra overs: leader pair bowls, no batting pair to conflict with
+    resolvedBwi=G.numPairs-1;
+  }
+  const bwp=G.pairs[Math.min(resolvedBwi,G.numPairs-1)];
+  const isSoloBowler=bwp&&bwp.players.length===1;
+
+  document.getElementById('bat-band').className=`band c-${bp.color}`;
+  document.getElementById('bat-name').textContent=isExtraOver?'Extra overs (leaders bowling)':`${bp.cname} — ${bp.players.join(' & ')}`;
+  document.getElementById('bat-score').textContent=isExtraOver?'—':G.scores[bi].bat;
+
+  // Countdown: balls left in over + overs left for this batting pair
+  const ballsLeft=6-G.ballInOver;
+  let oversLeftForBatter='';
+  if(!isExtraOver){
+    const oversInThisSlot=G.opp;
+    // Count how many overs this batter has had so far including current
+    const batsThisSlot=G.batSched.slice(0,G.overIdx+1).filter(x=>x===bi).length;
+    const remainingOvers=oversInThisSlot-batsThisSlot;
+    oversLeftForBatter=` · ${remainingOvers} over${remainingOvers!==1?'s':''} left batting`;
+  }
+  document.getElementById('bat-info').textContent=`Over ${G.overIdx+1}/${G.totalOvers} · ${ballsLeft} ball${ballsLeft!==1?'s':''} left${oversLeftForBatter}`;
+
+  document.getElementById('bowl-band').className=`band c-${bwp.color}`;
+  document.getElementById('bowl-name').textContent=`${bwp.cname} — ${bwp.players.join(' & ')}${isSoloBowler?' 👤 solo':''}`;
+  let bowlNote=noB?'No bowling bonus this over':'';
+  if(isSoloBowler&&!noB)bowlNote='Solo player — double bowling bonus (+4 per wicket)';
+  document.getElementById('bowl-note').textContent=bowlNote;
+  document.getElementById('bowl-bonus').textContent=`+${G.scores[resolvedBwi].bowl}`;
+
+  document.getElementById('facing-sel').innerHTML=(isExtraOver?['—']:bp.players).map(p=>`<option>${p}</option>`).join('');
+  document.getElementById('bowling-sel').innerHTML=bwp.players.map(p=>`<option>${p}</option>`).join('');
+
+  // Check if we need to show a transition modal (new batting or bowling pair)
+  checkTransitions();
+  renderBalls();renderTotals();updateTime();
+}
+
+function renderBalls(){
+  const c=document.getElementById('ball-row');c.innerHTML='';
+  const legal=G.history.filter(b=>b.over===G.overIdx&&b.legal);
+  const extras=G.history.filter(b=>b.over===G.overIdx&&!b.legal);
+  for(let i=0;i<6;i++){
+    const d=document.createElement('div');
+    if(i<legal.length){const b=legal[i];d.className='bdot '+bCls(b);d.textContent=bLbl(b);}
+    else if(i===G.ballInOver){d.className='bdot b-cur';d.textContent='·';}
+    else{d.className='bdot';d.textContent='·';}
+    c.appendChild(d);
+  }
+  extras.forEach(b=>{const d=document.createElement('div');d.className='bdot '+bCls(b);d.textContent=bLbl(b);c.appendChild(d);});
+}
+function bCls(b){
+  if(b.type==='wkt')return 'b-wkt';
+  if(b.type==='wide')return 'b-wide';
+  if(b.type==='nb')return 'b-nb';
+  if(b.type==='bye'||b.type==='legbye')return 'b-bye';
+  if(b.run===6)return 'b-six';
+  if(b.run===4)return 'b-four';
+  if(b.run>0)return 'b-run';
+  return '';
+}
+function bLbl(b){
+  if(b.type==='wide')return 'Wd';
+  if(b.type==='nb')return 'NB';
+  if(b.type==='bye')return 'By';
+  if(b.type==='legbye')return 'LB';
+  if(b.type==='wkt')return 'W';
+  return b.run;
+}
+
+function renderTotals(){
+  const c=document.getElementById('tot-list');c.innerHTML='';
+  const bi=batIdx(),bwi=bowlIdx();
+  G.pairs.forEach((p,i)=>{
+    const row=document.createElement('div');row.className='tot-row'+(i===bi?' bat-now':'');
+    const tot=G.scores[i].bat+G.scores[i].bowl;  // can be negative, show as-is
+    let note=i===bi?'batting now':i===bwi?`+${G.scores[i].bowl} bowl bonus`:'';
+    row.innerHTML=`<div class="pdot d-${p.color}"></div><div class="tot-name">${p.cname} — ${p.players.join(' & ')}</div><div style="text-align:right"><div class="tot-score">${tot}</div>${note?`<div class="tot-note">${note}</div>`:''}</div>`;
+    c.appendChild(row);
+  });
+}
+
+function updateTime(){
+  const [h,m]=G.startTime.split(':').map(Number),startM=h*60+m;
+  const secsPerOver=G.matchDurMins*60/G.totalOvers;
+  const endM=startM+G.matchDurMins;
+  const endH=Math.floor(endM/60)%24,endMin=endM%60;
+  const endStr=`${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
+  // Next over target time
+  const nextOverMins=startM+(G.overIdx+1)*G.matchDurMins/G.totalOvers;
+  const nh=Math.floor(nextOverMins/60)%24,nm=Math.round(nextOverMins%60);
+  const nextStr=`${String(nh).padStart(2,'0')}:${String(nm).padStart(2,'0')}`;
+  const elapsed=(Date.now()-G.matchStartMs)/1000;
+  const expected=G.overIdx*secsPerOver;
+  const strip=document.getElementById('t-strip'),diff=elapsed-expected;
+  const minsPerOver=(G.matchDurMins/G.totalOvers).toFixed(1);
+  if(diff>60){strip.className='t-strip late';document.getElementById('t-msg').textContent=`⏱ Running behind — next over by ${nextStr}`;}
+  else if(diff<-60){strip.className='t-strip early';document.getElementById('t-msg').textContent=`⏱ Ahead — next over by ${nextStr}`;}
+  else{strip.className='t-strip ontrack';document.getElementById('t-msg').textContent=`⏱ On track — next over by ${nextStr}`;}
+  document.getElementById('t-end').textContent=`Finish: ${endStr} (~${minsPerOver} min/over)`;
+}
+
+// ── BALL RECORDING ─────────────────────────────────────
+function ball(run,code){
+  if(G.overIdx>=G.totalOvers)return;
+  const bi=batIdx(),bwi=bowlIdx(),snap=snap_scores();
+  G.history.push({run,code,type:'normal',legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap});
+  G.scores[bi].bat+=run;  // NO floor at 0 — can go negative
+  G.ballInOver++;setFb('','');checkOver();updateUI();
+}
+
+function snap_scores(){return G.scores.map(s=>({...s}));}
+function fsel(){return document.getElementById('facing-sel').value;}
+function bsel(){return document.getElementById('bowling-sel').value;}
+
+// EXTRAS (wide, no ball, bye, leg bye) — do NOT advance ball count
+let extraType='';
+function showExtra(type){
+  extraType=type;
+  const titles={wide:'Wide',nb:'No ball',bye:'Bye / Leg bye'};
+  const subs={wide:'Counts as a ball.',nb:'Counts as a ball.',bye:'Byes and leg byes count as a ball.'};
+  const mins={wide:2,nb:2,bye:0};
+  document.getElementById('extra-title').textContent=titles[type]||type;
+  document.getElementById('extra-sub').textContent=subs[type]||'';
+  document.getElementById('extra-runs').value=mins[type]??0;
+  document.getElementById('extra-runs').min=mins[type]??0;
+  document.getElementById('extra-modal').classList.remove('hidden');
+}
+function hideExtra(){document.getElementById('extra-modal').classList.add('hidden');}
+function stepE(d){const el=document.getElementById('extra-runs');el.value=Math.max(parseInt(el.min||0),parseInt(el.value||0)+d);}
+function confirmExtra(){
+  const minR=extraType==='bye'?0:2;
+  const run=Math.max(minR,parseInt(document.getElementById('extra-runs').value)||0);
+  hideExtra();
+  const bi=batIdx(),bwi=bowlIdx(),snap=snap_scores();
+  // All extras count as a ball
+  G.history.push({run,code:extraType,type:extraType,legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap});
+  G.scores[bi].bat+=run;
+  G.ballInOver++;checkOver();
+  setFb(`${extraType==='bye'?'Bye':extraType==='wide'?'Wide':'No ball'} +${run}`,'info');
+  updateUI();
+}
+
+// WICKET
+let pendingDis='';
+function showWkt(){
+  pendingDis='';
+  document.querySelectorAll('.dis-btn').forEach(b=>b.classList.remove('dis-sel'));
+  document.getElementById('runout-sec').classList.add('hidden');
+  document.getElementById('wkt-confirm').classList.add('hidden');
+  document.getElementById('wkt-modal').classList.remove('hidden');
+}
+function hideWkt(){document.getElementById('wkt-modal').classList.add('hidden');}
+const DIS_IDS={'Bowled':'d-Bowled','Caught':'d-Caught','Stumped':'d-Stumped','Ceiling hit':'d-Ceiling','Run out':'d-Runout','Other':'d-Other'};
+function selDis(type){
+  pendingDis=type;
+  document.querySelectorAll('.dis-btn').forEach(b=>b.classList.remove('dis-sel'));
+  if(DIS_IDS[type])document.getElementById(DIS_IDS[type]).classList.add('dis-sel');
+  document.getElementById('runout-sec').classList.toggle('hidden',type!=='Run out');
+  if(type==='Run out')document.getElementById('ro-runs').value=0;
+  document.getElementById('wkt-confirm').classList.remove('hidden');
+}
+function stepRO(d){const el=document.getElementById('ro-runs');el.value=Math.max(0,parseInt(el.value||0)+d);}
+function confirmWkt(){
+  if(!pendingDis)return;
+  hideWkt();
+  const bi=batIdx(),bwi=bowlIdx(),noB=G.noBonusOvers.has(G.overIdx);
+  const isRunout=pendingDis==='Run out';
+  const runsFirst=isRunout?(parseInt(document.getElementById('ro-runs').value)||0):0;
+  const snap=snap_scores();
+  const netRun=runsFirst-5;
+  G.history.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,noBonus:noB,isRunout});
+  G.scores[bi].bat+=netRun;   // can go negative — no floor
+  if(!noB&&!isRunout){
+    const isSolo=G.pairs[bwi]&&G.pairs[bwi].players.length===1;
+    G.scores[bwi].bowl+=isSolo?4:2;
+  }
+  G.ballInOver++;
+  let msg=`${pendingDis}! ${runsFirst>0?runsFirst+' run'+(runsFirst!==1?'s':'')+' then ':''}-5 penalty`;
+  if(!isRunout&&!noB){const isSolo=G.pairs[bwi]&&G.pairs[bwi].players.length===1;msg+=isSolo?' · +4 bowl bonus (solo)':' · +2 bowl bonus';}
+  if(isRunout)msg+=' · no bowl bonus (run out)';
+  setFb(msg,'bad');
+  checkOver();updateUI();
+}
+
+function checkOver(){
+  if(G.ballInOver>=6){
+    G.ballInOver=0;
+    const prevBat=G.batSched[G.overIdx],prevBowl=G.bowlSched[G.overIdx];
+    G.overIdx++;
+    if(G.overIdx<G.totalOvers){
+      const newBat=G.batSched[G.overIdx],newBowl=G.bowlSched[G.overIdx];
+      const batChanged=(newBat!==prevBat);
+      const bowlChanged=(newBowl!==prevBowl);
+      if(batChanged||bowlChanged){
+        G.pendingTransition={batChanged,bowlChanged,newBat,newBowl,prevBat,prevBowl};
+      }
+    }
+  }
+}
+
+function undoBall(){
+  if(!G.history.length)return;
+  const b=G.history.pop();
+  G.scores=b.snap.map(s=>({...s}));
+  if(b.legal){
+    G.ballInOver--;
+    if(G.ballInOver<0){G.overIdx=Math.max(0,G.overIdx-1);G.ballInOver=5;}
+  }
+  setFb('Undone','info');setTimeout(()=>setFb('',''),1500);updateUI();
+}
+
+function setFb(msg,type){const el=document.getElementById('fb');el.textContent=msg;el.className='fb'+(type?' '+type:'');}
+
+function checkTransitions(){
+  if(!G.pendingTransition)return;
+  const t=G.pendingTransition;
+  G.pendingTransition=null;
+  const np=G.numPairs;
+  let title='',body='',color='grey';
+  if(t.batChanged&&t.bowlChanged){
+    const nb=t.newBat===99?{cname:'Extra overs',color:'grey'}:G.pairs[Math.min(t.newBat,np-1)];
+    const nbw=G.pairs[Math.min(t.newBowl,np-1)];
+    title='New batting & bowling pair';
+    body=`<b style="color:var(--${nb.color})">${nb.cname}</b> now batting<br><b style="color:var(--${nbw.color})">${nbw.cname}</b> now bowling`;
+    color=nb.color;
+  } else if(t.batChanged){
+    const nb=t.newBat===99?{cname:'Extra overs',color:'grey'}:G.pairs[Math.min(t.newBat,np-1)];
+    title='New batting pair';
+    body=`<b style="color:var(--${nb.color})">${nb.cname}</b> now batting`;
+    color=nb.color;
+  } else if(t.bowlChanged){
+    const nbw=G.pairs[Math.min(t.newBowl,np-1)];
+    title='New bowling pair';
+    body=`<b style="color:var(--${nbw.color})">${nbw.cname}</b> now bowling`;
+    color=nbw.color;
+  }
+  if(title) showTransitionModal(title,body,color);
+}
+
+function showTransitionModal(title,body,color){
+  document.getElementById('trans-title').textContent=title;
+  document.getElementById('trans-body').innerHTML=body;
+  document.getElementById('trans-modal').className=`overlay`;
+  document.getElementById('trans-sheet').style.borderTop=`4px solid var(--${color})`;
+}
+function hideTransitionModal(){
+  document.getElementById('trans-modal').classList.add('hidden');
+}
+
+
+// ══════════════════════════════════════════
+// STATS COMPUTATION
+// ══════════════════════════════════════════
+const COLOR_HEX={purple:'#7c3aed',blue:'#2563eb',grey:'#4b5563',red:'#dc2626',green:'#16a34a',orange:'#ea580c',pink:'#db2777'};
+
+function computeStats(){
+  // Per-pair batting stats
+  const pairStats=G.pairs.map((pair,pi)=>{
+    const batBalls=G.history.filter(b=>b.batPair===pi&&b.type==='normal');
+    const extraBalls=G.history.filter(b=>b.batPair===pi&&(b.type==='wide'||b.type==='nb'||b.type==='bye'));
+    const wkts=G.history.filter(b=>b.batPair===pi&&b.type==='wkt');
+    const totalRuns=G.scores[pi].bat; // final bat score (includes penalties)
+    const fours=batBalls.filter(b=>b.run===4).length;
+    const sixes=batBalls.filter(b=>b.run===6).length;
+    const dotBalls=batBalls.filter(b=>b.run===0).length;
+    // Individual runs per player (normal deliveries only, by facing player)
+    const playerRuns={};
+    pair.players.forEach(p=>playerRuns[p]=0);
+    batBalls.forEach(b=>{if(b.facing&&playerRuns[b.facing]!==undefined)playerRuns[b.facing]+=b.run;});
+
+    // Bowling stats (when this pair was bowling)
+    const bowlBalls=G.history.filter(b=>b.bowlPair===pi&&b.over<G.totalOvers);
+    const runsGivenBowl=bowlBalls.reduce((s,b)=>s+(b.run>0?b.run:0),0);
+    const wktsTakenBowl=G.history.filter(b=>b.bowlPair===pi&&b.type==='wkt'&&!b.isRunout).length;
+    const bowlNet=runsGivenBowl-(5*wktsTakenBowl);
+    const legalOvers=Math.floor(bowlBalls.filter(b=>b.legal).length/6);
+    const legalBallsRem=bowlBalls.filter(b=>b.legal).length%6;
+    const oversStr=legalBallsRem?`${legalOvers}.${legalBallsRem}`:`${legalOvers}`;
+    const rpOver=legalOvers>0?(runsGivenBowl/legalOvers).toFixed(1):'—';
+
+    // Per-player bowling stats
+    const playerBowl={};
+    pair.players.forEach(p=>{playerBowl[p]={balls:0,runs:0,wkts:0};});
+    bowlBalls.forEach(b=>{
+      if(b.bowling&&playerBowl[b.bowling]!==undefined){
+        playerBowl[b.bowling].balls++;
+        if(b.run>0)playerBowl[b.bowling].runs+=b.run;
+      }
+    });
+    G.history.filter(b=>b.bowlPair===pi&&b.type==='wkt'&&!b.isRunout).forEach(b=>{
+      if(b.bowling&&playerBowl[b.bowling]!==undefined)playerBowl[b.bowling].wkts++;
+    });
+
+    return{pair,pi,totalRuns,fours,sixes,dotBalls,wkts:wkts.length,playerRuns,
+      runsGivenBowl,wktsTakenBowl,bowlNet,oversStr,rpOver,playerBowl};
+  });
+  return pairStats;
+}
+
+function showStats(){
+  const stats=computeStats();
+  G._lastStats=stats;
+  // Build nav pills
+  const nav=document.getElementById('stats-nav');
+  nav.innerHTML=stats.map((s,i)=>`<div class="nav-pill${i===0?' active':''}" onclick="showStatCard(${i})">${s.pair.cname}</div>`).join('');
+  showStatCard(0);
+  show('s-stats');
+}
+
+function showStatCard(idx){
+  const stats=G._lastStats;
+  if(!stats)return;
+  // Update nav
+  document.querySelectorAll('.nav-pill').forEach((p,i)=>p.classList.toggle('active',i===idx));
+  const s=stats[idx];
+  const pair=s.pair;
+  const col=COLOR_HEX[pair.color]||'#4b5563';
+  const isSolo=pair.players.length===1;
+
+  // Individual batting rows
+  const indivBatRows=pair.players.map(p=>`
+    <div class="stats-row">
+      <span class="stats-label">👤 ${p}</span>
+      <span class="stats-val">${s.playerRuns[p]??0} runs</span>
+    </div>`).join('');
+
+  // Per-player bowling rows
+  const indivBowlRows=pair.players.map(p=>{
+    const pb=s.playerBowl[p]||{balls:0,runs:0,wkts:0};
+    const overs=Math.floor(pb.balls/6),rem=pb.balls%6;
+    const oversStr=rem?`${overs}.${rem}`:`${overs}`;
+    const net=pb.runs-(5*pb.wkts);
+    return`<div class="stats-row">
+      <span class="stats-label">👤 ${p}</span>
+      <span class="stats-val">${oversStr} ov · ${pb.runs} runs · ${pb.wkts} wkt${pb.wkts!==1?'s':''} · net <b>${net}</b></span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('stats-card-area').innerHTML=`
+    <div class="stats-screen-card" id="screenshot-card-${idx}">
+      <div class="stats-card-header" style="background:${col}15;border-bottom:3px solid ${col}">
+        <div class="stats-avatar" style="background:${col}">${pair.players.map(p=>p[0]).join('')}</div>
+        <div>
+          <div class="stats-player-name">${pair.players.join(' & ')}</div>
+          <div class="stats-pair-label">${pair.cname} pair${isSolo?' · Solo player':''}</div>
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-section-title">🏏 Pair batting</div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
+          <div class="stats-big" style="color:${col}">${s.totalRuns}</div>
+          <div class="stats-sub">total runs (incl. penalties &amp; bowling bonus)</div>
+        </div>
+        <div class="stats-grid-2">
+          <div class="stats-mini"><div class="stats-mini-val">${s.fours}</div><div class="stats-mini-lbl">Fours</div></div>
+          <div class="stats-mini"><div class="stats-mini-val">${s.sixes}</div><div class="stats-mini-lbl">Sixes</div></div>
+          <div class="stats-mini"><div class="stats-mini-val">${s.fours+s.sixes}</div><div class="stats-mini-lbl">Boundaries</div></div>
+          <div class="stats-mini"><div class="stats-mini-val">${s.wkts}</div><div class="stats-mini-lbl">Wickets lost</div></div>
+        </div>
+        <div style="margin-top:10px">${indivBatRows}</div>
+      </div>
+
+      <div class="stats-section">
+        <div class="stats-section-title">🎳 Pair bowling</div>
+        <div class="stats-row"><span class="stats-label">Runs conceded</span><span class="stats-val">${s.runsGivenBowl}</span></div>
+        <div class="stats-row"><span class="stats-label">Wickets taken</span><span class="stats-val">${s.wktsTakenBowl}</span></div>
+        <div class="stats-row"><span class="stats-label">Bowling bonus earned</span><span class="stats-val">+${G.scores[s.pi].bowl}</span></div>
+        <div class="stats-row"><span class="stats-label">Net bowling score</span><span class="stats-val" style="color:${s.bowlNet<=0?'var(--green)':'var(--red)'}"><b>${s.bowlNet}</b></span></div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${indivBowlRows}</div>
+      </div>
+
+      <div class="stats-section" style="padding-bottom:16px">
+        <div class="stats-section-title">📊 Match total</div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <div class="stats-big" style="color:${col}">${s.totalRuns+G.scores[s.pi].bowl}</div>
+          <div class="stats-sub">batting + bowling bonus</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── BOWLER LEADERBOARD ──────────────────────────────────────────────────────
+function showBowlerLB(){
+  const stats=computeStats();
+  // Build per-player bowling records
+  const rows=[];
+  G.pairs.forEach((pair,pi)=>{
+    pair.players.forEach(player=>{
+      const bowlBalls=G.history.filter(b=>b.bowlPair===pi&&b.bowling===player);
+      const runs=bowlBalls.reduce((s,b)=>s+(b.run>0?b.run:0),0);
+      const wkts=G.history.filter(b=>b.bowlPair===pi&&b.bowling===player&&b.type==='wkt'&&!b.isRunout).length;
+      const net=runs-(5*wkts);
+      const balls=bowlBalls.filter(b=>b.legal).length;
+      const overs=Math.floor(balls/6),rem=balls%6;
+      const oversStr=rem?`${overs}.${rem}`:`${overs}`;
+      rows.push({player,pair,pi,runs,wkts,net,oversStr,balls});
+    });
+  });
+  // Sort by net (ascending — lower is better), then by wickets desc as tiebreak
+  rows.sort((a,b)=>a.net!==b.net?a.net-b.net:b.wkts-a.wkts);
+
+  const col=i=>COLOR_HEX[rows[i]?.pair?.color]||'#4b5563';
+  document.getElementById('bowler-lb-card').innerHTML=`
+    <div class="card-title">Individual bowling — net score (lower = better)</div>
+    ${rows.map((r,i)=>`
+      <div class="bowler-lb-row">
+        <div class="bowler-lb-rank">${i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}</div>
+        <div style="flex:1">
+          <div class="bowler-lb-name">${r.player}</div>
+          <div class="bowler-lb-pair" style="color:${COLOR_HEX[r.pair.color]}">${r.pair.cname} pair · ${r.oversStr} overs · ${r.wkts} wkt${r.wkts!==1?'s':''}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="bowler-lb-net ${r.net<=0?'good':'bad'}">${r.net>0?'+':''}${r.net}</div>
+          <div style="font-size:10px;color:var(--muted)">${r.runs} runs</div>
+        </div>
+      </div>`).join('')}`;
+  show('s-bowlers');
+}
+
+// ══════════════════════════════════════════
+// END
+// ══════════════════════════════════════════
+function endMatch(){
+  show('s-end');
+  saveMatchToStorage();
+  // Count boundaries (4s and 6s) per pair for tiebreaker
+  const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
+  const res=G.pairs.map((p,i)=>({p,i,bat:G.scores[i].bat,bowl:G.scores[i].bowl,total:G.scores[i].bat+G.scores[i].bowl,boundaries:pairBoundaries[i]}))
+    .sort((a,b)=>b.total!==a.total?b.total-a.total:b.boundaries-a.boundaries);
+  document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min`;
+  const lb=document.getElementById('leaderboard');lb.innerHTML='';
+  const isTied=(i)=>i>0&&res[i].total===res[i-1].total;
+  res.forEach((r,rank)=>{
+    const row=document.createElement('div');row.className=`pod-row c-${r.p.color}`;
+    const medals=['🥇','🥈','🥉'];
+    const rankLabel=medals[rank]||`<span style="font-size:16px">${rank+1}th</span>`;
+    const tiedNote=isTied(rank)?` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
+    row.innerHTML=`<div class="pod-rank">${rankLabel}</div><div class="pod-info"><div class="pod-pname t-${r.p.color}">${r.p.cname} pair</div><div class="pod-players">${r.p.players.join(' & ')}</div><div class="pod-breakdown">Batting: ${r.bat} + Bowl bonus: ${r.bowl} · ${r.boundaries} boundaries${tiedNote}</div></div><div class="pod-total">${r.total}</div>`;
+    lb.appendChild(row);
+  });
+  const wkts=G.history.filter(b=>b.type==='wkt').length;
+  const fours=G.history.filter(b=>b.run===4&&b.type==='normal').length;
+  const sixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
+  const totRuns=G.scores.reduce((s,sc)=>s+sc.bat,0);
+  document.getElementById('stat-grid').innerHTML=`<div class="stat-card"><div class="stat-val">${totRuns}</div><div class="stat-lbl">Total runs</div></div><div class="stat-card"><div class="stat-val">${wkts}</div><div class="stat-lbl">Wickets</div></div><div class="stat-card"><div class="stat-val">${fours}</div><div class="stat-lbl">Fours</div></div><div class="stat-card"><div class="stat-val">${sixes}</div><div class="stat-lbl">Sixes</div></div>`;
+}
+
+function buildCSV(){
+  let csv='Pair,Player 1,Player 2,Batting,Bowling Bonus,Total\n';
+  G.pairs.forEach((p,i)=>{csv+=`${p.cname},${p.players[0]||''},${p.players[1]||''},${G.scores[i].bat},${G.scores[i].bowl},${G.scores[i].bat+G.scores[i].bowl}\n`;});
+  csv+='\nBall by ball\nOver,Ball,Type,Dismissal,Batting Pair,Bowling Pair,Facing,Bowling,Runs\n';
+  G.history.forEach(b=>{const bn=b.batPair===99?'Extra':G.pairs[b.batPair]?.cname||'';csv+=`${b.over+1},${b.ballNum+1},${b.type},${b.dismissal||''},${bn},${G.pairs[b.bowlPair]?.cname||''},${b.facing||''},${b.bowling||''},${b.run}\n`;});
+  return csv;
+}
+function exportCSV(){
+  const csv=buildCSV();
+  const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`cricket-${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+function saveMatchToStorage(){
+  try{
+    const key=`match_${new Date().toISOString().slice(0,16).replace('T','_')}`;
+    const saved=JSON.parse(localStorage.getItem('cricket_saved')||'[]');
+    saved.unshift({key,date:new Date().toISOString().slice(0,10),players:G.numPlayers,overs:G.totalOvers,csv:buildCSV()});
+    if(saved.length>5)saved.length=5; // keep last 5
+    localStorage.setItem('cricket_saved',JSON.stringify(saved));
+    renderSavedMatches();
+  }catch(e){console.log('Storage save failed:',e);}
+}
+function renderSavedMatches(){
+  try{
+    const saved=JSON.parse(localStorage.getItem('cricket_saved')||'[]');
+    const cont=document.getElementById('saved-matches');
+    if(!saved.length){cont.innerHTML='<div style="font-size:13px;color:var(--muted)">No saved matches yet.</div>';return;}
+    cont.innerHTML=saved.map((m,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div><div style="font-size:14px;font-weight:600">${m.date}</div><div style="font-size:12px;color:var(--muted)">${m.players} players · ${m.overs} overs</div></div>
+      <button onclick="downloadSaved(${i})" style="padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer">⬇ CSV</button>
+    </div>`).join('');
+  }catch(e){document.getElementById('saved-matches').innerHTML='<div style="font-size:13px;color:var(--muted)">Storage unavailable.</div>';}
+}
+function downloadSaved(i){
+  try{
+    const saved=JSON.parse(localStorage.getItem('cricket_saved')||'[]');
+    const m=saved[i];if(!m)return;
+    const blob=new Blob([m.csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`cricket-${m.date}.csv`;a.click();
+  }catch(e){alert('Could not download.');}
+}
+
+function newMatch(){renderSavedMatches();G=freshState();document.querySelectorAll('.cnt-btn').forEach(b=>b.classList.remove('sel'));['names-card','settings-card','next-btn'].forEach(id=>document.getElementById(id).classList.add('hidden'));document.getElementById('odd-note').classList.add('hidden');show('s-setup');}
+</script>
+</body>
+</html>
