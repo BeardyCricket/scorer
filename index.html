@@ -1097,11 +1097,14 @@ function bLbl(b){
 function renderTotals(){
   const c=document.getElementById('tot-list');c.innerHTML='';
   const bi=batIdx(),bwi=bowlIdx();
+  // Pre-count boundaries per pair from history
+  const boundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&b.type==='normal').length);
   G.pairs.forEach((p,i)=>{
     const row=document.createElement('div');row.className='tot-row'+(i===bi?' bat-now':'');
-    const tot=G.scores[i].bat+G.scores[i].bowl;  // can be negative, show as-is
+    const tot=G.scores[i].bat+G.scores[i].bowl;
     let note=i===bi?'batting now':i===bwi?`+${G.scores[i].bowl} bowl bonus`:'';
-    row.innerHTML=`<div class="pdot d-${p.color}"></div><div class="tot-name">${p.cname} — ${p.players.join(' & ')}</div><div style="text-align:right"><div class="tot-score">${tot}</div>${note?`<div class="tot-note">${note}</div>`:''}</div>`;
+    const bdyTxt=boundaries[i]>0?`<span style="font-size:10px;color:var(--muted);margin-left:4px">${boundaries[i]} bdry</span>`:'';
+    row.innerHTML=`<div class="pdot d-${p.color}"></div><div class="tot-name">${p.cname} — ${p.players.join(' & ')}</div><div style="text-align:right"><div class="tot-score" style="display:inline-flex;align-items:baseline;gap:2px">${tot}${bdyTxt}</div>${note?`<div class="tot-note">${note}</div>`:''}</div>`;
     c.appendChild(row);
   });
 }
@@ -1392,13 +1395,19 @@ function checkTransitions(){
   if(t.batChanged&&t.bowlChanged){
     const nb=G.pairs[Math.min(t.newBat,np-1)];
     const nbw=G.pairs[Math.min(t.newBowl,np-1)];
+    const pp=G.pairs[Math.min(t.prevBat,np-1)];
+    const psc=G.scores[t.prevBat]||{bat:0,bowl:0};
+    const ptot=psc.bat+psc.bowl;
     title='New batting & bowling pair';
-    body=`<b style="color:var(--${nb.color})">${nb.cname}</b> now batting<br><b style="color:var(--${nbw.color})">${nbw.cname}</b> now bowling`;
+    body=`<div style="background:var(--grey-l);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px"><span style="color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Just finished</span><br><b style="color:var(--${pp.color})">${pp.cname}</b> — ${psc.bat} bat + ${psc.bowl} bowl = <b style="font-size:18px">${ptot}</b></div><b style="color:var(--${nb.color})">${nb.cname}</b> now batting<br><b style="color:var(--${nbw.color})">${nbw.cname}</b> now bowling`;
     color=nb.color;
   } else if(t.batChanged){
     const nb=G.pairs[Math.min(t.newBat,np-1)];
+    const pp=G.pairs[Math.min(t.prevBat,np-1)];
+    const psc=G.scores[t.prevBat]||{bat:0,bowl:0};
+    const ptot=psc.bat+psc.bowl;
     title='New batting pair';
-    body=`<b style="color:var(--${nb.color})">${nb.cname}</b> now batting`;
+    body=`<div style="background:var(--grey-l);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:14px"><span style="color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Just finished</span><br><b style="color:var(--${pp.color})">${pp.cname}</b> — ${psc.bat} bat + ${psc.bowl} bowl = <b style="font-size:18px">${ptot}</b></div><b style="color:var(--${nb.color})">${nb.cname}</b> now batting`;
     color=nb.color;
   } else if(t.bowlChanged){
     const nbw=G.pairs[Math.min(t.newBowl,np-1)];
@@ -1484,10 +1493,10 @@ function showBowlerModal(){
   const btn2=document.getElementById('bowler-opt-2');
   const otherBtn=document.querySelector('#bowler-modal .btn-secondary');
   if(bwp.fixedBowler&&!isDyn){
-    // Solo pair regular bowling overs: only the solo player can bowl
+    // Solo pair: show the fixed bowler as the primary option but still allow other picks
     btn1.textContent=btnLabel(bwp.fixedBowler);btn1.dataset.name=bwp.fixedBowler;
     btn2.classList.add('hidden');
-    if(otherBtn)otherBtn.style.display='none';
+    if(otherBtn)otherBtn.style.display='';
   } else {
     if(otherBtn)otherBtn.style.display='';
     const order=suggestedBowlerOrder(bwi);
@@ -1535,10 +1544,6 @@ function onBowlerSelChange(name){
   const bwi=Math.max(0,G.bowlSched[G.overIdx]??0);
   const bwp=G.pairs[Math.min(bwi,G.numPairs-1)];
   const isDyn=(G.bowlSchedRaw[G.overIdx]==='L'||G.bowlSchedRaw[G.overIdx]==='2');
-  // If the current pair has a fixed bowler, don't allow changing — except on leaders overs
-  if(!isDyn&&bwp&&bwp.fixedBowler&&name!==bwp.fixedBowler){
-    document.getElementById('bowling-sel').value=bwp.fixedBowler;return;
-  }
   const newPairIdx=G.pairs.findIndex(p=>p.players.includes(name));
   if(newPairIdx>=0)G.bowlSched[G.overIdx]=newPairIdx;
   G.overBowler=name;
@@ -1569,7 +1574,9 @@ function showBowlerOtherPick(){
     const bowlStr=nextBowl!=null?`bowls in ${nextBowl}`:'no more bowls';
     const batStr=nextBat!=null?`bats in ${nextBat}`:'no more bats';
     const overStr=`${n} over${n!==1?'s':''} bowled`;
-    return `<button class="btn btn-secondary" style="text-align:left;line-height:1.4" onclick="selectOverBowler('${esc}')"><b>${p}</b><br><span style="font-size:12px;color:var(--muted)">${overStr} · ${bowlStr} · ${batStr}</span></button>`;
+    const pair=G.pairs.find(pr=>pr.players.includes(p));
+    const pairLabel=pair?`<span style="font-size:11px;font-weight:700;color:var(--${pair.color});margin-right:6px">${pair.cname}</span>`:'';
+    return `<button class="btn btn-secondary" style="text-align:left;line-height:1.4" onclick="selectOverBowler('${esc}')">${pairLabel}<b>${p}</b><br><span style="font-size:12px;color:var(--muted)">${overStr} · ${bowlStr} · ${batStr}</span></button>`;
   }).join('');
   list.classList.remove('hidden');
 }
@@ -1617,8 +1624,28 @@ function computeStats(){
       if(b.bowling&&playerBowl[b.bowling]!==undefined)playerBowl[b.bowling].wkts++;
     });
 
+    // Gross batting runs before wicket penalties (each wicket ball has run = runsFirst - 5)
+    let grossBatRuns=0;
+    G.history.filter(b=>b.batPair===pi).forEach(b=>{
+      if(b.type==='wkt')grossBatRuns+=Math.max(0,b.run+5);
+      else if(b.run>0)grossBatRuns+=b.run;
+    });
+
+    // Per-player batting detail: balls faced, SR, individual boundaries
+    const playerBatStats={};
+    pair.players.forEach(p=>{
+      const myBalls=G.history.filter(b=>b.batPair===pi&&b.facing===p&&b.legal&&b.type!=='wide');
+      const runs=playerRuns[p]||0;
+      const balls=myBalls.length;
+      const sr=balls>0?Math.round(runs/balls*100):'—';
+      const fours4=myBalls.filter(b=>b.code==='4b').length;
+      const sixes6=myBalls.filter(b=>b.run===6&&b.type==='normal').length;
+      playerBatStats[p]={runs,balls,sr,fours:fours4,sixes:sixes6};
+    });
+
     return{pair,pi,totalRuns,fours,sixes,dotBalls,wkts:wkts.length,playerRuns,
-      runsGivenBowl,wktsTakenBowl,bowlNet,oversStr,rpOver,playerBowl};
+      runsGivenBowl,wktsTakenBowl,bowlNet,oversStr,rpOver,playerBowl,
+      grossBatRuns,playerBatStats};
   });
   return pairStats;
 }
@@ -1643,66 +1670,93 @@ function showStatCard(idx){
   const col=COLOR_HEX[pair.color]||'#4b5563';
   const isSolo=!!pair.fixedBowler;
 
-  // Individual batting rows
-  const indivBatRows=pair.players.map(p=>`
-    <div class="stats-row">
-      <span class="stats-label">👤 ${p}</span>
-      <span class="stats-val">${s.playerRuns[p]??0} runs</span>
-    </div>`).join('');
+  const netTotal=G.scores[s.pi].bat+G.scores[s.pi].bowl;
+  const wktPenalty=s.wkts*5;
+  const bowlBonus=G.scores[s.pi].bowl;
 
-  // Per-player bowling rows
-  const indivBowlRows=pair.players.map(p=>{
+  // Batting player table rows
+  const batTableRows=pair.players.map(p=>{
+    const pb=s.playerBatStats?.[p]||{runs:s.playerRuns[p]||0,balls:0,sr:'—',fours:0,sixes:0};
+    return `<div style="display:contents">
+      <span style="font-size:13px;font-weight:600;padding:5px 0;border-top:1px solid var(--border)">${p}</span>
+      <span style="text-align:right;font-size:13px;font-weight:700;padding:5px 0;border-top:1px solid var(--border)">${pb.runs}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${pb.balls}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${pb.sr}</span>
+      <span style="text-align:right;font-size:12px;padding:5px 0;border-top:1px solid var(--border)">${pb.fours}</span>
+      <span style="text-align:right;font-size:12px;padding:5px 0;border-top:1px solid var(--border)">${pb.sixes}</span>
+    </div>`;
+  }).join('');
+
+  // Bowling player table rows
+  const bowlTableRows=pair.players.map(p=>{
     const pb=s.playerBowl[p]||{balls:0,runs:0,wkts:0};
-    const overs=Math.floor(pb.balls/6),rem=pb.balls%6;
-    const oversStr=rem?`${overs}.${rem}`:`${overs}`;
+    const ovs=Math.floor(pb.balls/6),rem=pb.balls%6;
+    const ovsStr=rem?`${ovs}.${rem}`:`${ovs}`;
     const net=pb.runs-(5*pb.wkts);
-    return`<div class="stats-row">
-      <span class="stats-label">👤 ${p}</span>
-      <span class="stats-val">${oversStr} ov · ${pb.runs} runs · ${pb.wkts} wkt${pb.wkts!==1?'s':''} · net <b>${net}</b></span>
+    const econ=pb.balls>0?(pb.runs/pb.balls*6).toFixed(1):'—';
+    return `<div style="display:contents">
+      <span style="font-size:13px;font-weight:600;padding:5px 0;border-top:1px solid var(--border)">${p}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${ovsStr}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${pb.runs}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${pb.wkts}</span>
+      <span style="text-align:right;font-size:13px;font-weight:700;color:${net<=0?'var(--green)':'var(--red)'};padding:5px 0;border-top:1px solid var(--border)">${net>0?'+':''}${net}</span>
+      <span style="text-align:right;font-size:12px;color:var(--muted);padding:5px 0;border-top:1px solid var(--border)">${econ}</span>
     </div>`;
   }).join('');
 
   document.getElementById('stats-card-area').innerHTML=`
     <div class="stats-screen-card" id="screenshot-card-${idx}">
+
       <div class="stats-card-header" style="background:${col}15;border-bottom:3px solid ${col}">
         <div class="stats-avatar" style="background:${col}">${pair.players.map(p=>p[0]).join('')}</div>
-        <div>
+        <div style="flex:1">
           <div class="stats-player-name">${pair.players.join(' & ')}</div>
           <div class="stats-pair-label">${pair.cname} pair${isSolo?' · Solo player':''}</div>
         </div>
+        <div style="text-align:right">
+          <div style="font-size:32px;font-weight:800;color:${col}">${netTotal}</div>
+          <div style="font-size:11px;color:var(--muted)">net score</div>
+        </div>
       </div>
 
       <div class="stats-section">
-        <div class="stats-section-title">🏏 Pair batting</div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px">
-          <div class="stats-big" style="color:${col}">${s.totalRuns}</div>
-          <div class="stats-sub">total runs (incl. penalties &amp; bowling bonus)</div>
+        <div style="display:flex;gap:0;border-radius:var(--rs);overflow:hidden;border:1px solid var(--border);margin-bottom:4px">
+          <div style="flex:1;padding:8px 10px;text-align:center;background:var(--grey-l)">
+            <div style="font-size:18px;font-weight:800">${s.grossBatRuns}</div>
+            <div style="font-size:10px;color:var(--muted)">runs scored</div>
+          </div>
+          <div style="flex:1;padding:8px 10px;text-align:center;background:var(--red-l)">
+            <div style="font-size:18px;font-weight:800;color:var(--red)">${s.wkts} wkt${s.wkts!==1?'s':''}</div>
+            <div style="font-size:10px;color:var(--red)">−${wktPenalty} penalty</div>
+          </div>
+          <div style="flex:1;padding:8px 10px;text-align:center;background:var(--green-l)">
+            <div style="font-size:18px;font-weight:800;color:var(--green)">+${bowlBonus}</div>
+            <div style="font-size:10px;color:var(--muted)">bowl bonus</div>
+          </div>
         </div>
-        <div class="stats-grid-2">
-          <div class="stats-mini"><div class="stats-mini-val">${s.fours}</div><div class="stats-mini-lbl">Fours</div></div>
-          <div class="stats-mini"><div class="stats-mini-val">${s.sixes}</div><div class="stats-mini-lbl">Sixes</div></div>
-          <div class="stats-mini"><div class="stats-mini-val">${s.fours+s.sixes}</div><div class="stats-mini-lbl">Boundaries</div></div>
-          <div class="stats-mini"><div class="stats-mini-val">${s.wkts}</div><div class="stats-mini-lbl">Wickets lost</div></div>
-        </div>
-        <div style="margin-top:10px">${indivBatRows}</div>
       </div>
 
       <div class="stats-section">
-        <div class="stats-section-title">🎳 Pair bowling</div>
-        <div class="stats-row"><span class="stats-label">Runs conceded</span><span class="stats-val">${s.runsGivenBowl}</span></div>
-        <div class="stats-row"><span class="stats-label">Wickets taken</span><span class="stats-val">${s.wktsTakenBowl}</span></div>
-        <div class="stats-row"><span class="stats-label">Bowling bonus earned</span><span class="stats-val">+${G.scores[s.pi].bowl}</span></div>
-        <div class="stats-row"><span class="stats-label">Net bowling score</span><span class="stats-val" style="color:${s.bowlNet<=0?'var(--green)':'var(--red)'}"><b>${s.bowlNet}</b></span></div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${indivBowlRows}</div>
+        <div class="stats-section-title">🏏 Batting</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div class="stats-mini" style="flex:1"><div class="stats-mini-val">${s.fours}</div><div class="stats-mini-lbl">Fours</div></div>
+          <div class="stats-mini" style="flex:1"><div class="stats-mini-val">${s.sixes}</div><div class="stats-mini-lbl">Sixes</div></div>
+          <div class="stats-mini" style="flex:1"><div class="stats-mini-val">${s.fours+s.sixes}</div><div class="stats-mini-lbl">Boundaries</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 36px 36px 48px 24px 24px;gap:0 6px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px">
+          <span>Batter</span><span style="text-align:right">Runs</span><span style="text-align:right">Balls</span><span style="text-align:right">SR</span><span style="text-align:right">4s</span><span style="text-align:right">6s</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 36px 36px 48px 24px 24px;gap:0 6px">${batTableRows}</div>
       </div>
 
       <div class="stats-section" style="padding-bottom:16px">
-        <div class="stats-section-title">📊 Match total</div>
-        <div style="display:flex;align-items:baseline;gap:8px">
-          <div class="stats-big" style="color:${col}">${s.totalRuns+G.scores[s.pi].bowl}</div>
-          <div class="stats-sub">batting + bowling bonus</div>
+        <div class="stats-section-title">🎳 Bowling</div>
+        <div style="display:grid;grid-template-columns:1fr 36px 36px 36px 36px 40px;gap:0 6px;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px">
+          <span>Bowler</span><span style="text-align:right">Ovs</span><span style="text-align:right">Runs</span><span style="text-align:right">Wkts</span><span style="text-align:right">Net</span><span style="text-align:right">Econ</span>
         </div>
+        <div style="display:grid;grid-template-columns:1fr 36px 36px 36px 36px 40px;gap:0 6px">${bowlTableRows}</div>
       </div>
+
     </div>`;
 }
 
@@ -1754,15 +1808,22 @@ function endMatch(){
   // Count boundaries (4s and 6s) per pair for tiebreaker
   const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
   const res=G.pairs.map((p,i)=>({p,i,bat:G.scores[i].bat,bowl:G.scores[i].bowl,total:G.scores[i].bat+G.scores[i].bowl,boundaries:pairBoundaries[i]}))
-    .sort((a,b)=>b.total!==a.total?b.total-a.total:b.boundaries-a.boundaries);
+    .sort((a,b)=>{
+      if(b.total!==a.total)return b.total-a.total;
+      if(b.boundaries!==a.boundaries)return b.boundaries-a.boundaries;
+      return b.bat-a.bat; // most batting runs as final tiebreaker
+    });
   document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min`;
   const lb=document.getElementById('leaderboard');lb.innerHTML='';
   const isTied=(i)=>i>0&&res[i].total===res[i-1].total;
+  const isTiedBnd=(i)=>isTied(i)&&res[i].boundaries===res[i-1].boundaries;
   res.forEach((r,rank)=>{
     const row=document.createElement('div');row.className=`pod-row c-${r.p.color}`;
     const medals=['🥇','🥈','🥉'];
     const rankLabel=medals[rank]||`<span style="font-size:16px">${rank+1}th</span>`;
-    const tiedNote=isTied(rank)?` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
+    const tiedNote=isTied(rank)?isTiedBnd(rank)
+      ?` <span style="font-size:10px;color:var(--orange)">(tied — won on batting runs)</span>`
+      :` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
     row.innerHTML=`<div class="pod-rank">${rankLabel}</div><div class="pod-info"><div class="pod-pname t-${r.p.color}">${r.p.cname} pair</div><div class="pod-players">${r.p.players.join(' & ')}</div><div class="pod-breakdown">Batting: ${r.bat} + Bowl bonus: ${r.bowl} · ${r.boundaries} boundaries${tiedNote}</div></div><div class="pod-total">${r.total}</div>`;
     lb.appendChild(row);
   });
