@@ -2475,7 +2475,9 @@ function takeSnapshot(label){
   if(localStorage.getItem('cricket_ntfy_topic')){
     pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
   }
-  pushLiveScore();
+  // Skip on the final over end — endMatch() pushes the 'finished' status with full stats.
+  // Pushing here too causes a race condition that can overwrite the finished payload.
+  if(label==='Match start'||G.overIdx+1<G.totalOvers) pushLiveScore();
 }
 
 function showSnapModal(){

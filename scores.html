@@ -175,7 +175,10 @@
 <body>
 
 <div class="hdr">
-  <div class="hdr-title">Beardy Cricket</div>
+  <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+    <a id="back-link" href="scores.html" style="display:none;color:rgba(255,255,255,.8);font-size:13px;font-weight:600;text-decoration:none;flex-shrink:0">&#8592; Live</a>
+    <div class="hdr-title">Beardy Cricket</div>
+  </div>
   <div class="live-badge" id="live-badge">
     <div class="live-dot" id="live-dot"></div>
     <span class="live-txt" id="live-txt">Live</span>
@@ -185,12 +188,6 @@
 <div class="status-bar hidden" id="status-bar">
   <span id="status-over"></span>
   <span id="status-match"></span>
-</div>
-
-<!-- Past matches list (populated by JS, shown on completion) -->
-<div class="recent-section hidden" id="recent-section">
-  <div class="recent-hdr">Past matches</div>
-  <div id="recent-list"></div>
 </div>
 
 <!-- Live / final scoreboard -->
@@ -203,6 +200,12 @@
 </div>
 
 <div class="updated hidden" id="updated-line">Updated <span id="updated-time"></span></div>
+
+<!-- Past matches (shown when a finished match exists; moved to bottom so live score dominates) -->
+<div class="recent-section hidden" id="recent-section">
+  <div class="recent-hdr">Past matches</div>
+  <div id="recent-list"></div>
+</div>
 
 <!-- How it works -->
 <div class="info-card">
@@ -556,6 +559,8 @@ function subscribeForAnyMatch(){
 // ── Bootstrap ─────────────────────────────────────────────────────────────
 async function init(){
   loadRecentMatches();
+  // Show "← Live" back link when viewing a specific past match
+  if(matchId)document.getElementById('back-link').style.display='block';
   if(matchId){
     const {data}=await client.from('live_scores').select('payload').eq('match_id',matchId).maybeSingle();
     if(data)render(data.payload);
