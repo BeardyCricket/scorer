@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  SUPABASE SETUP — run this once in your Supabase SQL editor:
+  SUPABASE SETUP — run once in Supabase SQL Editor:
 
   create table if not exists public.live_scores (
     match_id text primary key,
@@ -39,7 +39,6 @@
   }
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--cream);min-height:100vh;padding-bottom:48px}
 
-  /* Header */
   .hdr{background:var(--brand);padding:14px 16px 12px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;gap:12px}
   .hdr-title{color:#fff;font-size:17px;font-weight:800;letter-spacing:-.3px}
   .live-badge{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);border-radius:12px;padding:4px 10px;flex-shrink:0}
@@ -48,13 +47,11 @@
   .live-badge.offline .live-dot{background:#f87171;animation:none}
   .live-txt{color:#fff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 
-  /* Status bar */
   .status-bar{background:rgba(26,74,46,.08);padding:8px 16px;font-size:12px;color:var(--brand);font-weight:600;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(26,74,46,.12)}
 
-  /* Cards */
   .card{background:#fff;border-radius:14px;margin:12px 12px 0;border:1px solid var(--border);overflow:hidden}
+  .card-hdr{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
 
-  /* Color accents */
   .c-purple{border-color:var(--purple)!important}.c-blue{border-color:var(--blue)!important}
   .c-grey{border-color:var(--grey)!important}.c-red{border-color:var(--red)!important}
   .c-green{border-color:var(--green)!important}.c-orange{border-color:var(--orange)!important}
@@ -62,12 +59,14 @@
   .t-purple{color:var(--purple)}.t-blue{color:var(--blue)}.t-grey{color:var(--grey)}
   .t-red{color:var(--red)}.t-green{color:var(--green)}.t-orange{color:var(--orange)}.t-pink{color:var(--pink)}
 
-  /* Batting card */
-  .bat-card-inner{padding:16px}
-  .bat-lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
-  .bat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  /* Colour dots */
+  .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .d-purple{background:var(--purple)}.d-blue{background:var(--blue)}.d-grey{background:var(--grey)}
   .d-red{background:var(--red)}.d-green{background:var(--green)}.d-orange{background:var(--orange)}.d-pink{background:var(--pink)}
+
+  /* Batting card (live) */
+  .bat-card-inner{padding:16px}
+  .bat-lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
   .bat-pair-name{font-size:22px;font-weight:800;line-height:1;margin-bottom:3px}
   .bat-players{font-size:13px;color:var(--muted);margin-bottom:14px}
   .bat-score-row{display:flex;align-items:flex-end;justify-content:space-between}
@@ -77,21 +76,19 @@
   .bat-ovs{font-size:14px;font-weight:700;margin-top:4px}
   .over-pill{display:inline-block;background:var(--brand);color:#fff;border-radius:20px;padding:5px 14px;font-size:13px;font-weight:700;margin-top:12px}
 
-  /* Bowling card */
+  /* Bowling card (live) */
   .bowl-inner{padding:12px 16px;display:flex;align-items:center;gap:12px}
   .bowl-lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
   .bowl-name{font-size:16px;font-weight:700}
   .bowl-players{font-size:12px;color:var(--muted)}
 
-  /* Scoreboard */
-  .sb-header{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+  /* Leaderboard rows */
   .sb-row{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);gap:10px}
   .sb-row:last-child{border-bottom:none}
-  .sb-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
   .sb-rank{font-size:18px;width:28px;flex-shrink:0;text-align:center}
   .sb-name{flex:1;min-width:0}
   .sb-cname{font-size:14px;font-weight:700}
-  .sb-players{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sb-players-txt{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .sb-score{text-align:right;flex-shrink:0}
   .sb-total{font-size:22px;font-weight:800;line-height:1}
   .sb-breakdown{font-size:11px;color:var(--muted)}
@@ -99,23 +96,49 @@
   .sb-tag-bat{background:var(--brand-l);color:var(--brand)}
   .sb-tag-bowl{background:var(--grey-l);color:var(--muted)}
 
-  /* Bowling figures */
-  .bf-row{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:10px}
-  .bf-row:last-child{border-bottom:none}
-  .bf-player{flex:1;font-size:14px;font-weight:600}
-  .bf-stat{text-align:center;min-width:44px}
-  .bf-val{font-size:16px;font-weight:800}
-  .bf-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  /* Aggregate stats strip */
+  .agg-strip{display:flex;border-bottom:1px solid var(--border)}
+  .agg-cell{flex:1;padding:10px 6px;text-align:center;border-right:1px solid var(--border)}
+  .agg-cell:last-child{border-right:none}
+  .agg-val{font-size:20px;font-weight:800}
+  .agg-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+
+  /* Per-pair stats accordion */
+  .pair-acc{border-bottom:1px solid var(--border)}
+  .pair-acc:last-child{border-bottom:none}
+  .pair-acc-hdr{display:flex;align-items:center;padding:12px 16px;gap:10px;cursor:pointer;user-select:none}
+  .pair-acc-hdr:active{background:var(--grey-l)}
+  .pair-acc-name{flex:1;font-size:14px;font-weight:700}
+  .pair-acc-score{font-size:18px;font-weight:800;margin-right:4px}
+  .pair-acc-chevron{font-size:16px;color:var(--muted);transition:transform .2s;flex-shrink:0}
+  .pair-acc-chevron.open{transform:rotate(180deg)}
+  .pair-acc-body{display:none;padding:0 16px 14px}
+  .pair-acc-body.open{display:block}
+
+  /* Stats table */
+  .stbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  .stbl thead th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:3px 4px;text-align:right;border-bottom:1px solid var(--border)}
+  .stbl thead th:first-child{text-align:left}
+  .stbl tbody td{padding:5px 4px;border-top:1px solid var(--border);text-align:right;color:#444}
+  .stbl tbody td:first-child{text-align:left;font-weight:600;color:#111}
+  .stbl tbody tr:first-child td{border-top:none}
+  .stbl-section{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:10px 0 4px;display:block}
+
+  /* Bowling figures (live) */
   .bf-header-row{display:flex;padding:6px 16px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
   .bf-header-row span:first-child{flex:1}
   .bf-header-row span{min-width:44px;text-align:center}
+  .bf-row{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:10px}
+  .bf-row:last-child{border-bottom:none}
+  .bf-player{flex:1;font-size:14px;font-weight:600}
+  .bf-stat{text-align:center;min-width:44px;font-size:16px;font-weight:800}
 
   /* Recent matches */
   .recent-section{background:#fff;border-radius:14px;margin:12px 12px 0;border:1px solid var(--border);overflow:hidden}
-  .recent-header{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
-  .match-link{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;gap:10px;transition:background .15s}
+  .recent-hdr{padding:10px 16px 8px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+  .match-link{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;gap:10px}
   .match-link:last-child{border-bottom:none}
-  .match-link:hover,.match-link:active{background:var(--brand-l)}
+  .match-link:active{background:var(--brand-l)}
   .match-link-active{background:var(--brand-l)}
   .match-info{flex:1}
   .match-date{font-size:14px;font-weight:700;color:#111}
@@ -164,9 +187,9 @@
   <span id="status-match"></span>
 </div>
 
-<!-- Recent matches (last 5 finished games) -->
+<!-- Past matches list (populated by JS, shown on completion) -->
 <div class="recent-section hidden" id="recent-section">
-  <div class="recent-header">Recent matches</div>
+  <div class="recent-hdr">Past matches</div>
   <div id="recent-list"></div>
 </div>
 
@@ -198,7 +221,7 @@
     </div>
     <div class="info-rule">
       <div class="info-rule-icon">❌</div>
-      <div class="info-rule-text"><strong>Wickets cost 5 runs</strong>Each time the batting pair loses a wicket, 5 runs are deducted from their total. Batters keep going — no one is out.</div>
+      <div class="info-rule-text"><strong>Wickets cost 5 runs</strong>Each wicket deducts 5 runs from the batting pair's total. Batters keep going — no one leaves the field.</div>
     </div>
     <div class="info-rule">
       <div class="info-rule-icon">⭐</div>
@@ -206,7 +229,7 @@
     </div>
     <div class="info-rule">
       <div class="info-rule-icon">🏆</div>
-      <div class="info-rule-text"><strong>Winning</strong>The pair with the highest total — batting runs plus bowling bonus — wins the match.</div>
+      <div class="info-rule-text"><strong>Winning</strong>The pair with the highest total — batting runs plus bowling bonus — wins.</div>
     </div>
   </div>
 </div>
@@ -222,48 +245,45 @@ const params=new URLSearchParams(window.location.search);
 let matchId=params.get('match')||null;
 let channel=null;
 
-function toggleInfo(){
-  const body=document.getElementById('info-body');
-  const icon=document.getElementById('info-icon');
-  const open=body.classList.toggle('open');
-  icon.classList.toggle('open',open);
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────
-function colorClass(c){return['purple','blue','grey','red','green','orange','pink'].includes(c)?c:'grey';}
+function cc(c){return['purple','blue','grey','red','green','orange','pink'].includes(c)?c:'grey';}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtDate(iso){
   const d=new Date(iso);
   return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
     +' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 }
+function isMatchDone(p){
+  return p.status==='finished'||(p.over>=p.total_overs&&p.total_overs>0&&p.ball>=6);
+}
+function toggleInfo(){
+  const b=document.getElementById('info-body'),i=document.getElementById('info-icon');
+  const o=b.classList.toggle('open');i.classList.toggle('open',o);
+}
+function toggleAcc(el){
+  const body=el.nextElementSibling;
+  const chev=el.querySelector('.pair-acc-chevron');
+  const open=body.classList.toggle('open');
+  chev.classList.toggle('open',open);
+}
 
-// ── Rendering ─────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────────────────
 function render(payload){
   if(!payload)return;
   const mc=document.getElementById('main-content');
   mc.innerHTML='';
 
-  // Treat as finished if status flag is set, OR if all overs are done (handles the case where the endMatch status push failed)
-  const finished=payload.status==='finished'||(payload.over>=payload.total_overs&&payload.total_overs>0&&payload.ball>=6);
+  const finished=isMatchDone(payload);
   const bi=payload.batting;
   const bwi=payload.bowling;
   const pairs=payload.pairs||[];
   const figures=payload.bowling_figures||[];
-
-  // Finished banner
-  if(finished){
-    const b=document.createElement('div');
-    b.className='finished-banner';
-    b.innerHTML='<h2>Match complete</h2><p>Final scores below</p>';
-    mc.appendChild(b);
-  }
+  const ms=payload.match_stats||null;
 
   // Status bar
-  const sb=document.getElementById('status-bar');
-  sb.classList.remove('hidden');
+  document.getElementById('status-bar').classList.remove('hidden');
   if(finished){
-    document.getElementById('status-over').textContent='Final';
+    document.getElementById('status-over').textContent='Match complete';
     document.getElementById('status-match').textContent=`${payload.total_overs} overs`;
   } else {
     const ball=payload.ball,over=payload.over;
@@ -271,114 +291,226 @@ function render(payload){
     document.getElementById('status-match').textContent=`${over} / ${payload.total_overs} overs`;
   }
 
-  // Batting card (live only — finished shows leaderboard instead)
-  if(bi&&!finished){
-    const cc=colorClass(bi.color);
-    const ovs=Math.floor(bi.balls_faced/6),bls=bi.balls_faced%6;
-    const card=document.createElement('div');
-    card.className=`card c-${cc}`;
-    card.innerHTML=`<div class="bat-card-inner" style="background:var(--${cc}-l)">
-      <div class="bat-lbl"><div class="bat-dot d-${cc}"></div>Batting now</div>
-      <div class="bat-pair-name t-${cc}">${esc(bi.cname)} pair</div>
-      <div class="bat-players">${esc(bi.players.join(' & '))}</div>
-      <div class="bat-score-row">
-        <div class="bat-total t-${cc}">${bi.total}</div>
-        <div class="bat-breakdown">
-          <div class="bat-breakdown-line">${bi.bat} bat</div>
-          <div class="bat-breakdown-line">+${bi.bowl} bowl bonus</div>
-          <div class="bat-ovs">${ovs}.${bls} overs faced</div>
-        </div>
-      </div>
-      <div class="over-pill">${payload.ball>=6?`End of Over ${payload.over}`:`Over ${payload.over} · Ball ${payload.ball}`}</div>
-    </div>`;
-    mc.appendChild(card);
-  }
+  // ── FINISHED VIEW ────────────────────────────────────────────────────
+  if(finished){
+    // Banner
+    const banner=document.createElement('div');
+    banner.className='finished-banner';
+    banner.innerHTML='<h2>Match complete</h2><p>Final scores below</p>';
+    mc.appendChild(banner);
 
-  // Bowling card (live only)
-  if(bwi&&!finished){
-    const cc=colorClass(bwi.color);
-    const card=document.createElement('div');
-    card.className=`card c-${cc}`;
-    card.innerHTML=`<div class="bowl-inner">
-      <div class="bat-dot d-${cc}" style="width:12px;height:12px;flex-shrink:0"></div>
-      <div>
-        <div class="bowl-lbl">Bowling</div>
-        <div class="bowl-name t-${cc}">${esc(bwi.cname)} pair</div>
-        <div class="bowl-players">${esc(bwi.players.join(' & '))}</div>
-      </div>
-    </div>`;
-    mc.appendChild(card);
-  }
+    // Final leaderboard
+    if(pairs.length){
+      const sorted=[...pairs].sort((a,b)=>b.total-a.total);
+      const medals=['🥇','🥈','🥉'];
+      const lb=document.createElement('div');
+      lb.className='card';
+      lb.innerHTML='<div class="card-hdr">Final leaderboard</div>'
+        +sorted.map((p,rank)=>{
+          const c=cc(p.color);
+          const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
+          return `<div class="sb-row">
+            <div class="sb-rank">${medals[rank]||`<span style="font-size:14px;font-weight:700">${rank+1}</span>`}</div>
+            <div class="sb-name">
+              <div class="sb-cname t-${c}">${esc(p.cname)} pair</div>
+              <div class="sb-players-txt">${esc(p.players.join(' & '))}</div>
+            </div>
+            <div class="sb-score">
+              <div class="sb-total t-${c}">${p.total}</div>
+              <div class="sb-breakdown">${p.bat} bat +${p.bowl} bowl · ${ovs}.${bls} ovs</div>
+            </div>
+          </div>`;
+        }).join('');
+      mc.appendChild(lb);
+    }
 
-  // All pairs leaderboard
-  if(pairs.length){
-    const sorted=[...pairs].sort((a,b)=>b.total-a.total);
-    const medals=['🥇','🥈','🥉'];
-    const card=document.createElement('div');
-    card.className='card';
-    card.innerHTML=`<div class="sb-header">${finished?'Final leaderboard':'All pairs'}</div>`
-      +sorted.map((p,rank)=>{
-        const cc=colorClass(p.color);
-        const isBat=!finished&&p.cname===(bi&&bi.cname);
-        const isBowl=!finished&&p.cname===(bwi&&bwi.cname);
-        const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
-        const rankLabel=finished?(medals[rank]||`<span style="font-size:14px;font-weight:700">${rank+1}</span>`):'';
-        return `<div class="sb-row">
-          ${finished?`<div class="sb-rank">${rankLabel}</div>`:'<div class="sb-dot d-'+cc+'"></div>'}
-          <div class="sb-name">
-            <div class="sb-cname t-${cc}">${esc(p.cname)} pair</div>
-            <div class="sb-players">${esc(p.players.join(' & '))}</div>
-            ${isBat?`<span class="sb-tag sb-tag-bat">batting now</span>`:''}
-            ${isBowl?`<span class="sb-tag sb-tag-bowl">bowling</span>`:''}
-          </div>
-          <div class="sb-score">
-            <div class="sb-total t-${cc}">${p.total}</div>
-            <div class="sb-breakdown">${p.bat} bat +${p.bowl} bowl · ${ovs}.${bls} ovs</div>
-          </div>
+    // Aggregate match stats
+    if(ms){
+      const agg=document.createElement('div');
+      agg.className='card';
+      agg.innerHTML=`<div class="card-hdr">Match totals</div>
+        <div class="agg-strip">
+          <div class="agg-cell"><div class="agg-val">${ms.total_runs}</div><div class="agg-lbl">Runs</div></div>
+          <div class="agg-cell"><div class="agg-val">${ms.wickets}</div><div class="agg-lbl">Wickets</div></div>
+          <div class="agg-cell"><div class="agg-val">${ms.fours}</div><div class="agg-lbl">Fours</div></div>
+          <div class="agg-cell"><div class="agg-val">${ms.sixes}</div><div class="agg-lbl">Sixes</div></div>
+          <div class="agg-cell"><div class="agg-val">${ms.catches}</div><div class="agg-lbl">Catches</div></div>
         </div>`;
-      }).join('');
-    mc.appendChild(card);
-  }
+      mc.appendChild(agg);
 
-  // Bowling figures
-  if(figures.length){
-    const card=document.createElement('div');
-    card.className='card';
-    card.innerHTML=`<div class="sb-header">Bowling figures</div>
-      <div class="bf-header-row"><span>Player</span><span>Overs</span><span>Wkts</span></div>`
-      +figures.map(f=>`<div class="bf-row">
-        <div class="bf-player">${esc(f.player)}</div>
-        <div class="bf-stat"><div class="bf-val">${f.overs}</div></div>
-        <div class="bf-stat"><div class="bf-val">${f.wickets}</div></div>
-      </div>`).join('');
-    mc.appendChild(card);
+      // Per-pair batting & bowling breakdown (accordion)
+      if(ms.pairs&&ms.pairs.length){
+        const sortedPairs=[...ms.pairs].sort((a,b)=>b.total-a.total);
+        const acc=document.createElement('div');
+        acc.className='card';
+        acc.innerHTML='<div class="card-hdr">Individual performances</div>'
+          +sortedPairs.map((p,idx)=>{
+            const c=cc(p.color);
+            // Batting table rows
+            const batRows=(p.players_bat||[]).map(pl=>`<tr>
+              <td>${esc(pl.name)}</td>
+              <td style="font-weight:700">${pl.runs}</td>
+              <td>${pl.balls}</td>
+              <td>${pl.sr}</td>
+              <td>${pl.fours}</td>
+              <td>${pl.sixes}</td>
+            </tr>`).join('');
+            // Bowling table rows
+            const bowlRows=(p.players_bowl||[]).map(pl=>{
+              const netColor=pl.net<=0?'var(--green)':'var(--red)';
+              return `<tr>
+                <td>${esc(pl.name)}</td>
+                <td>${pl.overs}</td>
+                <td>${pl.runs}</td>
+                <td>${pl.wickets}</td>
+                <td style="font-weight:700;color:${netColor}">${pl.net>0?'+':''}${pl.net}</td>
+              </tr>`;
+            }).join('');
+            return `<div class="pair-acc">
+              <div class="pair-acc-hdr" onclick="toggleAcc(this)">
+                <div class="dot d-${c}"></div>
+                <div class="pair-acc-name t-${c}">${esc(p.cname)} pair</div>
+                <div class="pair-acc-score t-${c}">${p.total}</div>
+                <div class="pair-acc-chevron">&#8964;</div>
+              </div>
+              <div class="pair-acc-body">
+                <span class="stbl-section">🏏 Batting — ${p.bat_gross} runs, ${p.bat_wickets} wkt${p.bat_wickets!==1?'s':''} (−${p.bat_wickets*5}), ${p.bat_fours} fours, ${p.bat_sixes} sixes</span>
+                <table class="stbl">
+                  <thead><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>SR</th><th>4s</th><th>6s</th></tr></thead>
+                  <tbody>${batRows}</tbody>
+                </table>
+                <span class="stbl-section">🎳 Bowling — ${p.bowl_overs} overs, ${p.bowl_runs} runs, ${p.bowl_wickets} wkt${p.bowl_wickets!==1?'s':''}, net ${p.bowl_net>0?'+':''}${p.bowl_net}, +${p.bowl_bonus} bonus</span>
+                <table class="stbl">
+                  <thead><tr><th>Bowler</th><th>Ovs</th><th>Runs</th><th>Wkts</th><th>Net</th></tr></thead>
+                  <tbody>${bowlRows}</tbody>
+                </table>
+              </div>
+            </div>`;
+          }).join('');
+        mc.appendChild(acc);
+      }
+    } else if(figures.length){
+      // Fallback: basic bowling figures if match_stats not yet in payload
+      const bfCard=document.createElement('div');
+      bfCard.className='card';
+      bfCard.innerHTML='<div class="card-hdr">Bowling figures</div>'
+        +'<div class="bf-header-row"><span>Player</span><span>Overs</span><span>Wkts</span></div>'
+        +figures.map(f=>`<div class="bf-row"><div class="bf-player">${esc(f.player)}</div><div class="bf-stat">${f.overs}</div><div class="bf-stat">${f.wickets}</div></div>`).join('');
+      mc.appendChild(bfCard);
+    }
+
+  // ── LIVE VIEW ────────────────────────────────────────────────────────
+  } else {
+    // Batting card
+    if(bi){
+      const c=cc(bi.color);
+      const ovs=Math.floor(bi.balls_faced/6),bls=bi.balls_faced%6;
+      const card=document.createElement('div');
+      card.className=`card c-${c}`;
+      card.innerHTML=`<div class="bat-card-inner" style="background:var(--${c}-l)">
+        <div class="bat-lbl"><div class="dot d-${c}"></div>Batting now</div>
+        <div class="bat-pair-name t-${c}">${esc(bi.cname)} pair</div>
+        <div class="bat-players">${esc(bi.players.join(' & '))}</div>
+        <div class="bat-score-row">
+          <div class="bat-total t-${c}">${bi.total}</div>
+          <div class="bat-breakdown">
+            <div class="bat-breakdown-line">${bi.bat} bat</div>
+            <div class="bat-breakdown-line">+${bi.bowl} bowl bonus</div>
+            <div class="bat-ovs">${ovs}.${bls} overs faced</div>
+          </div>
+        </div>
+        <div class="over-pill">${payload.ball>=6?`End of Over ${payload.over}`:`Over ${payload.over} · Ball ${payload.ball}`}</div>
+      </div>`;
+      mc.appendChild(card);
+    }
+
+    // Bowling card
+    if(bwi){
+      const c=cc(bwi.color);
+      const card=document.createElement('div');
+      card.className=`card c-${c}`;
+      card.innerHTML=`<div class="bowl-inner">
+        <div class="dot d-${c}" style="width:12px;height:12px"></div>
+        <div>
+          <div class="bowl-lbl">Bowling</div>
+          <div class="bowl-name t-${c}">${esc(bwi.cname)} pair</div>
+          <div class="bowl-players">${esc(bwi.players.join(' & '))}</div>
+        </div>
+      </div>`;
+      mc.appendChild(card);
+    }
+
+    // All pairs
+    if(pairs.length){
+      const sorted=[...pairs].sort((a,b)=>b.total-a.total);
+      const card=document.createElement('div');
+      card.className='card';
+      card.innerHTML='<div class="card-hdr">All pairs</div>'
+        +sorted.map(p=>{
+          const c=cc(p.color);
+          const isBat=p.cname===(bi&&bi.cname);
+          const isBowl=p.cname===(bwi&&bwi.cname);
+          const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
+          return `<div class="sb-row">
+            <div class="dot d-${c}"></div>
+            <div class="sb-name">
+              <div class="sb-cname t-${c}">${esc(p.cname)} pair</div>
+              <div class="sb-players-txt">${esc(p.players.join(' & '))}</div>
+              ${isBat?`<span class="sb-tag sb-tag-bat">batting now</span>`:''}
+              ${isBowl?`<span class="sb-tag sb-tag-bowl">bowling</span>`:''}
+            </div>
+            <div class="sb-score">
+              <div class="sb-total t-${c}">${p.total}</div>
+              <div class="sb-breakdown">${p.bat} bat +${p.bowl} bowl · ${ovs}.${bls} ovs</div>
+            </div>
+          </div>`;
+        }).join('');
+      mc.appendChild(card);
+    }
+
+    // Live bowling figures
+    if(figures.length){
+      const card=document.createElement('div');
+      card.className='card';
+      card.innerHTML='<div class="card-hdr">Bowling figures</div>'
+        +'<div class="bf-header-row"><span>Player</span><span>Overs</span><span>Wkts</span></div>'
+        +figures.map(f=>`<div class="bf-row"><div class="bf-player">${esc(f.player)}</div><div class="bf-stat">${f.overs}</div><div class="bf-stat">${f.wickets}</div></div>`).join('');
+      mc.appendChild(card);
+    }
   }
 
   // Timestamp
   document.getElementById('updated-time').textContent=
     new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('updated-line').classList.remove('hidden');
+
+  // Reload recent matches when a match just finished
+  if(finished)loadRecentMatches();
 }
 
-// ── Recent matches ────────────────────────────────────────────────────────
+// ── Recent / past matches ─────────────────────────────────────────────────
 async function loadRecentMatches(){
   const {data}=await client
     .from('live_scores')
     .select('match_id,updated_at,payload')
     .order('updated_at',{ascending:false})
-    .limit(15);
+    .limit(20);
 
-  const finished=(data||[]).filter(r=>r.payload?.status==='finished').slice(0,5);
-  if(!finished.length)return;
+  const finished=(data||[])
+    .filter(r=>r.payload&&isMatchDone(r.payload)&&r.match_id!==matchId)
+    .slice(0,5);
 
+  const section=document.getElementById('recent-section');
   const list=document.getElementById('recent-list');
+
+  if(!finished.length){section.classList.add('hidden');return;}
+
   list.innerHTML=finished.map(r=>{
     const p=r.payload;
     const dateStr=fmtDate(p.started_at||r.updated_at);
     const sorted=[...(p.pairs||[])].sort((a,b)=>b.total-a.total);
     const winner=sorted[0];
-    const isCurrent=r.match_id===matchId;
-    return `<a class="match-link${isCurrent?' match-link-active':''}" href="?match=${encodeURIComponent(r.match_id)}">
+    return `<a class="match-link" href="?match=${encodeURIComponent(r.match_id)}">
       <div class="match-info">
         <div class="match-date">${esc(dateStr)}</div>
         ${winner?`<div class="match-winner">🏆 ${esc(winner.cname)} pair · ${winner.total} pts</div>`:''}
@@ -387,10 +519,10 @@ async function loadRecentMatches(){
     </a>`;
   }).join('');
 
-  document.getElementById('recent-section').classList.remove('hidden');
+  section.classList.remove('hidden');
 }
 
-// ── Connection indicator ──────────────────────────────────────────────────
+// ── Connection ────────────────────────────────────────────────────────────
 function setConnected(ok){
   const badge=document.getElementById('live-badge');
   const dot=document.getElementById('live-dot');
@@ -399,7 +531,7 @@ function setConnected(ok){
   else{badge.classList.add('offline');dot.style.background='#f87171';dot.style.animation='none';txt.textContent='Offline';}
 }
 
-// ── Supabase subscriptions ────────────────────────────────────────────────
+// ── Subscriptions ─────────────────────────────────────────────────────────
 function subscribeToMatch(id){
   if(channel)client.removeChannel(channel);
   channel=client.channel(`match-${id}`)
@@ -421,10 +553,9 @@ function subscribeForAnyMatch(){
     .subscribe(status=>{setConnected(status==='SUBSCRIBED');});
 }
 
-// ── Bootstrap ────────────────────────────────────────────────────────────
+// ── Bootstrap ─────────────────────────────────────────────────────────────
 async function init(){
   loadRecentMatches();
-
   if(matchId){
     const {data}=await client.from('live_scores').select('payload').eq('match_id',matchId).maybeSingle();
     if(data)render(data.payload);
