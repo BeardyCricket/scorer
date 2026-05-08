@@ -329,17 +329,18 @@ function render(payload){
 
     // ── Aggregate totals ──────────────────────────────────────────────
     // Use match_stats when available; fall back to computing from pairs/figures
-    const totalWkts=ms?ms.wickets:figures.reduce((a,f)=>a+f.wickets,0);
     const totalRuns=ms?ms.total_runs:pairs.reduce((a,p)=>a+p.bat,0);
+    const totalWkts=ms?ms.wickets:pairs.reduce((a,p)=>a+(p.wickets||0),0);
+    const totalFours=ms?ms.fours:pairs.reduce((a,p)=>a+(p.fours||0),0);
+    const totalSixes=ms?ms.sixes:pairs.reduce((a,p)=>a+(p.sixes||0),0);
     const agg=document.createElement('div');
     agg.className='card';
     agg.innerHTML=`<div class="card-hdr">Match totals</div>
       <div class="agg-strip">
         <div class="agg-cell"><div class="agg-val">${totalRuns}</div><div class="agg-lbl">Runs</div></div>
         <div class="agg-cell"><div class="agg-val">${totalWkts}</div><div class="agg-lbl">Wickets</div></div>
-        ${ms?`<div class="agg-cell"><div class="agg-val">${ms.fours}</div><div class="agg-lbl">Fours</div></div>
-        <div class="agg-cell"><div class="agg-val">${ms.sixes}</div><div class="agg-lbl">Sixes</div></div>
-        <div class="agg-cell"><div class="agg-val">${ms.catches}</div><div class="agg-lbl">Catches</div></div>`:''}
+        <div class="agg-cell"><div class="agg-val">${totalFours}</div><div class="agg-lbl">Fours</div></div>
+        <div class="agg-cell"><div class="agg-val">${totalSixes}</div><div class="agg-lbl">Sixes</div></div>
       </div>`;
     mc.appendChild(agg);
 
@@ -356,16 +357,13 @@ function render(payload){
 
         // Batting rows — rich from match_stats, or basic from pairs.players_bat
         const batSrc=p.players_bat||[];
-        const batRows=batSrc.map(pl=>{
-          const sr=pl.sr!=null?pl.sr:(pl.balls>0?Math.round(pl.runs/pl.balls*100):'—');
-          return `<tr>
+        const batRows=batSrc.map(pl=>`<tr>
             <td>${esc(pl.name)}</td>
             <td style="font-weight:700">${pl.runs}</td>
+            <td>${pl.fours!=null?pl.fours:'—'}</td>
+            <td>${pl.sixes!=null?pl.sixes:'—'}</td>
             <td>${pl.balls!=null?pl.balls:'—'}</td>
-            <td>${sr}</td>
-            ${pl.fours!=null?`<td>${pl.fours}</td><td>${pl.sixes}</td>`:'<td colspan="2" style="color:var(--muted)">—</td>'}
-          </tr>`;
-        }).join('');
+          </tr>`).join('');
 
         // Bowling rows — from match_stats or from bowling_figures filtered to this pair
         const bowlSrc = p.players_bowl ||
@@ -389,8 +387,8 @@ function render(payload){
           ?`🏏 Batting — ${p.bat_gross} runs, ${p.bat_wickets} wkt${p.bat_wickets!==1?'s':''} (−${p.bat_wickets*5}), ${p.bat_fours} fours, ${p.bat_sixes} sixes`
           :`🏏 Batting — ${p.bat||p.total} runs`;
         const bowlSummary=perfPairs
-          ?`🎳 Bowling — ${p.bowl_overs} overs, ${p.bowl_runs} runs, ${p.bowl_wickets} wkt${p.bowl_wickets!==1?'s':''}, net ${p.bowl_net>0?'+':''}${p.bowl_net}, +${p.bowl_bonus} bonus`
-          :`🎳 Bowling — +${p.bowl} bonus`;
+          ?`🔴 Bowling — ${p.bowl_overs} overs, ${p.bowl_runs} runs, ${p.bowl_wickets} wkt${p.bowl_wickets!==1?'s':''}, net ${p.bowl_net>0?'+':''}${p.bowl_net}, +${p.bowl_bonus} bonus`
+          :`🔴 Bowling — +${p.bowl} bonus`;
 
         return `<div class="pair-acc">
           <div class="pair-acc-hdr" onclick="toggleAcc(this)">
@@ -402,7 +400,7 @@ function render(payload){
           <div class="pair-acc-body">
             <span class="stbl-section">${batSummary}</span>
             ${batRows?`<table class="stbl">
-              <thead><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>SR</th><th>4s</th><th>6s</th></tr></thead>
+              <thead><tr><th>Batter</th><th>Runs</th><th>4s</th><th>6s</th><th>Balls</th></tr></thead>
               <tbody>${batRows}</tbody>
             </table>`:''}
             <span class="stbl-section" style="margin-top:14px">${bowlSummary}</span>

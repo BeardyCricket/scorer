@@ -2326,15 +2326,24 @@ async function pushLiveScore(status='in_progress',matchStats=null){
     batting:bp?{cname:bp.cname,players:bp.players,color:bp.color,...sc(bi),balls_faced:facedMap[bi]||0}:null,
     bowling:(!finished&&bwp)?{cname:bwp.cname,players:bwp.players,color:bwp.color}:null,
     pairs:G.pairs.map((p,i)=>{
-      // Per-player batting runs — included on every push so scores.html always has them
+      // Per-player batting stats — on every push so scores.html always has them
       const pRuns={};p.players.forEach(pl=>{pRuns[pl]=0;});
       const pBalls={};p.players.forEach(pl=>{pBalls[pl]=0;});
+      const pFours={};p.players.forEach(pl=>{pFours[pl]=0;});
+      const pSixes={};p.players.forEach(pl=>{pSixes[pl]=0;});
       G.history.filter(b=>b.batPair===i&&b.type==='normal'&&b.facing&&pRuns[b.facing]!==undefined)
         .forEach(b=>{pRuns[b.facing]+=b.run;});
       G.history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&b.facing&&pBalls[b.facing]!==undefined)
         .forEach(b=>{pBalls[b.facing]++;});
+      G.history.filter(b=>b.batPair===i&&b.code==='4b'&&b.facing&&pFours[b.facing]!==undefined)
+        .forEach(b=>{pFours[b.facing]++;});
+      G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal'&&b.facing&&pSixes[b.facing]!==undefined)
+        .forEach(b=>{pSixes[b.facing]++;});
       return{cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0,
-        players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0}))};
+        wickets:G.history.filter(b=>b.batPair===i&&b.type==='wkt').length,
+        fours:G.history.filter(b=>b.batPair===i&&b.code==='4b').length,
+        sixes:G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length,
+        players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0}))};
     }),
     bowling_figures
   };
