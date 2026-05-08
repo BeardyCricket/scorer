@@ -2310,12 +2310,13 @@ async function pushLiveScore(status='in_progress',matchStats=null){
   const bowlerMap={};
   G.history.forEach(b=>{
     if(!b.bowling)return;
-    if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={player:b.bowling,balls:0,wickets:0};
+    if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={player:b.bowling,balls:0,wickets:0,runs:0};
     if(b.legal)bowlerMap[b.bowling].balls++;
     if(b.type==='wkt')bowlerMap[b.bowling].wickets++;
+    if(b.run>0)bowlerMap[b.bowling].runs+=b.run;
   });
   const bowling_figures=Object.values(bowlerMap)
-    .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets}))
+    .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets,runs:f.runs,net:f.runs-(5*f.wickets)}))
     .sort((a,b)=>b.wickets-a.wickets||b.balls-a.balls);
   const payload={
     status,
