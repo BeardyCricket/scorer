@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Beardy Cricket">
@@ -622,6 +623,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 // ══════════════════════════════════════════
 // CONSTANTS
@@ -632,6 +634,7 @@ const DEFAULTS=['Alice','Bob','Charlie','Diana','Ed','Fiona','George','Hannah','
 
 const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
 const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
+const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 // ══════════════════════════════════════════
 // EXACT BOWLING SCHEDULES FROM EXCEL
@@ -2263,30 +2266,19 @@ async function pushLiveScore(status='in_progress'){
 
   // on_conflict tells PostgREST which column to use for the upsert conflict check.
   // return=minimal suppresses the response body (required alongside resolution= in Supabase).
-  const endpoint=`${SUPABASE_URL}/rest/v1/live_scores?on_conflict=match_id`;
-  const requestBody=JSON.stringify({match_id:G.matchId,updated_at:new Date().toISOString(),payload});
-  console.log('[Supabase] POST', endpoint);
-  console.log('[Supabase] Request body:', requestBody);
-
+  const row={match_id:G.matchId,updated_at:new Date().toISOString(),payload};
+  console.log('[Supabase] upsert row:', JSON.stringify(row));
   try{
-    const res=await fetch(endpoint,{
-      method:'POST',
-      headers:{
-        'apikey':SUPABASE_KEY,
-        'Authorization':`Bearer ${SUPABASE_KEY}`,
-        'Content-Type':'application/json',
-        'Prefer':'return=minimal,resolution=merge-duplicates'
-      },
-      body:requestBody
-    });
-    const text=await res.text();
-    if(res.ok){
-      console.log('[Supabase] SUCCESS | HTTP', res.status, '| response:', text||'(empty — normal for upsert)');
+    const {error}=await supabaseClient
+      .from('live_scores')
+      .upsert(row,{onConflict:'match_id'});
+    if(error){
+      console.error('[Supabase] ERROR:', error.code, error.message, error.details, error.hint);
     }else{
-      console.error('[Supabase] ERROR | HTTP', res.status, res.statusText, '| response body:', text);
+      console.log('[Supabase] SUCCESS');
     }
   }catch(e){
-    console.error('[Supabase] NETWORK ERROR (fetch threw):', e);
+    console.error('[Supabase] NETWORK ERROR:', e);
   }
 }
 
