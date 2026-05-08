@@ -566,6 +566,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <input class="inp" id="ntfy-topic-inp" type="text" placeholder="Auto-generated when match starts" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <div style="font-size:12px;color:var(--muted);margin:8px 0 16px;line-height:1.5">The topic is set automatically when you start a match (format: BeardyDDMMYY-HHMM). You can override it here.<br><br>Install the free <strong>ntfy</strong> app or open <strong>ntfy.sh/topic</strong> in a browser on any device to receive updates.</div>
     <button class="btn btn-primary" onclick="saveAndTestNtfy()">Save &amp; send test</button>
+    <div id="live-link-section" style="display:none;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Live scoreboard</div>
+      <div style="background:var(--brand-l);border:1px solid var(--brand);border-radius:var(--rs);padding:12px;text-align:center">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Share this link with spectators</div>
+        <div style="font-size:12px;font-weight:700;color:var(--brand);word-break:break-all;line-height:1.4" id="live-link-url"></div>
+        <button class="btn btn-secondary" style="margin-top:10px;font-size:13px" onclick="copyLiveLink()">Copy link</button>
+      </div>
+    </div>
     <button class="btn btn-secondary" onclick="document.getElementById('backup-modal').classList.add('hidden')" style="margin-top:8px">Close</button>
     <div id="ntfy-status" style="font-size:13px;text-align:center;margin-top:12px;min-height:20px"></div>
   </div>
@@ -621,6 +629,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 const COLORS=['purple','blue','grey','red','green','orange','pink'];
 const CNAMES=['Purple','Blue','Grey','Red','Green','Orange','Pink'];
 const DEFAULTS=['Alice','Bob','Charlie','Diana','Ed','Fiona','George','Hannah','Ivan','Jane','Karl','Laura','Mike','Nadia','Oli'];
+
+const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
+const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 
 // ══════════════════════════════════════════
 // EXACT BOWLING SCHEDULES FROM EXCEL
@@ -724,7 +735,7 @@ function freshState(){
     isIndoor:false,
     pendingWhoFacing:false,
     playerSeedMap:{},
-    snapshots:[]};
+    snapshots:[],matchId:''};
 }
 G=freshState();
 // roster loaded lazily in showRoster() — not needed on page load
@@ -1003,7 +1014,7 @@ function validateBowling(){
 // ══════════════════════════════════════════
 function startMatch(){
   G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
-  G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();
+  G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();G.matchId='beardy-'+Date.now().toString(36);
   G.facingIdx=0;G.snapshots=[];
   G.pendingBowlerSelect=true;
   // Auto-generate ntfy topic from match date + configured start time
@@ -1804,6 +1815,7 @@ function showBowlerLB(){
 // END
 // ══════════════════════════════════════════
 function endMatch(){
+  pushLiveScore('finished');
   show('s-end');
   clearGameState();
   saveMatchToStorage();
@@ -2146,7 +2158,19 @@ function showBackupModal(){
   const urlEl=document.getElementById('ntfy-topic-url');
   if(topic){disp.style.display='block';urlEl.textContent=`ntfy.sh/${topic}`;}
   else{disp.style.display='none';}
+  const liveSection=document.getElementById('live-link-section');
+  const liveUrlEl=document.getElementById('live-link-url');
+  if(G.matchId){
+    const base=window.location.href.replace(/\/[^\/]*$/, '/');
+    liveUrlEl.textContent=`${base}scores.html?match=${G.matchId}`;
+    liveSection.style.display='block';
+  }else{liveSection.style.display='none';}
   document.getElementById('backup-modal').classList.remove('hidden');
+}
+function copyLiveLink(){
+  const url=document.getElementById('live-link-url').textContent;
+  navigator.clipboard.writeText(url).catch(()=>{});
+  const btn=event.target;btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy link';},2000);
 }
 
 function saveAndTestNtfy(){
@@ -2185,6 +2209,7 @@ function pushBallUpdate(){
   ].join('\n');
   const title=`${bp.cname} ${sc.bat} - Over ${G.overIdx+1}.${G.ballInOver}`;
   pushToNtfy(title,body).then(ok=>{if(ok)flashPushIndicator();});
+  pushLiveScore();
 }
 
 async function pushToNtfy(title,body){
@@ -2207,6 +2232,37 @@ function flashPushIndicator(){
   if(!el)return;
   el.style.opacity='1';
   setTimeout(()=>{el.style.opacity='0';},3500);
+}
+
+// ── SUPABASE LIVE SCORE PUSH ──────────────────────────────────────────
+async function pushLiveScore(status='in_progress'){
+  if(!G.matchId||!G.pairs||!G.pairs.length)return;
+  const facedMap={};
+  G.history.filter(b=>b.legal).forEach(b=>{facedMap[b.batPair]=(facedMap[b.batPair]||0)+1;});
+  const finished=status==='finished';
+  const safeOverIdx=finished?G.totalOvers-1:G.overIdx;
+  const bi=G.batSched[safeOverIdx]??0;
+  const bwi=Math.max(0,G.bowlSched[safeOverIdx]??0);
+  const bp=G.pairs[bi];
+  const bwp=G.pairs[Math.min(bwi,G.numPairs-1)];
+  const sc=i=>({bat:G.scores[i]?.bat||0,bowl:G.scores[i]?.bowl||0,total:(G.scores[i]?.bat||0)+(G.scores[i]?.bowl||0)});
+  const payload={
+    status,
+    over:Math.min(G.overIdx+(finished?0:1),G.totalOvers),
+    ball:G.ballInOver,
+    total_overs:G.totalOvers,
+    batting:bp?{cname:bp.cname,players:bp.players,color:bp.color,...sc(bi),balls_faced:facedMap[bi]||0}:null,
+    bowling:(!finished&&bwp)?{cname:bwp.cname,players:bwp.players,color:bwp.color}:null,
+    pairs:G.pairs.map((p,i)=>({cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0}))
+  };
+  try{
+    await fetch(`${SUPABASE_URL}/rest/v1/live_scores`,{
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,
+        'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({match_id:G.matchId,updated_at:new Date().toISOString(),payload})
+    });
+  }catch(e){}
 }
 
 // ══════════════════════════════════════════
@@ -2341,6 +2397,7 @@ function takeSnapshot(label){
   if(localStorage.getItem('cricket_ntfy_topic')){
     pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
   }
+  pushLiveScore();
 }
 
 function showSnapModal(){
