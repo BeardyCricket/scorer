@@ -2236,7 +2236,12 @@ function flashPushIndicator(){
 
 // ── SUPABASE LIVE SCORE PUSH ──────────────────────────────────────────
 async function pushLiveScore(status='in_progress'){
-  if(!G.matchId||!G.pairs||!G.pairs.length)return;
+  console.log('[Supabase] pushLiveScore called | status:', status, '| matchId:', G.matchId,
+    '| pairs:', G.pairs?.length, '| overIdx:', G.overIdx, '| ballInOver:', G.ballInOver);
+
+  if(!G.matchId){console.warn('[Supabase] ABORTED: matchId is empty — match not started yet');return;}
+  if(!G.pairs||!G.pairs.length){console.warn('[Supabase] ABORTED: pairs array is empty');return;}
+
   const facedMap={};
   G.history.filter(b=>b.legal).forEach(b=>{facedMap[b.batPair]=(facedMap[b.batPair]||0)+1;});
   const finished=status==='finished';
@@ -2255,14 +2260,34 @@ async function pushLiveScore(status='in_progress'){
     bowling:(!finished&&bwp)?{cname:bwp.cname,players:bwp.players,color:bwp.color}:null,
     pairs:G.pairs.map((p,i)=>({cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0}))
   };
+
+  // on_conflict tells PostgREST which column to use for the upsert conflict check.
+  // return=minimal suppresses the response body (required alongside resolution= in Supabase).
+  const endpoint=`${SUPABASE_URL}/rest/v1/live_scores?on_conflict=match_id`;
+  const requestBody=JSON.stringify({match_id:G.matchId,updated_at:new Date().toISOString(),payload});
+  console.log('[Supabase] POST', endpoint);
+  console.log('[Supabase] Request body:', requestBody);
+
   try{
-    await fetch(`${SUPABASE_URL}/rest/v1/live_scores`,{
+    const res=await fetch(endpoint,{
       method:'POST',
-      headers:{'apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,
-        'Content-Type':'application/json','Prefer':'resolution=merge-duplicates'},
-      body:JSON.stringify({match_id:G.matchId,updated_at:new Date().toISOString(),payload})
+      headers:{
+        'apikey':SUPABASE_KEY,
+        'Authorization':`Bearer ${SUPABASE_KEY}`,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal,resolution=merge-duplicates'
+      },
+      body:requestBody
     });
-  }catch(e){}
+    const text=await res.text();
+    if(res.ok){
+      console.log('[Supabase] SUCCESS | HTTP', res.status, '| response:', text||'(empty — normal for upsert)');
+    }else{
+      console.error('[Supabase] ERROR | HTTP', res.status, res.statusText, '| response body:', text);
+    }
+  }catch(e){
+    console.error('[Supabase] NETWORK ERROR (fetch threw):', e);
+  }
 }
 
 // ══════════════════════════════════════════

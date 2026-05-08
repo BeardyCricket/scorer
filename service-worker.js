@@ -25,10 +25,17 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // Only intercept same-origin GET requests (app assets).
+  // All other requests — POST, cross-origin API calls to Supabase, etc. —
+  // are passed straight to the network without SW involvement.
+  if (event.request.method !== 'GET') return;
+  if (!event.request.url.startsWith(self.location.origin)) return;
+
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
+        if (!response || response.status !== 200 || response.type === 'opaque') return response;
         const clone = response.clone();
         caches.open(CACHE).then(c => c.put(event.request, clone));
         return response;
