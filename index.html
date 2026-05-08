@@ -1835,7 +1835,36 @@ async function endMatch(){
     shareUrl.textContent=`${base}scores.html?match=${G.matchId}`;
     shareCard.style.display='block';
   }
-  await pushLiveScore('finished');
+  // Compute full match stats here — explicit try/catch so failures are visible in console
+  let matchStats=null;
+  try{
+    const ms=computeStats();
+    const totFours=G.history.filter(b=>b.run===4&&(b.type==='normal'||b.type==='nb')).length;
+    const totSixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
+    matchStats={
+      total_runs:G.scores.reduce((a,s)=>a+s.bat,0),
+      wickets:G.history.filter(b=>b.type==='wkt').length,
+      fours:totFours,sixes:totSixes,
+      catches:G.history.filter(b=>b.type==='wkt'&&b.dismissal==='Caught').length,
+      pairs:ms.map(s=>({
+        cname:s.pair.cname,color:s.pair.color,
+        bat_gross:s.grossBatRuns,bat_wickets:s.wkts,bat_fours:s.fours,bat_sixes:s.sixes,bat_net:s.totalRuns,
+        bowl_overs:s.oversStr,bowl_runs:s.runsGivenBowl,bowl_wickets:s.wktsTakenBowl,
+        bowl_net:s.bowlNet,bowl_bonus:G.scores[s.pi].bowl,
+        total:G.scores[s.pi].bat+G.scores[s.pi].bowl,
+        players_bat:s.pair.players.map(p=>({name:p,...(s.playerBatStats[p]||{runs:s.playerRuns[p]||0,balls:0,sr:'—',fours:0,sixes:0})})),
+        players_bowl:s.pair.players.map(p=>{
+          const pb=s.playerBowl[p]||{balls:0,runs:0,wkts:0};
+          const ov=Math.floor(pb.balls/6),rm=pb.balls%6;
+          return{name:p,overs:rm?`${ov}.${rm}`:`${ov}`,runs:pb.runs,wickets:pb.wkts,net:pb.runs-(5*pb.wkts)};
+        })
+      }))
+    };
+    console.log('[Stats] match_stats computed OK — pairs:',matchStats.pairs.length,'total_runs:',matchStats.total_runs);
+  }catch(e){
+    console.error('[Stats] match_stats computation FAILED:',e);
+  }
+  await pushLiveScore('finished',matchStats);
   if(savedMsg)savedMsg.style.display='block';
   show('s-end');
   clearGameState();
@@ -2262,7 +2291,7 @@ function flashPushIndicator(){
 }
 
 // ── SUPABASE LIVE SCORE PUSH ──────────────────────────────────────────
-async function pushLiveScore(status='in_progress'){
+async function pushLiveScore(status='in_progress',matchStats=null){
   console.log('[Supabase] pushLiveScore called | status:', status, '| matchId:', G.matchId,
     '| pairs:', G.pairs?.length, '| overIdx:', G.overIdx, '| ballInOver:', G.ballInOver);
 
@@ -2296,34 +2325,21 @@ async function pushLiveScore(status='in_progress'){
     total_overs:G.totalOvers,
     batting:bp?{cname:bp.cname,players:bp.players,color:bp.color,...sc(bi),balls_faced:facedMap[bi]||0}:null,
     bowling:(!finished&&bwp)?{cname:bwp.cname,players:bwp.players,color:bwp.color}:null,
-    pairs:G.pairs.map((p,i)=>({cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0})),
+    pairs:G.pairs.map((p,i)=>{
+      // Per-player batting runs — included on every push so scores.html always has them
+      const pRuns={};p.players.forEach(pl=>{pRuns[pl]=0;});
+      const pBalls={};p.players.forEach(pl=>{pBalls[pl]=0;});
+      G.history.filter(b=>b.batPair===i&&b.type==='normal'&&b.facing&&pRuns[b.facing]!==undefined)
+        .forEach(b=>{pRuns[b.facing]+=b.run;});
+      G.history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&b.facing&&pBalls[b.facing]!==undefined)
+        .forEach(b=>{pBalls[b.facing]++;});
+      return{cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0,
+        players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0}))};
+    }),
     bowling_figures
   };
-  if(finished&&typeof computeStats==='function'){
-    const ms=computeStats();
-    const totFours=G.history.filter(b=>b.run===4&&(b.type==='normal'||b.type==='nb')).length;
-    const totSixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
-    payload.match_stats={
-      total_runs:G.scores.reduce((s,sc)=>s+sc.bat,0),
-      wickets:G.history.filter(b=>b.type==='wkt').length,
-      fours:totFours,
-      sixes:totSixes,
-      catches:G.history.filter(b=>b.type==='wkt'&&b.dismissal==='Caught').length,
-      pairs:ms.map(s=>({
-        cname:s.pair.cname,color:s.pair.color,
-        bat_gross:s.grossBatRuns,bat_wickets:s.wkts,bat_fours:s.fours,bat_sixes:s.sixes,bat_net:s.totalRuns,
-        bowl_overs:s.oversStr,bowl_runs:s.runsGivenBowl,bowl_wickets:s.wktsTakenBowl,
-        bowl_net:s.bowlNet,bowl_bonus:G.scores[s.pi].bowl,
-        total:G.scores[s.pi].bat+G.scores[s.pi].bowl,
-        players_bat:s.pair.players.map(p=>({name:p,...(s.playerBatStats[p]||{runs:s.playerRuns[p]||0,balls:0,sr:'—',fours:0,sixes:0})})),
-        players_bowl:s.pair.players.map(p=>{
-          const pb=s.playerBowl[p]||{balls:0,runs:0,wkts:0};
-          const ov=Math.floor(pb.balls/6),rm=pb.balls%6;
-          return{name:p,overs:rm?`${ov}.${rm}`:`${ov}`,runs:pb.runs,wickets:pb.wkts,net:pb.runs-(5*pb.wkts)};
-        })
-      }))
-    };
-  }
+  // match_stats is passed in from endMatch() — computed there with explicit logging
+  if(matchStats) payload.match_stats=matchStats;
 
   // on_conflict tells PostgREST which column to use for the upsert conflict check.
   // return=minimal suppresses the response body (required alongside resolution= in Supabase).
