@@ -6,7 +6,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Beardy Cricket">
 <meta name="theme-color" content="#1a4a2e">
-<link rel="apple-touch-icon" href="data:image/png;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQA">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Beardy Cricket</title>
@@ -1881,21 +1882,7 @@ function downloadSaved(i){
 // ── SERVICE WORKER (PWA offline) ──────────────────────────────────────────
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    // Inline service worker via blob URL so it works from a single HTML file
-    const swCode=`
-self.addEventListener('install',e=>e.waitUntil(
-  caches.open('beardy-v1').then(c=>c.addAll([location.pathname]))
-));
-self.addEventListener('fetch',e=>e.respondWith(
-  caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
-    const clone=res.clone();
-    caches.open('beardy-v1').then(c=>c.put(e.request,clone));
-    return res;
-  }))
-));
-`;
-    const blob=new Blob([swCode],{type:'application/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
   });
 }
 
