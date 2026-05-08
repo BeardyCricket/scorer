@@ -12,11 +12,13 @@
   create policy "anon_insert" on public.live_scores for insert to anon with check (true);
   create policy "anon_update" on public.live_scores for update to anon using (true) with check (true);
   alter publication supabase_realtime add table public.live_scores;
+  notify pgrst, 'reload schema';
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a4a2e">
@@ -35,7 +37,7 @@
     --border:#e5e7eb;--muted:#6b7280;
     --cream:#f5f0e8;
   }
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--cream);min-height:100vh;padding-bottom:40px}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--cream);min-height:100vh;padding-bottom:48px}
 
   /* Header */
   .hdr{background:var(--brand);padding:14px 16px 12px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -53,42 +55,19 @@
   .card{background:#fff;border-radius:14px;margin:12px 12px 0;border:1px solid var(--border);overflow:hidden}
 
   /* Color accents */
-  .c-purple{border-color:var(--purple)!important}
-  .c-blue{border-color:var(--blue)!important}
-  .c-grey{border-color:var(--grey)!important}
-  .c-red{border-color:var(--red)!important}
-  .c-green{border-color:var(--green)!important}
-  .c-orange{border-color:var(--orange)!important}
+  .c-purple{border-color:var(--purple)!important}.c-blue{border-color:var(--blue)!important}
+  .c-grey{border-color:var(--grey)!important}.c-red{border-color:var(--red)!important}
+  .c-green{border-color:var(--green)!important}.c-orange{border-color:var(--orange)!important}
   .c-pink{border-color:var(--pink)!important}
-
-  .t-purple{color:var(--purple)}
-  .t-blue{color:var(--blue)}
-  .t-grey{color:var(--grey)}
-  .t-red{color:var(--red)}
-  .t-green{color:var(--green)}
-  .t-orange{color:var(--orange)}
-  .t-pink{color:var(--pink)}
-
-  .bg-purple{background:var(--purple-l)}
-  .bg-blue{background:var(--blue-l)}
-  .bg-grey{background:var(--grey-l)}
-  .bg-red{background:var(--red-l)}
-  .bg-green{background:var(--green-l)}
-  .bg-orange{background:var(--orange-l)}
-  .bg-pink{background:var(--pink-l)}
+  .t-purple{color:var(--purple)}.t-blue{color:var(--blue)}.t-grey{color:var(--grey)}
+  .t-red{color:var(--red)}.t-green{color:var(--green)}.t-orange{color:var(--orange)}.t-pink{color:var(--pink)}
 
   /* Batting card */
   .bat-card-inner{padding:16px}
   .bat-lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
   .bat-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-  .d-purple{background:var(--purple)}
-  .d-blue{background:var(--blue)}
-  .d-grey{background:var(--grey)}
-  .d-red{background:var(--red)}
-  .d-green{background:var(--green)}
-  .d-orange{background:var(--orange)}
-  .d-pink{background:var(--pink)}
-
+  .d-purple{background:var(--purple)}.d-blue{background:var(--blue)}.d-grey{background:var(--grey)}
+  .d-red{background:var(--red)}.d-green{background:var(--green)}.d-orange{background:var(--orange)}.d-pink{background:var(--pink)}
   .bat-pair-name{font-size:22px;font-weight:800;line-height:1;margin-bottom:3px}
   .bat-players{font-size:13px;color:var(--muted);margin-bottom:14px}
   .bat-score-row{display:flex;align-items:flex-end;justify-content:space-between}
@@ -105,10 +84,11 @@
   .bowl-players{font-size:12px;color:var(--muted)}
 
   /* Scoreboard */
-  .sb-header{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .sb-header{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
   .sb-row{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);gap:10px}
   .sb-row:last-child{border-bottom:none}
   .sb-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .sb-rank{font-size:18px;width:28px;flex-shrink:0;text-align:center}
   .sb-name{flex:1;min-width:0}
   .sb-cname{font-size:14px;font-weight:700}
   .sb-players{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -119,8 +99,45 @@
   .sb-tag-bat{background:var(--brand-l);color:var(--brand)}
   .sb-tag-bowl{background:var(--grey-l);color:var(--muted)}
 
+  /* Bowling figures */
+  .bf-row{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);gap:10px}
+  .bf-row:last-child{border-bottom:none}
+  .bf-player{flex:1;font-size:14px;font-weight:600}
+  .bf-stat{text-align:center;min-width:44px}
+  .bf-val{font-size:16px;font-weight:800}
+  .bf-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .bf-header-row{display:flex;padding:6px 16px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border)}
+  .bf-header-row span:first-child{flex:1}
+  .bf-header-row span{min-width:44px;text-align:center}
+
+  /* Recent matches */
+  .recent-section{background:#fff;border-radius:14px;margin:12px 12px 0;border:1px solid var(--border);overflow:hidden}
+  .recent-header{padding:10px 16px 6px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+  .match-link{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);text-decoration:none;color:inherit;gap:10px;transition:background .15s}
+  .match-link:last-child{border-bottom:none}
+  .match-link:hover,.match-link:active{background:var(--brand-l)}
+  .match-link-active{background:var(--brand-l)}
+  .match-info{flex:1}
+  .match-date{font-size:14px;font-weight:700;color:#111}
+  .match-winner{font-size:12px;color:var(--muted);margin-top:2px}
+  .match-arrow{font-size:18px;color:var(--muted);flex-shrink:0}
+
+  /* How it works */
+  .info-card{background:#fff;border-radius:14px;margin:12px 12px 0;border:1px solid var(--border);overflow:hidden}
+  .info-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:none;border:none;cursor:pointer;font-family:inherit}
+  .info-toggle-title{font-size:13px;font-weight:700;color:var(--brand)}
+  .info-toggle-icon{font-size:18px;color:var(--muted);transition:transform .2s}
+  .info-toggle-icon.open{transform:rotate(180deg)}
+  .info-body{display:none;padding:0 16px 16px;border-top:1px solid var(--border)}
+  .info-body.open{display:block}
+  .info-rule{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;line-height:1.4}
+  .info-rule:last-child{border-bottom:none}
+  .info-rule-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center}
+  .info-rule-text strong{display:block;font-weight:700;margin-bottom:2px}
+  .info-rule-text{color:#444}
+
   /* States */
-  .waiting{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;min-height:60vh}
+  .waiting{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;min-height:50vh}
   .waiting-icon{font-size:48px;margin-bottom:16px}
   .waiting-title{font-size:20px;font-weight:700;color:var(--brand);margin-bottom:8px}
   .waiting-sub{font-size:14px;color:var(--muted);line-height:1.5}
@@ -147,6 +164,13 @@
   <span id="status-match"></span>
 </div>
 
+<!-- Recent matches (last 5 finished games) -->
+<div class="recent-section hidden" id="recent-section">
+  <div class="recent-header">Recent matches</div>
+  <div id="recent-list"></div>
+</div>
+
+<!-- Live / final scoreboard -->
 <div id="main-content">
   <div class="waiting" id="waiting-state">
     <div class="waiting-icon">🏏</div>
@@ -156,6 +180,36 @@
 </div>
 
 <div class="updated hidden" id="updated-line">Updated <span id="updated-time"></span></div>
+
+<!-- How it works -->
+<div class="info-card">
+  <button class="info-toggle" onclick="toggleInfo()">
+    <span class="info-toggle-title">How Beardy Cricket works</span>
+    <span class="info-toggle-icon" id="info-icon">&#8964;</span>
+  </button>
+  <div class="info-body" id="info-body">
+    <div class="info-rule">
+      <div class="info-rule-icon">👫</div>
+      <div class="info-rule-text"><strong>Pairs format</strong>Players split into pairs who bat together for a set number of overs. Every pair bats and bowls.</div>
+    </div>
+    <div class="info-rule">
+      <div class="info-rule-icon">🏏</div>
+      <div class="info-rule-text"><strong>Batting</strong>Runs are scored normally. The batting pair accumulates runs across all their overs.</div>
+    </div>
+    <div class="info-rule">
+      <div class="info-rule-icon">❌</div>
+      <div class="info-rule-text"><strong>Wickets cost 5 runs</strong>Each time the batting pair loses a wicket, 5 runs are deducted from their total. Batters keep going — no one is out.</div>
+    </div>
+    <div class="info-rule">
+      <div class="info-rule-icon">⭐</div>
+      <div class="info-rule-text"><strong>Bowling bonus</strong>Bowlers earn +2 bonus points added to their pair's total for every wicket they take.</div>
+    </div>
+    <div class="info-rule">
+      <div class="info-rule-icon">🏆</div>
+      <div class="info-rule-text"><strong>Winning</strong>The pair with the highest total — batting runs plus bowling bonus — wins the match.</div>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -168,11 +222,25 @@ const params=new URLSearchParams(window.location.search);
 let matchId=params.get('match')||null;
 let channel=null;
 
-// ── Rendering ─────────────────────────────────────────────────────────────
-function colorClass(c){return['purple','blue','grey','red','green','orange','pink'].includes(c)?c:'grey';}
+function toggleInfo(){
+  const body=document.getElementById('info-body');
+  const icon=document.getElementById('info-icon');
+  const open=body.classList.toggle('open');
+  icon.classList.toggle('open',open);
+}
 
+// ── Helpers ───────────────────────────────────────────────────────────────
+function colorClass(c){return['purple','blue','grey','red','green','orange','pink'].includes(c)?c:'grey';}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(iso){
+  const d=new Date(iso);
+  return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
+    +' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────
 function render(payload){
-  if(!payload){return;}
+  if(!payload)return;
   const mc=document.getElementById('main-content');
   mc.innerHTML='';
 
@@ -180,6 +248,7 @@ function render(payload){
   const bi=payload.batting;
   const bwi=payload.bowling;
   const pairs=payload.pairs||[];
+  const figures=payload.bowling_figures||[];
 
   // Finished banner
   if(finished){
@@ -191,28 +260,24 @@ function render(payload){
 
   // Status bar
   const sb=document.getElementById('status-bar');
-  const so=document.getElementById('status-over');
-  const sm=document.getElementById('status-match');
   sb.classList.remove('hidden');
   if(finished){
-    so.textContent='Final';
-    sm.textContent=`${payload.total_overs} overs`;
+    document.getElementById('status-over').textContent='Final';
+    document.getElementById('status-match').textContent=`${payload.total_overs} overs`;
   } else {
-    const ball=payload.ball;
-    const over=payload.over;
-    so.textContent=ball>=6?`End of Over ${over}`:`Over ${over}, Ball ${ball} of 6`;
-    sm.textContent=`${over} / ${payload.total_overs} overs`;
+    const ball=payload.ball,over=payload.over;
+    document.getElementById('status-over').textContent=ball>=6?`End of Over ${over}`:`Over ${over}, Ball ${ball} of 6`;
+    document.getElementById('status-match').textContent=`${over} / ${payload.total_overs} overs`;
   }
 
-  // Batting card
-  if(bi){
+  // Batting card (live only — finished shows leaderboard instead)
+  if(bi&&!finished){
     const cc=colorClass(bi.color);
-    const ovs=Math.floor(bi.balls_faced/6);
-    const bls=bi.balls_faced%6;
+    const ovs=Math.floor(bi.balls_faced/6),bls=bi.balls_faced%6;
     const card=document.createElement('div');
     card.className=`card c-${cc}`;
-    card.innerHTML=`<div class="bat-card-inner bg-${cc}" style="background:var(--${cc}-l)">
-      <div class="bat-lbl"><div class="bat-dot d-${cc}"></div>${finished?'Last batting':'Batting now'}</div>
+    card.innerHTML=`<div class="bat-card-inner" style="background:var(--${cc}-l)">
+      <div class="bat-lbl"><div class="bat-dot d-${cc}"></div>Batting now</div>
       <div class="bat-pair-name t-${cc}">${esc(bi.cname)} pair</div>
       <div class="bat-players">${esc(bi.players.join(' & '))}</div>
       <div class="bat-score-row">
@@ -223,12 +288,12 @@ function render(payload){
           <div class="bat-ovs">${ovs}.${bls} overs faced</div>
         </div>
       </div>
-      ${!finished?`<div class="over-pill">${payload.ball>=6?`End of Over ${payload.over}`:`Over ${payload.over} · Ball ${payload.ball}`}</div>`:''}
+      <div class="over-pill">${payload.ball>=6?`End of Over ${payload.over}`:`Over ${payload.over} · Ball ${payload.ball}`}</div>
     </div>`;
     mc.appendChild(card);
   }
 
-  // Bowling card
+  // Bowling card (live only)
   if(bwi&&!finished){
     const cc=colorClass(bwi.color);
     const card=document.createElement('div');
@@ -244,47 +309,87 @@ function render(payload){
     mc.appendChild(card);
   }
 
-  // All scores
+  // All pairs leaderboard
   if(pairs.length){
-    const batIdx=bi?pairs.findIndex(p=>p.cname===bi.cname):-1;
-    const bowlIdx=bwi?pairs.findIndex(p=>p.cname===bwi.cname):-1;
     const sorted=[...pairs].sort((a,b)=>b.total-a.total);
+    const medals=['🥇','🥈','🥉'];
     const card=document.createElement('div');
     card.className='card';
-    card.innerHTML=`<div class="sb-header">All pairs</div>${sorted.map(p=>{
-      const cc=colorClass(p.color);
-      const isBat=p.cname===(bi&&bi.cname);
-      const isBowl=!finished&&p.cname===(bwi&&bwi.cname);
-      const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
-      return `<div class="sb-row">
-        <div class="sb-dot d-${cc}"></div>
-        <div class="sb-name">
-          <div class="sb-cname t-${cc}">${esc(p.cname)} pair</div>
-          <div class="sb-players">${esc(p.players.join(' & '))}</div>
-          ${isBat?`<span class="sb-tag sb-tag-bat">batting now</span>`:''}
-          ${isBowl?`<span class="sb-tag sb-tag-bowl">bowling</span>`:''}
-        </div>
-        <div class="sb-score">
-          <div class="sb-total t-${cc}">${p.total}</div>
-          <div class="sb-breakdown">${p.bat}+${p.bowl} · ${ovs}.${bls} ovs</div>
-        </div>
-      </div>`;
-    }).join('')}`;
+    card.innerHTML=`<div class="sb-header">${finished?'Final leaderboard':'All pairs'}</div>`
+      +sorted.map((p,rank)=>{
+        const cc=colorClass(p.color);
+        const isBat=!finished&&p.cname===(bi&&bi.cname);
+        const isBowl=!finished&&p.cname===(bwi&&bwi.cname);
+        const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
+        const rankLabel=finished?(medals[rank]||`<span style="font-size:14px;font-weight:700">${rank+1}</span>`):'';
+        return `<div class="sb-row">
+          ${finished?`<div class="sb-rank">${rankLabel}</div>`:'<div class="sb-dot d-'+cc+'"></div>'}
+          <div class="sb-name">
+            <div class="sb-cname t-${cc}">${esc(p.cname)} pair</div>
+            <div class="sb-players">${esc(p.players.join(' & '))}</div>
+            ${isBat?`<span class="sb-tag sb-tag-bat">batting now</span>`:''}
+            ${isBowl?`<span class="sb-tag sb-tag-bowl">bowling</span>`:''}
+          </div>
+          <div class="sb-score">
+            <div class="sb-total t-${cc}">${p.total}</div>
+            <div class="sb-breakdown">${p.bat} bat +${p.bowl} bowl · ${ovs}.${bls} ovs</div>
+          </div>
+        </div>`;
+      }).join('');
+    mc.appendChild(card);
+  }
+
+  // Bowling figures
+  if(figures.length){
+    const card=document.createElement('div');
+    card.className='card';
+    card.innerHTML=`<div class="sb-header">Bowling figures</div>
+      <div class="bf-header-row"><span>Player</span><span>Overs</span><span>Wkts</span></div>`
+      +figures.map(f=>`<div class="bf-row">
+        <div class="bf-player">${esc(f.player)}</div>
+        <div class="bf-stat"><div class="bf-val">${f.overs}</div></div>
+        <div class="bf-stat"><div class="bf-val">${f.wickets}</div></div>
+      </div>`).join('');
     mc.appendChild(card);
   }
 
   // Timestamp
-  const ul=document.getElementById('updated-line');
-  const ut=document.getElementById('updated-time');
-  const now=new Date();
-  ut.textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  ul.classList.remove('hidden');
+  document.getElementById('updated-time').textContent=
+    new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('updated-line').classList.remove('hidden');
 }
 
-function esc(s){
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── Recent matches ────────────────────────────────────────────────────────
+async function loadRecentMatches(){
+  const {data}=await client
+    .from('live_scores')
+    .select('match_id,updated_at,payload')
+    .order('updated_at',{ascending:false})
+    .limit(15);
+
+  const finished=(data||[]).filter(r=>r.payload?.status==='finished').slice(0,5);
+  if(!finished.length)return;
+
+  const list=document.getElementById('recent-list');
+  list.innerHTML=finished.map(r=>{
+    const p=r.payload;
+    const dateStr=fmtDate(p.started_at||r.updated_at);
+    const sorted=[...(p.pairs||[])].sort((a,b)=>b.total-a.total);
+    const winner=sorted[0];
+    const isCurrent=r.match_id===matchId;
+    return `<a class="match-link${isCurrent?' match-link-active':''}" href="?match=${encodeURIComponent(r.match_id)}">
+      <div class="match-info">
+        <div class="match-date">${esc(dateStr)}</div>
+        ${winner?`<div class="match-winner">🏆 ${esc(winner.cname)} pair · ${winner.total} pts</div>`:''}
+      </div>
+      <div class="match-arrow">›</div>
+    </a>`;
+  }).join('');
+
+  document.getElementById('recent-section').classList.remove('hidden');
 }
 
+// ── Connection indicator ──────────────────────────────────────────────────
 function setConnected(ok){
   const badge=document.getElementById('live-badge');
   const dot=document.getElementById('live-dot');
@@ -293,7 +398,7 @@ function setConnected(ok){
   else{badge.classList.add('offline');dot.style.background='#f87171';dot.style.animation='none';txt.textContent='Offline';}
 }
 
-// ── Supabase subscription ────────────────────────────────────────────────
+// ── Supabase subscriptions ────────────────────────────────────────────────
 function subscribeToMatch(id){
   if(channel)client.removeChannel(channel);
   channel=client.channel(`match-${id}`)
@@ -317,12 +422,15 @@ function subscribeForAnyMatch(){
 
 // ── Bootstrap ────────────────────────────────────────────────────────────
 async function init(){
+  loadRecentMatches();
+
   if(matchId){
-    const {data,error}=await client.from('live_scores').select('payload').eq('match_id',matchId).maybeSingle();
+    const {data}=await client.from('live_scores').select('payload').eq('match_id',matchId).maybeSingle();
     if(data)render(data.payload);
     subscribeToMatch(matchId);
   } else {
-    const {data}=await client.from('live_scores').select('match_id,payload').order('updated_at',{ascending:false}).limit(1).maybeSingle();
+    const {data}=await client.from('live_scores').select('match_id,payload')
+      .order('updated_at',{ascending:false}).limit(1).maybeSingle();
     if(data){matchId=data.match_id;render(data.payload);subscribeToMatch(matchId);}
     else{subscribeForAnyMatch();}
   }

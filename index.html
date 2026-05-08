@@ -2254,14 +2254,26 @@ async function pushLiveScore(status='in_progress'){
   const bp=G.pairs[bi];
   const bwp=G.pairs[Math.min(bwi,G.numPairs-1)];
   const sc=i=>({bat:G.scores[i]?.bat||0,bowl:G.scores[i]?.bowl||0,total:(G.scores[i]?.bat||0)+(G.scores[i]?.bowl||0)});
+  const bowlerMap={};
+  G.history.forEach(b=>{
+    if(!b.bowling)return;
+    if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={player:b.bowling,balls:0,wickets:0};
+    if(b.legal)bowlerMap[b.bowling].balls++;
+    if(b.type==='wkt')bowlerMap[b.bowling].wickets++;
+  });
+  const bowling_figures=Object.values(bowlerMap)
+    .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets}))
+    .sort((a,b)=>b.wickets-a.wickets||b.balls-a.balls);
   const payload={
     status,
+    started_at:new Date(G.matchStartMs).toISOString(),
     over:Math.min(G.overIdx+(finished?0:1),G.totalOvers),
     ball:G.ballInOver,
     total_overs:G.totalOvers,
     batting:bp?{cname:bp.cname,players:bp.players,color:bp.color,...sc(bi),balls_faced:facedMap[bi]||0}:null,
     bowling:(!finished&&bwp)?{cname:bwp.cname,players:bwp.players,color:bwp.color}:null,
-    pairs:G.pairs.map((p,i)=>({cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0}))
+    pairs:G.pairs.map((p,i)=>({cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0})),
+    bowling_figures
   };
 
   // on_conflict tells PostgREST which column to use for the upsert conflict check.
