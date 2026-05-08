@@ -297,8 +297,8 @@ function setConnected(ok){
 function subscribeToMatch(id){
   if(channel)client.removeChannel(channel);
   channel=client.channel(`match-${id}`)
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'live_scores',filter:`match_id=eq.${id}`},
-      p=>{render(p.new.payload);})
+    .on('postgres_changes',{event:'*',schema:'public',table:'live_scores',filter:`match_id=eq.${id}`},
+      p=>{if(p.new&&p.new.payload)render(p.new.payload);})
     .subscribe(status=>{setConnected(status==='SUBSCRIBED');});
 }
 

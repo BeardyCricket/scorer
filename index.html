@@ -2188,9 +2188,10 @@ function saveAndTestNtfy(){
 }
 
 function pushBallUpdate(){
+  if(G.ballInOver>=6)return; // over just ended — takeSnapshot() handles the push
+  pushLiveScore();
   const topic=localStorage.getItem('cricket_ntfy_topic');
   if(!topic)return;
-  if(G.ballInOver>=6)return; // over just ended — takeSnapshot() handles the push
   const bi=batIdx(),bwi=bowlIdx();
   const bp=G.pairs[bi],bwp=G.pairs[Math.min(bwi,G.numPairs-1)];
   if(!bp)return;
@@ -2209,7 +2210,6 @@ function pushBallUpdate(){
   ].join('\n');
   const title=`${bp.cname} ${sc.bat} - Over ${G.overIdx+1}.${G.ballInOver}`;
   pushToNtfy(title,body).then(ok=>{if(ok)flashPushIndicator();});
-  pushLiveScore();
 }
 
 async function pushToNtfy(title,body){
