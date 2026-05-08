@@ -331,10 +331,13 @@ function render(payload){
     // Use match_stats when available; fall back to computing from pairs/figures
     const totalRuns=ms?ms.total_runs:pairs.reduce((a,p)=>a+p.bat,0);
     // Wickets: bowling_figures is most reliable (always present); pairs.wickets only in newer payloads
-    const hasPairWkts=pairs.some(p=>p.wickets!=null);
-    const totalWkts=ms?ms.wickets:hasPairWkts?pairs.reduce((a,p)=>a+(p.wickets||0),0):figures.reduce((a,f)=>a+f.wickets,0);
-    const hasFours=ms!=null||pairs.some(p=>p.fours!=null);
-    const hasSixes=ms!=null||pairs.some(p=>p.sixes!=null);
+    // Determine data availability — old matches lack bowling_figures and players_bat
+    const hasWktsData=ms!=null||figures.length>0||pairs.some(p=>p.wickets!=null);
+    const hasFoursData=ms!=null||pairs.some(p=>p.fours!=null);
+    const hasSixesData=ms!=null||pairs.some(p=>p.sixes!=null);
+    const totalWkts=ms?ms.wickets
+      :pairs.some(p=>p.wickets!=null)?pairs.reduce((a,p)=>a+(p.wickets||0),0)
+      :figures.reduce((a,f)=>a+f.wickets,0);
     const totalFours=ms?ms.fours:pairs.reduce((a,p)=>a+(p.fours||0),0);
     const totalSixes=ms?ms.sixes:pairs.reduce((a,p)=>a+(p.sixes||0),0);
     const agg=document.createElement('div');
@@ -342,9 +345,9 @@ function render(payload){
     agg.innerHTML=`<div class="card-hdr">Match totals</div>
       <div class="agg-strip">
         <div class="agg-cell"><div class="agg-val">${totalRuns}</div><div class="agg-lbl">Runs</div></div>
-        <div class="agg-cell"><div class="agg-val">${totalWkts}</div><div class="agg-lbl">Wickets</div></div>
-        <div class="agg-cell"><div class="agg-val">${hasFours?totalFours:'—'}</div><div class="agg-lbl">Fours</div></div>
-        <div class="agg-cell"><div class="agg-val">${hasSixes?totalSixes:'—'}</div><div class="agg-lbl">Sixes</div></div>
+        <div class="agg-cell"><div class="agg-val">${hasWktsData?totalWkts:'—'}</div><div class="agg-lbl">Wickets</div></div>
+        <div class="agg-cell"><div class="agg-val">${hasFoursData?totalFours:'—'}</div><div class="agg-lbl">Fours</div></div>
+        <div class="agg-cell"><div class="agg-val">${hasSixesData?totalSixes:'—'}</div><div class="agg-lbl">Sixes</div></div>
       </div>`;
     mc.appendChild(agg);
 
@@ -353,9 +356,11 @@ function render(payload){
     const perfPairs = ms&&ms.pairs&&ms.pairs.length ? ms.pairs : null;
     const sortedPairs=[...(perfPairs||pairs)].sort((a,b)=>b.total-a.total);
 
+    const hasDetailedData=ms!=null||figures.length>0||pairs.some(p=>p.players_bat&&p.players_bat.length>0);
     const acc=document.createElement('div');
     acc.className='card';
-    acc.innerHTML='<div class="card-hdr">Individual performances</div>'
+    const limitedNote=hasDetailedData?'':'<div style="font-size:12px;color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--border)">Detailed stats are available for matches played with the latest app version.</div>';
+    acc.innerHTML='<div class="card-hdr">Individual performances</div>'+limitedNote
       +sortedPairs.map(p=>{
         const c=cc(p.color);
 
