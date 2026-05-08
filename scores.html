@@ -330,7 +330,11 @@ function render(payload){
     // ── Aggregate totals ──────────────────────────────────────────────
     // Use match_stats when available; fall back to computing from pairs/figures
     const totalRuns=ms?ms.total_runs:pairs.reduce((a,p)=>a+p.bat,0);
-    const totalWkts=ms?ms.wickets:pairs.reduce((a,p)=>a+(p.wickets||0),0);
+    // Wickets: bowling_figures is most reliable (always present); pairs.wickets only in newer payloads
+    const hasPairWkts=pairs.some(p=>p.wickets!=null);
+    const totalWkts=ms?ms.wickets:hasPairWkts?pairs.reduce((a,p)=>a+(p.wickets||0),0):figures.reduce((a,f)=>a+f.wickets,0);
+    const hasFours=ms!=null||pairs.some(p=>p.fours!=null);
+    const hasSixes=ms!=null||pairs.some(p=>p.sixes!=null);
     const totalFours=ms?ms.fours:pairs.reduce((a,p)=>a+(p.fours||0),0);
     const totalSixes=ms?ms.sixes:pairs.reduce((a,p)=>a+(p.sixes||0),0);
     const agg=document.createElement('div');
@@ -339,8 +343,8 @@ function render(payload){
       <div class="agg-strip">
         <div class="agg-cell"><div class="agg-val">${totalRuns}</div><div class="agg-lbl">Runs</div></div>
         <div class="agg-cell"><div class="agg-val">${totalWkts}</div><div class="agg-lbl">Wickets</div></div>
-        <div class="agg-cell"><div class="agg-val">${totalFours}</div><div class="agg-lbl">Fours</div></div>
-        <div class="agg-cell"><div class="agg-val">${totalSixes}</div><div class="agg-lbl">Sixes</div></div>
+        <div class="agg-cell"><div class="agg-val">${hasFours?totalFours:'—'}</div><div class="agg-lbl">Fours</div></div>
+        <div class="agg-cell"><div class="agg-val">${hasSixes?totalSixes:'—'}</div><div class="agg-lbl">Sixes</div></div>
       </div>`;
     mc.appendChild(agg);
 
@@ -355,21 +359,29 @@ function render(payload){
       +sortedPairs.map(p=>{
         const c=cc(p.color);
 
-        // Batting rows — rich from match_stats, or basic from pairs.players_bat
-        const batSrc=p.players_bat||[];
-        const batRows=batSrc.map(pl=>`<tr>
-            <td>${esc(pl.name)}</td>
-            <td style="font-weight:700">${pl.runs}</td>
+        // Batting rows — use players_bat if available, else stub rows from player names
+        const players=p.players||(p.players_bat||[]).map(x=>x.name)||[];
+        const batLookup={};(p.players_bat||[]).forEach(x=>{batLookup[x.name]=x;});
+        const batRows=players.map(name=>{
+          const pl=batLookup[name]||{};
+          return `<tr>
+            <td>${esc(name)}</td>
+            <td style="font-weight:700">${pl.runs!=null?pl.runs:'—'}</td>
             <td>${pl.fours!=null?pl.fours:'—'}</td>
             <td>${pl.sixes!=null?pl.sixes:'—'}</td>
             <td>${pl.balls!=null?pl.balls:'—'}</td>
-          </tr>`).join('');
+          </tr>`;
+        }).join('');
 
-        // Bowling rows — from match_stats or from bowling_figures filtered to this pair
-        const bowlSrc = p.players_bowl ||
-          figures.filter(f=>p.players&&p.players.includes(f.player)).map(f=>({
-            name:f.player,overs:f.overs,runs:'—',wickets:f.wickets,net:'—'
-          }));
+        // Bowling rows — from match_stats, then bowling_figures (now includes runs+net), then stub
+        const pairPlayers=p.players||(p.players_bat||[]).map(x=>x.name)||[];
+        const figForPair=figures.filter(f=>pairPlayers.includes(f.player));
+        const figLookup={};figForPair.forEach(f=>{figLookup[f.player]=f;});
+        const bowlSrc=p.players_bowl||pairPlayers.map(name=>{
+          const f=figLookup[name];
+          return f?{name,overs:f.overs,runs:f.runs!=null?f.runs:'—',wickets:f.wickets,net:f.net}
+                  :{name,overs:'—',runs:'—',wickets:'—',net:null};
+        });
         const bowlRows=bowlSrc.map(pl=>{
           const netOk=typeof pl.net==='number';
           const netColor=netOk&&pl.net<=0?'var(--green)':'var(--red)';
@@ -399,15 +411,15 @@ function render(payload){
           </div>
           <div class="pair-acc-body">
             <span class="stbl-section">${batSummary}</span>
-            ${batRows?`<table class="stbl">
+            <table class="stbl">
               <thead><tr><th>Batter</th><th>Runs</th><th>4s</th><th>6s</th><th>Balls</th></tr></thead>
               <tbody>${batRows}</tbody>
-            </table>`:''}
+            </table>
             <span class="stbl-section" style="margin-top:14px">${bowlSummary}</span>
-            ${bowlRows?`<table class="stbl">
+            <table class="stbl">
               <thead><tr><th>Bowler</th><th>Ovs</th><th>Runs</th><th>Wkts</th><th>Net</th></tr></thead>
               <tbody>${bowlRows}</tbody>
-            </table>`:''}
+            </table>
           </div>
         </div>`;
       }).join('');
