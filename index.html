@@ -371,8 +371,8 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
           <div class="band-sub" id="bowl-note"></div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:10px;color:var(--muted)">Bowl bonus</div>
-          <div style="font-size:20px;font-weight:800" id="bowl-bonus">+0</div>
+          <div style="font-size:10px;color:var(--muted)">Total</div>
+          <div style="font-size:20px;font-weight:800" id="bowl-bonus">0</div>
         </div>
       </div>
     </div>
@@ -1031,7 +1031,7 @@ function updateUI(){
 
   document.getElementById('bat-band').className=`band c-${bp.color}`;
   document.getElementById('bat-name').textContent=`${bp.cname} — ${bp.players.join(' & ')}`;
-  document.getElementById('bat-score').textContent=G.scores[bi].bat;
+  document.getElementById('bat-score').textContent=G.scores[bi].bat+G.scores[bi].bowl;
 
   const ballsLeft=6-G.ballInOver;
   const batsThisSlot=G.batSched.slice(0,G.overIdx+1).filter(x=>x===bi).length;
@@ -1044,7 +1044,7 @@ function updateUI(){
   let bowlNote=!bowlerEligible?'No bowling bonus — bowler has already bowled 2 overs':'';
   if(isSoloBowler&&bowlerEligible)bowlNote='Solo player — double bowling bonus (+4 per wicket)';
   document.getElementById('bowl-note').textContent=bowlNote;
-  document.getElementById('bowl-bonus').textContent=`+${G.scores[bwi].bowl}`;
+  document.getElementById('bowl-bonus').textContent=G.scores[bwi].bat+G.scores[bwi].bowl;
 
   document.getElementById('facing-sel').innerHTML=bp.players.map((p,i)=>`<option value="${p}"${i===G.facingIdx?' selected':''}>${p}</option>`).join('');
   // Build bowling selector — pair's players first, then everyone else in an optgroup
@@ -1239,7 +1239,7 @@ function confirmExtra(){
   // All extras count as a ball
   G.history.push({run,code:extraType,type:extraType,legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,facingBefore});
   G.scores[bi].bat+=run;
-  G.ballInOver++;pushBallUpdate();checkOver();
+  G.ballInOver++;if((extraType==='wide'||extraType==='nb')&&(run===3||run===5))switchStriker();pushBallUpdate();checkOver();
   setFb(`${extraType==='bye'?'Bye':extraType==='wide'?'Wide':'No ball'} +${run}`,'info');
   updateUI();saveGameState();
 }
@@ -1426,8 +1426,8 @@ function showTransitionModal(title,body,color){
 }
 function hideTransitionModal(){
   document.getElementById('trans-modal').classList.add('hidden');
-  if(G.pendingWhoFacing){G.pendingWhoFacing=false;askWhoFacing();return;}
-  if(G.pendingBowlerSelect)showBowlerModal();
+  if(G.pendingBowlerSelect){showBowlerModal();return;}
+  if(G.pendingWhoFacing){G.pendingWhoFacing=false;askWhoFacing();}
 }
 
 function playerNextEvents(playerName){
@@ -1537,6 +1537,7 @@ function selectOverBowler(name){
   }
   document.getElementById('bowler-modal').classList.add('hidden');
   updateUI();
+  if(G.pendingWhoFacing){G.pendingWhoFacing=false;askWhoFacing();}
 }
 
 function onBowlerSelChange(name){
