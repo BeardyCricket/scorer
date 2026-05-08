@@ -437,6 +437,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <button class="btn btn-secondary" onclick="showBowlerLB()">🎳 Bowling leaderboard</button>
     <button class="btn btn-secondary" onclick="newMatch()">New match</button>
     <div class="gap"></div>
+    <div class="card" id="live-share-card" style="display:none">
+      <div class="card-title">📺 Live scoreboard</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Share this link with anyone to view the final scores:</div>
+      <div style="font-size:12px;font-weight:700;color:var(--brand);word-break:break-all;line-height:1.5;margin-bottom:10px" id="end-share-url"></div>
+      <button class="btn btn-secondary" onclick="copyEndShareUrl()" id="end-share-btn">Copy link</button>
+      <div style="font-size:12px;color:var(--green);margin-top:8px;display:none" id="end-share-saved">✓ Final scores saved to scoreboard</div>
+    </div>
+    <div class="gap"></div>
     <div class="card">
       <div class="card-title">Saved matches</div>
       <div id="saved-matches"><div style="font-size:13px;color:var(--muted)">Loading...</div></div>
@@ -1817,8 +1825,18 @@ function showBowlerLB(){
 // ══════════════════════════════════════════
 // END
 // ══════════════════════════════════════════
-function endMatch(){
-  pushLiveScore('finished');
+async function endMatch(){
+  // Push finished state and surface the scoreboard link
+  const shareCard=document.getElementById('live-share-card');
+  const shareUrl=document.getElementById('end-share-url');
+  const savedMsg=document.getElementById('end-share-saved');
+  if(G.matchId&&shareCard&&shareUrl){
+    const base=window.location.href.replace(/\/[^\/]*$/,'/');
+    shareUrl.textContent=`${base}scores.html?match=${G.matchId}`;
+    shareCard.style.display='block';
+  }
+  await pushLiveScore('finished');
+  if(savedMsg)savedMsg.style.display='block';
   show('s-end');
   clearGameState();
   saveMatchToStorage();
@@ -2169,6 +2187,12 @@ function showBackupModal(){
     liveSection.style.display='block';
   }else{liveSection.style.display='none';}
   document.getElementById('backup-modal').classList.remove('hidden');
+}
+function copyEndShareUrl(){
+  const url=document.getElementById('end-share-url').textContent;
+  navigator.clipboard.writeText(url).catch(()=>{});
+  const btn=document.getElementById('end-share-btn');
+  btn.textContent='Copied!';setTimeout(()=>{btn.textContent='Copy link';},2000);
 }
 function copyLiveLink(){
   const url=document.getElementById('live-link-url').textContent;

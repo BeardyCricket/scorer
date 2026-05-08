@@ -244,7 +244,8 @@ function render(payload){
   const mc=document.getElementById('main-content');
   mc.innerHTML='';
 
-  const finished=payload.status==='finished';
+  // Treat as finished if status flag is set, OR if all overs are done (handles the case where the endMatch status push failed)
+  const finished=payload.status==='finished'||(payload.over>=payload.total_overs&&payload.total_overs>0&&payload.ball>=6);
   const bi=payload.batting;
   const bwi=payload.bowling;
   const pairs=payload.pairs||[];
