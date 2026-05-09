@@ -596,9 +596,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <div class="overlay hidden" id="reduce-modal">
   <div class="sheet" style="padding:24px 16px 40px">
     <div class="sheet-title">Adjust player count</div>
-    <div class="sheet-sub" id="reduce-modal-sub" style="margin-bottom:20px"></div>
-    <div id="reduce-opts" style="display:flex;flex-direction:column;gap:10px"></div>
-    <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden')" style="margin-top:16px">Cancel</button>
+    <div class="sheet-sub" id="reduce-modal-sub" style="margin-bottom:16px"></div>
+    <div id="reduce-opts" style="max-height:52vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;overflow:hidden"></div>
+    <div id="reduce-result" style="margin-top:12px;padding:10px 14px;background:var(--brand-l);border-radius:8px;font-size:13px;font-weight:700;color:var(--brand);min-height:36px"></div>
+    <button class="btn btn-primary" onclick="confirmPairSelection()" style="margin-top:12px">Confirm changes</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden')" style="margin-top:8px">Cancel</button>
   </div>
 </div>
 
@@ -1855,93 +1857,114 @@ function showReduceModal(){
   if(!canReducePlayers())return;
   const cutoff=reduceCutoffOver();
   document.getElementById('reduce-modal-sub').textContent=
-    `Currently ${G.numPlayers} players (${G.numPairs} pairs). Available until start of over ${cutoff+1}.`;
-  // Valid: any SCHED key that isn't the current count,
-  // and whose pair count fits within the pairs already registered (G.pairs.length)
-  const validKeys=Object.keys(SCHED).map(Number)
-    .filter(n=>n!==G.numPlayers&&Math.ceil(n/2)<=G.pairs.length)
-    .sort((a,b)=>b-a);
+    `Tick the pairs taking part. Pairs that have already batted are locked. Available until start of over ${cutoff+1}.`;
+
+  // Which pairs have batted or bowled so far
+  const hasBatted=new Set(G.batSched.slice(0,G.overIdx));
+  const hasBowled=new Set(G.bowlSched.slice(0,G.overIdx).filter(x=>x>=0));
+
   const opts=document.getElementById('reduce-opts');
-  opts.innerHTML=validKeys.map(n=>{
-    const np=Math.ceil(n/2);
-    const dir=n>G.numPlayers?'▲ Add':'▼ Reduce to';
-    return `<button class="btn btn-secondary" style="text-align:left" onclick="confirmReducePlayers(${n})">
-      <strong>${dir} ${n} players</strong> — ${np} pairs batting
-    </button>`;
+  opts.innerHTML=G.pairs.map((p,i)=>{
+    const locked=hasBatted.has(i); // can't remove pairs that have already batted
+    const checked=!p.absent;       // currently active = ticked
+    const batStatus=hasBatted.has(i)?'Batted':hasBowled.has(i)?'Bowled — not yet batted':'Not yet played';
+    const tagCol=hasBatted.has(i)?'var(--green)':hasBowled.has(i)?'var(--orange)':'var(--muted)';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);${locked?'opacity:.6':'cursor:pointer'}">
+      <input type="checkbox" id="pp-${i}" ${checked?'checked':''} ${locked?'disabled':''}
+        onchange="updateReduceResult()" style="width:18px;height:18px;flex-shrink:0;accent-color:var(--brand)">
+      <div class="dot d-${p.color}" style="flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px" class="t-${p.color}">${p.cname} pair</div>
+        <div style="font-size:12px;color:var(--muted)">${p.players.join(' & ')}</div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:${tagCol};flex-shrink:0">${batStatus}</div>
+    </label>`;
   }).join('');
+
+  updateReduceResult();
   document.getElementById('reduce-modal').classList.remove('hidden');
 }
-function confirmReducePlayers(newNum){
-  document.getElementById('reduce-modal').classList.add('hidden');
-  if(newNum===G.numPlayers||!SCHED[newNum])return;
-  const s=SCHED[newNum];
-  const newNP=Math.ceil(newNum/2);
-  const doneIdx=G.overIdx;
 
-  // Save completed schedule
+function updateReduceResult(){
+  const keepPairs=G.pairs.map((_,i)=>i).filter(i=>document.getElementById('pp-'+i)?.checked);
+  const n=keepPairs.length;
+  const playerCount=keepPairs.reduce((s,i)=>s+G.pairs[i].players.length,0);
+  const el=document.getElementById('reduce-result');
+  if(!el)return;
+  if(n===G.numPairs&&keepPairs.every((v,i)=>v===i)&&!G.pairs.some(p=>p.absent&&keepPairs.includes(G.pairs.indexOf(p)))){
+    el.textContent='No change from current setup';
+  }else if(n===0){
+    el.textContent='Select at least one pair';
+  }else{
+    const added=keepPairs.filter(i=>G.pairs[i].absent);
+    const removed=G.pairs.map((_,i)=>i).filter(i=>!keepPairs.includes(i)&&!G.pairs[i].absent);
+    const parts=[];
+    if(removed.length)parts.push(`Removing: ${removed.map(i=>G.pairs[i].cname).join(', ')}`);
+    if(added.length)parts.push(`Adding back: ${added.map(i=>G.pairs[i].cname).join(', ')}`);
+    el.textContent=`${playerCount} players, ${n} pairs. `+(parts.join(' · ')||'');
+  }
+}
+
+function confirmPairSelection(){
+  // keepPairs: sorted list of actual pair indices that are ticked
+  const keepPairs=G.pairs.map((_,i)=>i).filter(i=>document.getElementById('pp-'+i)?.checked).sort((a,b)=>a-b);
+  if(!keepPairs.length){alert('Select at least one pair.');return;}
+  document.getElementById('reduce-modal').classList.add('hidden');
+
+  const newNP=keepPairs.length;
+  const playerCount=keepPairs.reduce((s,i)=>s+G.pairs[i].players.length,0);
+  // Find SCHED for this pair count (try even then odd)
+  const s=SCHED[newNP*2]||SCHED[newNP*2-1];
+  if(!s){alert('No schedule available for '+newNP+' pairs.');return;}
+
+  const doneIdx=G.overIdx;
   const doneBat=G.batSched.slice(0,doneIdx);
   const doneBowl=G.bowlSched.slice(0,doneIdx);
   const doneBowlRaw=G.bowlSchedRaw.slice(0,doneIdx);
 
-  // Mark pairs above new count as absent; unmark pairs being re-activated (increase case)
-  for(let i=0;i<G.pairs.length;i++){
-    if(G.pairs[i])G.pairs[i].absent=(i>=newNP);
-  }
-  // Remove absent players from lateArrivals
-  for(let i=newNP;i<G.pairs.length;i++){
-    (G.pairs[i].players||[]).forEach(p=>G.lateArrivals.delete(p));
-  }
+  // Mark each pair absent or active based on keepPairs
+  G.pairs.forEach((p,i)=>{p.absent=!keepPairs.includes(i);});
+  // Remove now-absent players from lateArrivals
+  G.pairs.forEach((p,i)=>{if(p.absent)(p.players||[]).forEach(pl=>G.lateArrivals.delete(pl));});
 
-  // Build full new schedule for new player count
-  const np=newNP;
+  // Build new schedule: SCHED position → actual pair index via keepPairs mapping
   const newBat=[],newBowl=[],newBowlRaw=[];
-  for(let bi=0;bi<np;bi++){
-    const slot=s.slots[bi]||s.slots[0];
+  for(let pos=0;pos<newNP;pos++){
+    const actualIdx=keepPairs[pos]; // map schedule position → real pair index
+    const slot=s.slots[pos]||s.slots[0];
     for(let o=0;o<s.opp;o++){
-      newBat.push(bi);
+      newBat.push(actualIdx);
       const raw=slot[o]??0;
       newBowlRaw.push(raw);
       if(raw==='L'||raw==='2'){
         newBowl.push(-1);
       }else{
-        let bowler=typeof raw==='number'?raw:0;
-        if(bowler===bi)bowler=(bi+1)%np;
-        bowler=Math.min(bowler,np-1);
-        newBowl.push(bowler);
+        const schedPos=Math.min(typeof raw==='number'?raw:0,newNP-1);
+        newBowl.push(keepPairs[schedPos]); // map bowler sched position → actual index
       }
     }
   }
 
-  // Splice: completed overs + remainder of new schedule from doneIdx position
+  // Splice: completed overs + new schedule from doneIdx
   G.batSched=[...doneBat,...newBat.slice(doneIdx)];
   G.bowlSched=[...doneBowl,...newBowl.slice(doneIdx)];
   G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw.slice(doneIdx)];
-  G.numPlayers=newNum;
+  G.numPlayers=playerCount;
   G.numPairs=newNP;
-  G.isOdd=newNum%2!==0;
+  G.isOdd=playerCount%2!==0;
   G.opp=s.opp;
   G.totalOvers=G.batSched.length;
   G.noBonusOvers=new Set();
   G.oddExtraStart=-1;
-
-  // Handle odd: set fixedBowler on the new solo pair if reducing to odd
-  if(G.isOdd&&G.pairs[newNP-1]){
-    const soloPair=G.pairs[newNP-1];
-    if(soloPair.players.length===1)soloPair.fixedBowler=soloPair.players[0];
-    else soloPair.fixedBowler=null; // solo identity determined by existing pair
-  }
-  // Clear fixedBowler if reducing to even
-  if(!G.isOdd&&G.pairs[newNP-1])G.pairs[newNP-1].fixedBowler=null;
-
-  // Reset pending bowling for new over
   G.pendingBowlerSelect=true;
   G.overBowler=null;
   G.pendingTransition=null;
   G.pendingWhoFacing=false;
   G.lateCheckedOvers=new Set();
 
-  setFb(`Adjusted to ${newNum} players — ${newNP} pairs`,'info');
-  setTimeout(()=>setFb('',''),3500);
+  const label=keepPairs.map(i=>G.pairs[i].cname).join(', ');
+  setFb(`Adjusted: ${newNP} pairs (${label})`,'info');
+  setTimeout(()=>setFb('',''),4000);
   updateUI();saveGameState();
 }
 
