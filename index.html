@@ -597,7 +597,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div class="sheet" style="padding:24px 16px 40px">
     <div class="sheet-title">Adjust player count</div>
     <div class="sheet-sub" id="reduce-modal-sub" style="margin-bottom:16px"></div>
-    <div id="reduce-opts" style="max-height:52vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;overflow:hidden"></div>
+    <div id="reduce-opts" style="border:1px solid var(--border);border-radius:10px;overflow:hidden"></div>
     <div id="reduce-result" style="margin-top:12px;padding:10px 14px;background:var(--brand-l);border-radius:8px;font-size:13px;font-weight:700;color:var(--brand);min-height:36px"></div>
     <button class="btn btn-primary" onclick="confirmPairSelection()" style="margin-top:12px">Confirm changes</button>
     <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden')" style="margin-top:8px">Cancel</button>
@@ -1853,104 +1853,145 @@ function updateReduceBar(){
   const bar=document.getElementById('adjust-players-bar');
   if(bar)bar.classList.toggle('hidden',!canReducePlayers());
 }
+let adjustState=null;
+
 function showReduceModal(){
   if(!canReducePlayers())return;
   const cutoff=reduceCutoffOver();
   document.getElementById('reduce-modal-sub').textContent=
-    `Tick the players taking part. Players whose pair has already batted are locked. Available until over ${cutoff+1}.`;
-
+    `Move players between pairs using × and the Add dropdown. Locked pairs have already participated. Available until over ${cutoff+1}.`;
   const hasBatted=new Set(G.batSched.slice(0,G.overIdx));
   const hasBowled=new Set(G.bowlSched.slice(0,G.overIdx).filter(x=>x>=0));
-
-  const opts=document.getElementById('reduce-opts');
-  opts.innerHTML=G.pairs.map((p,i)=>{
-    const pairLocked=hasBatted.has(i);
-    const allPlayers=[...p.players,...(p.absentPlayers||[])];
-    const pairStatus=pairLocked?'Batted':hasBowled.has(i)?'Bowled':'Not yet played';
-    const tagCol=pairLocked?'var(--green)':hasBowled.has(i)?'var(--orange)':'var(--muted)';
-    const playerRows=allPlayers.map((name,j)=>{
-      const active=p.players.includes(name);
-      return `<label style="display:flex;align-items:center;gap:8px;padding:8px 14px 8px 30px;border-top:1px solid var(--border);${pairLocked?'opacity:.55':'cursor:pointer'}">
-        <input type="checkbox" id="pp-${i}-${j}" data-pair="${i}" data-pidx="${j}"
-          ${active?'checked':''} ${pairLocked?'disabled':''}
-          onchange="updateReduceResult()"
-          style="width:16px;height:16px;flex-shrink:0;accent-color:var(--brand)">
-        <span style="font-size:13px;flex:1">${name}</span>
-        ${!active&&!pairLocked?'<span style="font-size:10px;color:var(--muted)">currently absent</span>':''}
-      </label>`;
-    }).join('');
-    return `<div style="border-bottom:2px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--grey-l)">
-        <div class="dot d-${p.color}" style="flex-shrink:0"></div>
-        <div style="flex:1;font-weight:700;font-size:13px" class="t-${p.color}">${p.cname} pair</div>
-        <div style="font-size:11px;font-weight:600;color:${tagCol}">${pairStatus}</div>
-      </div>
-      ${playerRows}
-    </div>`;
-  }).join('');
-
-  updateReduceResult();
+  // Build working state: pairPlayers and unassigned pool
+  const pairPlayers=G.pairs.map(p=>p.absent?[]:[...p.players]);
+  const poolPlayers=[
+    ...G.pairs.filter(p=>p.absent).flatMap(p=>[...p.players,...(p.absentPlayers||[])]),
+    ...G.pairs.filter(p=>!p.absent).flatMap(p=>p.absentPlayers||[])
+  ];
+  adjustState={hasBatted,hasBowled,pairPlayers,poolPlayers};
+  renderAdjustModal();
   document.getElementById('reduce-modal').classList.remove('hidden');
 }
 
-function _readPlayerSelections(){
-  return G.pairs.map((p,i)=>{
-    const allPlayers=[...p.players,...(p.absentPlayers||[])];
-    const activePlayers=allPlayers.filter((_,j)=>{
-      const cb=document.getElementById(`pp-${i}-${j}`);
-      return cb?cb.checked:p.players.includes(allPlayers[j]);
+function renderAdjustModal(){
+  if(!adjustState)return;
+  const{hasBatted,hasBowled,pairPlayers,poolPlayers}=adjustState;
+  let html='';
+  G.pairs.forEach((p,i)=>{
+    const locked=hasBatted.has(i)||hasBowled.has(i);
+    const players=pairPlayers[i];
+    const status=hasBatted.has(i)?'Batted':hasBowled.has(i)?'Bowled':'Not yet played';
+    const tagCol=hasBatted.has(i)?'var(--green)':hasBowled.has(i)?'var(--orange)':'var(--muted)';
+    const chips=players.map(name=>`<span style="display:inline-flex;align-items:center;gap:3px;background:var(--brand-l);color:var(--brand);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:600">${name}${!locked?`<button onclick="removeFromPair(${i},'${name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}',event)" style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--muted);line-height:1;padding:0 0 0 3px">×</button>`:''}</span>`).join('');
+    // Available = pool players + players in other non-locked pairs (allows direct moves)
+    const availOther=[];
+    adjustState.pairPlayers.forEach((pl,j)=>{
+      if(j!==i&&!hasBatted.has(j)&&!hasBowled.has(j))
+        pl.forEach(n=>{if(!players.includes(n))availOther.push(n);});
     });
-    return{pairIdx:i,activePlayers,allPlayers};
+    const allAvail=[...new Set([...poolPlayers,...availOther])];
+    const addSel=(!locked&&allAvail.length&&players.length<2)?`<div style="padding:0 14px 10px"><select onchange="addToPair(${i},this.value);this.value=''" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;background:#fff"><option value="">＋ Add player…</option>${allAvail.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}</select></div>`:'';
+    html+=`<div style="border-bottom:2px solid var(--border);${locked?'opacity:.55':''}">
+      <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--grey-l)">
+        <div class="dot d-${p.color}" style="flex-shrink:0"></div>
+        <div style="flex:1;font-weight:700;font-size:13px" class="t-${p.color}">${p.cname} pair</div>
+        <div style="font-size:11px;font-weight:600;color:${tagCol}">${status}</div>
+      </div>
+      <div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:42px">${chips||'<span style="font-size:12px;color:var(--muted)">No players assigned</span>'}</div>
+      ${addSel}
+    </div>`;
   });
+  if(poolPlayers.length){
+    html+=`<div style="padding:10px 14px;background:var(--orange-l)">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Unassigned — add to a pair above</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">${poolPlayers.map(n=>`<span style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:600;color:#444">${n}</span>`).join('')}</div>
+    </div>`;
+  }
+  // Save sheet scroll before re-render, restore after to prevent jump to top
+  const _sheet=document.querySelector('#reduce-modal .sheet');
+  const _scrollY=_sheet?_sheet.scrollTop:0;
+  document.getElementById('reduce-opts').innerHTML=html;
+  updateReduceResult();
+  if(_sheet)requestAnimationFrame(()=>{_sheet.scrollTop=_scrollY;});
+}
+
+function removeFromPair(pairIdx,playerName,event){
+  if(event)event.stopPropagation();
+  adjustState.pairPlayers[pairIdx]=adjustState.pairPlayers[pairIdx].filter(n=>n!==playerName);
+  adjustState.poolPlayers.push(playerName);
+  renderAdjustModal();
+}
+
+function addToPair(pairIdx,playerName){
+  if(!playerName)return;
+  // Remove from pool and from any other pair they're currently in (implicit move)
+  adjustState.poolPlayers=adjustState.poolPlayers.filter(n=>n!==playerName);
+  adjustState.pairPlayers.forEach((pl,j)=>{
+    if(j!==pairIdx)adjustState.pairPlayers[j]=pl.filter(n=>n!==playerName);
+  });
+  adjustState.pairPlayers[pairIdx].push(playerName);
+  renderAdjustModal();
 }
 
 function updateReduceResult(){
-  const sel=_readPlayerSelections();
-  const activePairs=sel.filter(d=>d.activePlayers.length>0);
-  const totalPlayers=activePairs.reduce((s,d)=>s+d.activePlayers.length,0);
+  if(!adjustState)return;
+  const active=adjustState.pairPlayers.map((pl,i)=>({i,pl})).filter(d=>d.pl.length>0);
+  const total=active.reduce((s,d)=>s+d.pl.length,0);
+  const soloCount=active.filter(d=>d.pl.length===1).length;
   const el=document.getElementById('reduce-result');
   if(!el)return;
-  if(!activePairs.length){el.textContent='Select at least one player.';return;}
-  const removedPlayers=sel.flatMap(d=>d.allPlayers.filter(n=>!d.activePlayers.includes(n)));
-  const addedBack=sel.flatMap(d=>(G.pairs[d.pairIdx].absentPlayers||[]).filter(n=>d.activePlayers.includes(n)));
-  const soloNames=activePairs.filter(d=>d.activePlayers.length===1).map(d=>G.pairs[d.pairIdx].cname+' (solo)');
-  const parts=[];
-  if(removedPlayers.length)parts.push(`Removing: ${removedPlayers.join(', ')}`);
-  if(addedBack.length)parts.push(`Adding back: ${addedBack.join(', ')}`);
-  if(soloNames.length)parts.push(soloNames.join(', '));
-  el.textContent=`${totalPlayers} players, ${activePairs.length} pairs. `+(parts.join(' · ')||'No change');
+  if(!active.length){el.textContent='Assign at least one player to a pair.';return;}
+  const parts=[`${total} players, ${active.length} pairs`];
+  if(soloCount>1){parts.push('⚠️ Only the LAST pair should be solo');el.style.color='var(--red)';}
+  else{el.style.color='var(--brand)';}
+  if(soloCount===1){
+    // The borrowed player comes from the first batting pair (locked/batted first, or first full pair)
+    const locked=active.filter(d=>adjustState.hasBatted.has(d.i));
+    const firstPair=locked.length?locked[0]:active.filter(d=>d.pl.length>=2)[0];
+    if(firstPair&&firstPair.pl.length>=1){
+      const borrowed=firstPair.pl[0];
+      parts.push(`Solo pair: ${borrowed} (${G.pairs[firstPair.i].cname}) bats with them — does not bowl`);
+    } else {
+      parts.push('1 solo pair — will bat last');
+    }
+  }
+  if(adjustState.poolPlayers.length)parts.push(`${adjustState.poolPlayers.length} unassigned`);
+  el.textContent=parts.join(' · ');
 }
 
 function confirmPairSelection(){
-  const sel=_readPlayerSelections();
-  const activePairs=sel.filter(d=>d.activePlayers.length>0);
-  if(!activePairs.length){alert('Select at least one player.');return;}
+  if(!adjustState)return;
+  const active=adjustState.pairPlayers.map((pl,i)=>({i,pl})).filter(d=>d.pl.length>0);
+  if(!active.length){alert('Assign at least one player.');return;}
+  const soloCount=active.filter(d=>d.pl.length===1).length;
+  if(soloCount>1){alert('Only the last pair should have 1 player (solo).\nPlease move extra players into other pairs first.');return;}
   document.getElementById('reduce-modal').classList.add('hidden');
 
-  const hasBatted=new Set(G.batSched.slice(0,G.overIdx));
-  const totalPlayers=activePairs.reduce((s,d)=>s+d.activePlayers.length,0);
+  const hasBatted=adjustState.hasBatted;
+  const total=active.reduce((s,d)=>s+d.pl.length,0);
 
   // Apply player changes to G.pairs
-  sel.forEach(d=>{
-    const p=G.pairs[d.pairIdx];
-    const newAbsent=d.allPlayers.filter(n=>!d.activePlayers.includes(n));
-    p.players=d.activePlayers;
-    p.absentPlayers=newAbsent;
-    p.absent=d.activePlayers.length===0;
-    p.fixedBowler=d.activePlayers.length===1?d.activePlayers[0]:null;
-    newAbsent.forEach(pl=>G.lateArrivals.delete(pl));
+  G.pairs.forEach((p,i)=>{
+    const newPlayers=adjustState.pairPlayers[i];
+    const allOld=[...p.players,...(p.absentPlayers||[])];
+    p.players=newPlayers;
+    p.absentPlayers=allOld.filter(n=>!newPlayers.includes(n));
+    p.absent=newPlayers.length===0;
+    p.fixedBowler=newPlayers.length===1?newPlayers[0]:null;
+    p.absentPlayers.forEach(pl=>G.lateArrivals.delete(pl));
   });
+  adjustState.poolPlayers.forEach(pl=>G.lateArrivals.delete(pl));
 
-  // keepPairs order: locked-batted first, then full pairs, then solo (so solo gets 'L' slot in odd sched)
-  const locked=activePairs.filter(d=>hasBatted.has(d.pairIdx)).map(d=>d.pairIdx);
-  const notBatted=activePairs.filter(d=>!hasBatted.has(d.pairIdx));
-  const fullNB=notBatted.filter(d=>d.activePlayers.length>=2).map(d=>d.pairIdx);
-  const soloNB=notBatted.filter(d=>d.activePlayers.length===1).map(d=>d.pairIdx);
-  const keepPairs=[...locked,...fullNB,...soloNB];
-
+  // keepPairs: locked-batted first, then full pairs, then solo last
+  const locked=active.filter(d=>hasBatted.has(d.i)).map(d=>d.i);
+  const notBatted=active.filter(d=>!hasBatted.has(d.i));
+  const full=notBatted.filter(d=>d.pl.length>=2).map(d=>d.i);
+  const solo=notBatted.filter(d=>d.pl.length===1).map(d=>d.i);
+  const keepPairs=[...locked,...full,...solo];
   const newNP=keepPairs.length;
-  const s=SCHED[totalPlayers]||SCHED[totalPlayers+1]||SCHED[totalPlayers-1];
-  if(!s){alert('No schedule for '+totalPlayers+' players.');return;}
+
+  const s=SCHED[total]||SCHED[total+1]||SCHED[total-1];
+  if(!s){alert('No schedule for '+total+' players.');return;}
 
   const doneIdx=G.overIdx;
   const doneBat=G.batSched.slice(0,doneIdx);
@@ -1965,34 +2006,36 @@ function confirmPairSelection(){
       newBat.push(actualIdx);
       const raw=slot[o]??0;
       newBowlRaw.push(raw);
-      if(raw==='L'||raw==='2'){
-        newBowl.push(-1);
-      }else{
-        const schedPos=Math.min(typeof raw==='number'?raw:0,newNP-1);
-        newBowl.push(keepPairs[schedPos]);
-      }
+      if(raw==='L'||raw==='2'){newBowl.push(-1);}
+      else{const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);newBowl.push(keepPairs[sp]);}
     }
   }
 
   G.batSched=[...doneBat,...newBat.slice(doneIdx)];
   G.bowlSched=[...doneBowl,...newBowl.slice(doneIdx)];
   G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw.slice(doneIdx)];
-  G.numPlayers=totalPlayers;
-  G.numPairs=newNP;
-  G.isOdd=totalPlayers%2!==0;
-  G.opp=s.opp;
-  G.totalOvers=G.batSched.length;
-  G.noBonusOvers=new Set();
-  G.oddExtraStart=-1;
-  G.pendingBowlerSelect=true;
-  G.overBowler=null;
-  G.pendingTransition=null;
-  G.pendingWhoFacing=false;
+  G.numPlayers=total;G.numPairs=newNP;G.isOdd=total%2!==0;
+  G.opp=s.opp;G.totalOvers=G.batSched.length;
+  G.noBonusOvers=new Set();G.oddExtraStart=-1;
+  G.pendingBowlerSelect=true;G.overBowler=null;
+  G.pendingTransition=null;G.pendingWhoFacing=false;
   G.lateCheckedOvers=new Set();
 
-  const removedNames=sel.flatMap(d=>d.allPlayers.filter(n=>!d.activePlayers.includes(n)));
-  const msg=removedNames.length?`Removed: ${removedNames.join(', ')}`:`${totalPlayers} players, ${newNP} pairs`;
-  setFb(msg,'info');setTimeout(()=>setFb('',''),4000);
+  // Odd game: borrow first player from first batting pair to bat with the solo pair
+  if(G.isOdd&&soloNB.length===1){
+    const soloActualIdx=keepPairs[keepPairs.length-1]; // solo pair is always last
+    const firstActualIdx=keepPairs[0];                 // first batting pair (Purple)
+    const borrowed=G.pairs[firstActualIdx].players[0];
+    // Add borrowed player — they bat with the solo player but fixedBowler ensures they never bowl
+    G.pairs[soloActualIdx].players=[G.pairs[soloActualIdx].fixedBowler,borrowed];
+    G.pairs[soloActualIdx].borrowedPlayer=borrowed;
+    // fixedBowler is already set to the solo player from the loop above
+  }
+
+  adjustState=null;
+
+  setFb(`Adjusted: ${total} players, ${newNP} pairs`,'info');
+  setTimeout(()=>setFb('',''),4000);
   updateUI();saveGameState();
 }
 
