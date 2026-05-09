@@ -720,13 +720,13 @@ const SCHED = {
     5:[1,1,'L','L'] // Orange: Blue,Blue,Leaders,Leaders
   }},
   13: { opp:4, odd:true, slots:{
-    0:[3,3,5,5],    // Purple: Red,Red,Orange,Orange
+    0:[1,2,2,3],    // Purple: Blue,Grey,Grey,Red
     1:[4,4,5,5],    // Blue: Green,Green,Orange,Orange
-    2:[6,6,0,0],    // Grey: Pink,Pink,Purple,Purple
-    3:[1,1,4,4],    // Red: Blue,Blue,Green,Green
+    2:[3,5,5,6],    // Grey: Red,Orange,Orange,Pink
+    3:[6,0,0,1],    // Red: Pink,Purple,Purple,Blue
     4:[2,2,3,3],    // Green: Grey,Grey,Red,Red
-    5:[0,0,1,1],    // Orange: Purple,Purple,Blue,Blue
-    6:[2,2,'L','L'] // Pink (solo): Grey,Grey,Leaders,Leaders
+    5:[4,4,0,0],    // Orange: Green,Green,Purple,Purple
+    6:[1,1,'L','L'] // Pink (solo): Blue,Blue,Leaders,Leaders
   }},
   15: { opp:4, odd:true, slots:{
     0:[7,7,3,3],    // Purple: Solo,Solo,Red,Red
@@ -1610,14 +1610,28 @@ function showBowlerOtherPick(){
   const bwi=Math.max(0,G.bowlSched[G.overIdx]??0);
   const bwp=G.pairs[Math.min(bwi,G.numPairs-1)];
   const pairPlayers=new Set(bwp.players);
-  const others=G.players.filter(p=>!pairPlayers.has(p));
+  // Exclude current bowling pair and absent pairs' players
+  const others=G.players.filter(p=>{
+    if(pairPlayers.has(p))return false;
+    const pair=G.pairs.find(pr=>pr.players.includes(p));
+    return !(pair&&pair.absent);
+  });
   const counts=playerOverCounts();
+  // Sort: soonest to bowl first; players with no more bowling go to the end
+  others.sort((a,b)=>{
+    const{nextBowl:na}=playerNextEvents(a);
+    const{nextBowl:nb}=playerNextEvents(b);
+    if(na===null&&nb===null)return 0;
+    if(na===null)return 1;
+    if(nb===null)return -1;
+    return na-nb;
+  });
   const list=document.getElementById('bowler-other-list');
   list.innerHTML=others.map(p=>{
-    const esc=p.replace(/'/g,"\\'");
+    const esc=p.replace(/'/g,"\'");
     const n=counts[p]||0;
     const{nextBowl,nextBat}=playerNextEvents(p);
-    const bowlStr=nextBowl!=null?`bowls in ${nextBowl}`:'no more bowls';
+    const bowlStr=nextBowl!=null?`bowls in ${nextBowl} over${nextBowl!==1?'s':''}`:'no more bowls';
     const batStr=nextBat!=null?`bats in ${nextBat}`:'no more bats';
     const overStr=`${n} over${n!==1?'s':''} bowled`;
     const pair=G.pairs.find(pr=>pr.players.includes(p));
