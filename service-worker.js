@@ -1,4 +1,4 @@
-const CACHE = 'beardy-cricket-v1';
+const CACHE = 'beardy-cricket-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -25,21 +25,39 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Only intercept same-origin GET requests (app assets).
-  // All other requests — POST, cross-origin API calls to Supabase, etc. —
-  // are passed straight to the network without SW involvement.
+  // Only intercept same-origin GET requests.
   if (event.request.method !== 'GET') return;
   if (!event.request.url.startsWith(self.location.origin)) return;
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200 || response.type === 'opaque') return response;
-        const clone = response.clone();
-        caches.open(CACHE).then(c => c.put(event.request, clone));
-        return response;
-      });
-    })
-  );
+  const isHTML = event.request.destination === 'document' ||
+                 event.request.url.split('?')[0].endsWith('.html') ||
+                 event.request.url.split('?')[0].endsWith('/');
+
+  if (isHTML) {
+    // Network-first for HTML: always fetch latest when online, cache as fallback.
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE).then(c => c.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+  } else {
+    // Cache-first for static assets (icons, manifest, etc).
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (!response || response.status !== 200 || response.type === 'opaque') return response;
+          const clone = response.clone();
+          caches.open(CACHE).then(c => c.put(event.request, clone));
+          return response;
+        });
+      })
+    );
+  }
 });
