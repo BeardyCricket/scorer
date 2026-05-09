@@ -595,7 +595,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <!-- REDUCE PLAYERS MODAL -->
 <div class="overlay hidden" id="reduce-modal">
   <div class="sheet" style="padding:24px 16px 40px">
-    <div class="sheet-title">Fewer players arriving?</div>
+    <div class="sheet-title">Adjust player count</div>
     <div class="sheet-sub" id="reduce-modal-sub" style="margin-bottom:20px"></div>
     <div id="reduce-opts" style="display:flex;flex-direction:column;gap:10px"></div>
     <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden')" style="margin-top:16px">Cancel</button>
@@ -1855,23 +1855,25 @@ function showReduceModal(){
   if(!canReducePlayers())return;
   const cutoff=reduceCutoffOver();
   document.getElementById('reduce-modal-sub').textContent=
-    `Currently ${G.numPlayers} players (${G.numPairs} pairs). This option is available until the start of over ${cutoff+1}.`;
-  // Valid targets: any SCHED key that gives fewer pairs
+    `Currently ${G.numPlayers} players (${G.numPairs} pairs). Available until start of over ${cutoff+1}.`;
+  // Valid: any SCHED key that isn't the current count,
+  // and whose pair count fits within the pairs already registered (G.pairs.length)
   const validKeys=Object.keys(SCHED).map(Number)
-    .filter(n=>n<G.numPlayers&&Math.ceil(n/2)<G.numPairs)
+    .filter(n=>n!==G.numPlayers&&Math.ceil(n/2)<=G.pairs.length)
     .sort((a,b)=>b-a);
   const opts=document.getElementById('reduce-opts');
   opts.innerHTML=validKeys.map(n=>{
     const np=Math.ceil(n/2);
+    const dir=n>G.numPlayers?'▲ Add':'▼ Reduce to';
     return `<button class="btn btn-secondary" style="text-align:left" onclick="confirmReducePlayers(${n})">
-      <strong>${n} players</strong> — ${np} pairs batting
+      <strong>${dir} ${n} players</strong> — ${np} pairs batting
     </button>`;
   }).join('');
   document.getElementById('reduce-modal').classList.remove('hidden');
 }
 function confirmReducePlayers(newNum){
   document.getElementById('reduce-modal').classList.add('hidden');
-  if(newNum>=G.numPlayers||!SCHED[newNum])return;
+  if(newNum===G.numPlayers||!SCHED[newNum])return;
   const s=SCHED[newNum];
   const newNP=Math.ceil(newNum/2);
   const doneIdx=G.overIdx;
@@ -1881,9 +1883,9 @@ function confirmReducePlayers(newNum){
   const doneBowl=G.bowlSched.slice(0,doneIdx);
   const doneBowlRaw=G.bowlSchedRaw.slice(0,doneIdx);
 
-  // Mark extra pairs absent (keep in G.pairs for score history)
-  for(let i=newNP;i<G.numPairs;i++){
-    if(G.pairs[i])G.pairs[i].absent=true;
+  // Mark pairs above new count as absent; unmark pairs being re-activated (increase case)
+  for(let i=0;i<G.pairs.length;i++){
+    if(G.pairs[i])G.pairs[i].absent=(i>=newNP);
   }
   // Remove absent players from lateArrivals
   for(let i=newNP;i<G.pairs.length;i++){
