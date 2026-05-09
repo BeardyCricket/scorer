@@ -1505,17 +1505,20 @@ function bowlerWarnText(name,counts){
 
 function suggestedBowlerOrder(bwi){
   const bwp=G.pairs[bwi];
-  if(!bwp||bwp.players.length<2)return bwp?[...bwp.players]:[];
+  if(!bwp)return[];
+  // Borrowed player never bowls — always exclude them from the rotation
+  const eligible=bwp.players.filter(n=>n!==bwp.borrowedPlayer);
+  if(eligible.length<2)return eligible;
   // Find who bowled most recently for this pair
   for(let i=G.history.length-1;i>=0;i--){
     const b=G.history[i];
-    if(b.bowlPair===bwi&&b.bowling){
+    if(b.bowlPair===bwi&&b.bowling&&b.bowling!==bwp.borrowedPlayer){
       const last=b.bowling;
-      const [p0,p1]=bwp.players;
+      const [p0,p1]=eligible;
       return last===p0?[p1,p0]:[p0,p1];
     }
   }
-  return [...bwp.players];
+  return eligible;
 }
 
 function showBowlerModal(){
@@ -1532,14 +1535,16 @@ function showBowlerModal(){
   const btn1=document.getElementById('bowler-opt-1');
   const btn2=document.getElementById('bowler-opt-2');
   const otherBtn=document.querySelector('#bowler-modal .btn-secondary');
-  if(bwp.fixedBowler&&!isDyn){
-    // Solo pair: show the fixed bowler as the primary option but still allow other picks
-    btn1.textContent=btnLabel(bwp.fixedBowler);btn1.dataset.name=bwp.fixedBowler;
+  // Effective fixed bowler: either explicitly set, or the non-borrowed player in a borrowed-player pair
+  const effectiveFixed=bwp.fixedBowler||(bwp.borrowedPlayer?bwp.players.find(n=>n!==bwp.borrowedPlayer):null);
+  if(effectiveFixed&&!isDyn){
+    // Solo/borrowed-player pair: only the non-borrowed player bowls
+    btn1.textContent=btnLabel(effectiveFixed);btn1.dataset.name=effectiveFixed;
     btn2.classList.add('hidden');
     if(otherBtn)otherBtn.style.display='';
   } else {
     if(otherBtn)otherBtn.style.display='';
-    const order=suggestedBowlerOrder(bwi);
+    const order=suggestedBowlerOrder(bwi); // already filters borrowedPlayer
     btn1.textContent=btnLabel(order[0]||'—');btn1.dataset.name=order[0]||'';
     if(order.length>=2){
       btn2.textContent=btnLabel(order[1]);btn2.dataset.name=order[1];btn2.classList.remove('hidden');
@@ -2022,14 +2027,15 @@ function confirmPairSelection(){
   G.lateCheckedOvers=new Set();
 
   // Odd game: borrow first player from first batting pair to bat with the solo pair
-  if(G.isOdd&&soloNB.length===1){
+  if(G.isOdd&&solo.length===1){
     const soloActualIdx=keepPairs[keepPairs.length-1]; // solo pair is always last
     const firstActualIdx=keepPairs[0];                 // first batting pair (Purple)
     const borrowed=G.pairs[firstActualIdx].players[0];
     // Add borrowed player — they bat with the solo player but fixedBowler ensures they never bowl
-    G.pairs[soloActualIdx].players=[G.pairs[soloActualIdx].fixedBowler,borrowed];
+    const soloPlayer=G.pairs[soloActualIdx].fixedBowler||G.pairs[soloActualIdx].players[0];
+    G.pairs[soloActualIdx].players=[soloPlayer,borrowed];
     G.pairs[soloActualIdx].borrowedPlayer=borrowed;
-    // fixedBowler is already set to the solo player from the loop above
+    G.pairs[soloActualIdx].fixedBowler=soloPlayer; // re-assert: only solo player bowls
   }
 
   adjustState=null;
