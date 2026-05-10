@@ -387,10 +387,6 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </span>
   </div>
   <div class="ball-row" id="ball-row"></div>
-  <div id="adjust-players-bar" class="hidden" style="background:var(--orange-l);border-bottom:1px solid var(--orange);padding:7px 16px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#7c2d12">
-    <span>Players not arriving?</span>
-    <button style="background:none;border:1px solid var(--orange);border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#7c2d12;cursor:pointer" onclick="showReduceModal()">Adjust count</button>
-  </div>
   <div class="target-strip" id="target-strip">
     <span id="target-msg"></span>
     <span id="target-rr" style="font-size:12px;opacity:.85"></span>
@@ -600,7 +596,17 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div id="reduce-opts" style="border:1px solid var(--border);border-radius:10px;overflow:hidden"></div>
     <div id="reduce-result" style="margin-top:12px;padding:10px 14px;background:var(--brand-l);border-radius:8px;font-size:13px;font-weight:700;color:var(--brand);min-height:36px"></div>
     <button class="btn btn-primary" onclick="confirmPairSelection()" style="margin-top:12px">Confirm changes</button>
-    <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden')" style="margin-top:8px">Cancel</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('reduce-modal').classList.add('hidden');skipPlayerAdjust();" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- PLAYER ARRIVAL CHECK MODAL -->
+<div class="overlay hidden" id="player-adjust-prompt">
+  <div class="sheet" style="padding:24px 16px 36px">
+    <div class="sheet-title">Player check</div>
+    <div id="player-adjust-body" style="font-size:14px;color:#444;margin-bottom:20px;line-height:1.5"></div>
+    <button class="btn btn-primary" onclick="openFromPrompt()" style="margin-bottom:8px">Adjust players</button>
+    <button class="btn btn-secondary" onclick="skipPlayerAdjust()">Continue without changing</button>
   </div>
 </div>
 
@@ -758,6 +764,7 @@ function freshState(){
     oddExtraStart:-1,
     lateArrivals:new Set(),
     lateCheckedOvers:new Set(),
+    pendingPlayerAdjust:false,
     facingIdx:0,
     isIndoor:false,
     pendingWhoFacing:false,
@@ -1098,7 +1105,6 @@ function updateUI(){
   // Check if we need to show a transition modal (new batting or bowling pair)
   checkTransitions();
   checkLateArrivalAlert();
-  updateReduceBar();
   renderBalls();renderTotals();updateTime();updateBowlOvers();updateTargetStrip();
 }
 
@@ -1332,6 +1338,10 @@ function checkOver(){
   if(G.ballInOver>=6){
     takeSnapshot(`End of Over ${G.overIdx+1}`);
     G.ballInOver=0;
+    // Prompt for player adjustment at end of over if late arrivals still pending
+    if(G.overIdx<reduceCutoffOver()&&G.lateArrivals&&G.lateArrivals.size>0){
+      G.pendingPlayerAdjust=true;
+    }
     const prevBat=G.batSched[G.overIdx],prevBowl=G.bowlSched[G.overIdx];
     G.overIdx++;
     if(G.overIdx<G.totalOvers){
@@ -1424,6 +1434,7 @@ function confirmSwitch(idx){
 }
 
 function checkTransitions(){
+  if(G.pendingPlayerAdjust){showPlayerAdjustPrompt();return;}
   if(!G.pendingTransition){
     if(G.pendingBowlerSelect)showBowlerModal();
     return;
@@ -1466,6 +1477,7 @@ function showTransitionModal(title,body,color){
 }
 function hideTransitionModal(){
   document.getElementById('trans-modal').classList.add('hidden');
+  if(G.pendingPlayerAdjust){showPlayerAdjustPrompt();return;}
   if(G.pendingBowlerSelect){showBowlerModal();return;}
   if(G.pendingWhoFacing){G.pendingWhoFacing=false;askWhoFacing();}
 }
@@ -1868,14 +1880,26 @@ function reduceCutoffOver(){
 function canReducePlayers(){
   return G.overIdx<reduceCutoffOver()&&G.numPlayers>8;
 }
-function updateReduceBar(){
-  const bar=document.getElementById('adjust-players-bar');
-  if(bar)bar.classList.toggle('hidden',!canReducePlayers());
-}
 let adjustState=null;
 
-function showReduceModal(){
-  if(!canReducePlayers())return;
+function showPlayerAdjustPrompt(){
+  const names=[...G.lateArrivals].join(', ');
+  document.getElementById('player-adjust-body').innerHTML=
+    `<strong>Still waiting for:</strong> ${names}<br><br>Would you like to adjust the player count now that you're between overs?`;
+  document.getElementById('player-adjust-prompt').classList.remove('hidden');
+}
+function skipPlayerAdjust(){
+  G.pendingPlayerAdjust=false;
+  document.getElementById('player-adjust-prompt').classList.add('hidden');
+  checkTransitions();
+}
+function openFromPrompt(){
+  document.getElementById('player-adjust-prompt').classList.add('hidden');
+  showReduceModal(true);
+}
+
+function showReduceModal(force=false){
+  if(!force&&!canReducePlayers())return;
   const cutoff=reduceCutoffOver();
   document.getElementById('reduce-modal-sub').textContent=
     `Move players between pairs using × and the Add dropdown. Locked pairs have already participated. Available until over ${cutoff+1}.`;
@@ -2053,6 +2077,7 @@ function confirmPairSelection(){
   }
 
   adjustState=null;
+  G.pendingPlayerAdjust=false;
 
   setFb(`Adjusted: ${total} players, ${newNP} pairs`,'info');
   setTimeout(()=>setFb('',''),4000);
