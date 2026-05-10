@@ -606,7 +606,8 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="sheet-title">Player check</div>
     <div id="player-adjust-body" style="font-size:14px;color:#444;margin-bottom:20px;line-height:1.5"></div>
     <button class="btn btn-primary" onclick="openFromPrompt()" style="margin-bottom:8px">Adjust players</button>
-    <button class="btn btn-secondary" onclick="skipPlayerAdjust()">Continue without changing</button>
+    <button class="btn btn-secondary" onclick="skipPlayerAdjust()" style="margin-bottom:8px">Continue without changing</button>
+    <button class="btn btn-secondary" onclick="allPlayersArrived()" style="background:var(--green-l,#f0fdf4);border-color:var(--green);color:var(--green)">Everyone is here — stop asking</button>
   </div>
 </div>
 
@@ -726,11 +727,11 @@ const SCHED = {
     5:[1,1,'L','L'] // Orange: Blue,Blue,Leaders,Leaders
   }},
   13: { opp:4, odd:true, slots:{
-    0:[1,2,2,5],    // Purple: Blue,Grey,Grey,Orange
+    0:[2,2,3,3],    // Purple: Grey,Grey,Red,Red
     1:[4,4,5,5],    // Blue: Green,Green,Orange,Orange
-    2:[5,3,3,6],    // Grey: Orange,Red,Red,Pink
-    3:[6,0,0,1],    // Red: Pink,Purple,Purple,Blue
-    4:[2,2,3,3],    // Green: Grey,Grey,Red,Red
+    2:[6,0,0,1],    // Grey: Pink,Purple,Purple,Blue
+    3:[1,2,2,5],    // Red: Blue,Grey,Grey,Orange
+    4:[5,3,3,6],    // Green: Orange,Red,Red,Pink
     5:[4,4,0,0],    // Orange: Green,Green,Purple,Purple
     6:[1,1,'L','L'] // Pink (solo): Blue,Blue,Leaders,Leaders
   }},
@@ -1874,8 +1875,8 @@ function showBowlerLB(){
 // PLAYER COUNT REDUCTION (late arrivals)
 // ══════════════════════════════════════════
 function reduceCutoffOver(){
-  // Cutoff: before over 5 for 8-9 players, before over 7 for 10-14
-  return G.numPlayers<=9?4:6;
+  // Cutoff: before over 5 for ≤9 players, before over 9 for 14-15, before over 7 otherwise
+  return G.numPlayers<=9?4:G.numPlayers>=14?8:6;
 }
 function canReducePlayers(){
   return G.overIdx<reduceCutoffOver()&&G.numPlayers>8;
@@ -1889,6 +1890,12 @@ function showPlayerAdjustPrompt(){
   document.getElementById('player-adjust-prompt').classList.remove('hidden');
 }
 function skipPlayerAdjust(){
+  G.pendingPlayerAdjust=false;
+  document.getElementById('player-adjust-prompt').classList.add('hidden');
+  checkTransitions();
+}
+function allPlayersArrived(){
+  G.lateArrivals.clear();
   G.pendingPlayerAdjust=false;
   document.getElementById('player-adjust-prompt').classList.add('hidden');
   checkTransitions();
@@ -2042,22 +2049,26 @@ function confirmPairSelection(){
   const doneBowl=G.bowlSched.slice(0,doneIdx);
   const doneBowlRaw=G.bowlSchedRaw.slice(0,doneIdx);
 
-  // Count completed batting overs per pair so we know where each one picks up.
+  // Count how many overs each pair has already batted in the done overs.
   const alreadyBatted={};
-  doneBat.forEach(idx=>{alreadyBatted[idx]=(alreadyBatted[idx]||0)+1;});
+  doneBat.forEach(bp=>{alreadyBatted[bp]=(alreadyBatted[bp]||0)+1;});
 
+  // Strictly follow the new SCHED template.
+  // For a pair that has already batted K overs, pick up at slot position K.
+  // For all other pairs (K=0) the full slot is used — exactly matching SCHED[target].
   const newBat=[],newBowl=[],newBowlRaw=[];
   for(let pos=0;pos<newNP;pos++){
     const actualIdx=keepPairs[pos];
     const slot=s.slots[pos]||s.slots[0];
-    // Start from where this pair left off (cap at opp so fully-done pairs get 0 overs).
     const batted=Math.min(alreadyBatted[actualIdx]||0,s.opp);
     for(let o=batted;o<s.opp;o++){
-      newBat.push(actualIdx);
       const raw=slot[o]??0;
+      let bowlIdx;
+      if(raw==='L'||raw==='2'){bowlIdx=-1;}
+      else{const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);bowlIdx=keepPairs[sp];}
+      newBat.push(actualIdx);
       newBowlRaw.push(raw);
-      if(raw==='L'||raw==='2'){newBowl.push(-1);}
-      else{const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);newBowl.push(keepPairs[sp]);}
+      newBowl.push(bowlIdx);
     }
   }
 

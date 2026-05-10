@@ -1,4 +1,4 @@
-const CACHE = 'beardy-cricket-v3';
+const CACHE = 'beardy-cricket-v4';
 const ASSETS = [
   './',
   './index.html',
