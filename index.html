@@ -726,9 +726,9 @@ const SCHED = {
     5:[1,1,'L','L'] // Orange: Blue,Blue,Leaders,Leaders
   }},
   13: { opp:4, odd:true, slots:{
-    0:[1,2,2,3],    // Purple: Blue,Grey,Grey,Red
+    0:[1,2,2,5],    // Purple: Blue,Grey,Grey,Orange
     1:[4,4,5,5],    // Blue: Green,Green,Orange,Orange
-    2:[3,5,5,6],    // Grey: Red,Orange,Orange,Pink
+    2:[5,3,3,6],    // Grey: Orange,Red,Red,Pink
     3:[6,0,0,1],    // Red: Pink,Purple,Purple,Blue
     4:[2,2,3,3],    // Green: Grey,Grey,Red,Red
     5:[4,4,0,0],    // Orange: Green,Green,Purple,Purple
@@ -2025,13 +2025,14 @@ function confirmPairSelection(){
   });
   adjustState.poolPlayers.forEach(pl=>G.lateArrivals.delete(pl));
 
-  // keepPairs: locked-batted first, then full pairs, then solo last
-  const locked=active.filter(d=>hasBatted.has(d.i)).map(d=>d.i);
-  const notBatted=active.filter(d=>!hasBatted.has(d.i));
-  const full=notBatted.filter(d=>d.pl.length>=2).map(d=>d.i);
-  const solo=notBatted.filter(d=>d.pl.length===1).map(d=>d.i);
-  const keepPairs=[...locked,...full,...solo];
+  // keepPairs: canonical colour order (sort by actual pair index), solo last.
+  // This ensures s.slots[pos] lines up correctly with each pair's colour position.
+  const activeExcSolo=active.filter(d=>d.pl.length>=2).sort((a,b)=>a.i-b.i);
+  const soloActive=active.filter(d=>d.pl.length===1);
+  const keepPairs=[...activeExcSolo.map(d=>d.i),...soloActive.map(d=>d.i)];
   const newNP=keepPairs.length;
+  // solo array still needed for the borrowed-player block below
+  const solo=soloActive.map(d=>d.i);
 
   const s=SCHED[total]||SCHED[total+1]||SCHED[total-1];
   if(!s){alert('No schedule for '+total+' players.');return;}
@@ -2041,11 +2042,17 @@ function confirmPairSelection(){
   const doneBowl=G.bowlSched.slice(0,doneIdx);
   const doneBowlRaw=G.bowlSchedRaw.slice(0,doneIdx);
 
+  // Count completed batting overs per pair so we know where each one picks up.
+  const alreadyBatted={};
+  doneBat.forEach(idx=>{alreadyBatted[idx]=(alreadyBatted[idx]||0)+1;});
+
   const newBat=[],newBowl=[],newBowlRaw=[];
   for(let pos=0;pos<newNP;pos++){
     const actualIdx=keepPairs[pos];
     const slot=s.slots[pos]||s.slots[0];
-    for(let o=0;o<s.opp;o++){
+    // Start from where this pair left off (cap at opp so fully-done pairs get 0 overs).
+    const batted=Math.min(alreadyBatted[actualIdx]||0,s.opp);
+    for(let o=batted;o<s.opp;o++){
       newBat.push(actualIdx);
       const raw=slot[o]??0;
       newBowlRaw.push(raw);
@@ -2054,9 +2061,10 @@ function confirmPairSelection(){
     }
   }
 
-  G.batSched=[...doneBat,...newBat.slice(doneIdx)];
-  G.bowlSched=[...doneBowl,...newBowl.slice(doneIdx)];
-  G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw.slice(doneIdx)];
+  // No slice needed — newBat contains only the remaining overs.
+  G.batSched=[...doneBat,...newBat];
+  G.bowlSched=[...doneBowl,...newBowl];
+  G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw];
   G.numPlayers=total;G.numPairs=newNP;G.isOdd=total%2!==0;
   G.opp=s.opp;G.totalOvers=G.batSched.length;
   G.noBonusOvers=new Set();G.oddExtraStart=-1;
