@@ -538,7 +538,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <div class="overlay hidden" id="wkt-modal">
   <div class="sheet">
     <div class="sheet-title">Wicket!</div>
-    <div class="sheet-sub">Batting pair loses 5 runs. Bowling pair gets +2 bonus (except run outs).</div>
+    <div class="sheet-sub" id="wkt-modal-sub">Batting pair loses 5 runs. Bowling pair gets +2 bonus (except run outs).</div>
     <div class="card-title">Dismissal</div>
     <div class="dis-grid">
       <button class="dis-btn" id="d-Bowled" onclick="selDis('Bowled')">Bowled</button>
@@ -554,11 +554,31 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <button class="step-btn" onclick="stepRO(-1)">−</button>
         <input class="runs-inp" id="ro-runs" type="number" min="0" max="6" value="0">
         <button class="step-btn" onclick="stepRO(1)">+</button>
-        <span style="font-size:13px;color:var(--muted)">runs, then −5 penalty</span>
+        <span style="font-size:13px;color:var(--muted)" id="wkt-runout-label">runs, then −5 penalty</span>
       </div>
     </div>
     <button class="btn btn-primary hidden" id="wkt-confirm" onclick="confirmWkt()">Confirm wicket</button>
     <button class="btn btn-secondary" onclick="hideWkt()" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- EXTRA BATTING PAIR MODAL -->
+<div class="overlay hidden" id="extra-bat-modal">
+  <div class="sheet" style="padding:24px 16px 48px">
+    <div style="font-size:32px;text-align:center;margin-bottom:8px">⭐</div>
+    <div class="sheet-title" style="text-align:center;margin-bottom:4px">Add an extra batting pair?</div>
+    <div class="sheet-sub" style="text-align:center;margin-bottom:20px">Two randomly chosen players bat 4 bonus overs. Normal wicket rules (−5). Bowlers get no bonus for wickets.</div>
+    <div style="background:var(--grey-l);border-radius:var(--rs);padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Extra batting pair</div>
+      <div style="font-size:15px;font-weight:700" id="extra-bat-pair-name">—</div>
+      <div style="font-size:12px;color:var(--green);margin-top:4px;font-weight:600" id="extra-start-bonus"></div>
+    </div>
+    <div style="background:var(--grey-l);border-radius:var(--rs);padding:12px 14px;margin-bottom:20px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Bowlers (1 over each — no wicket bonus)</div>
+      <div style="font-size:14px;font-weight:600" id="extra-bowl-pairs">—</div>
+    </div>
+    <button class="btn btn-primary" onclick="confirmExtraBatPair()">⭐ Yes — play extra innings</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="declineExtraBatPair()">No — go to results</button>
   </div>
 </div>
 
@@ -770,7 +790,12 @@ function freshState(){
     isIndoor:false,
     pendingWhoFacing:false,
     playerSeedMap:{},
-    snapshots:[],matchId:''};
+    snapshots:[],matchId:'',
+    extraBatPairOffered:false,
+    extraBatPairActive:false,
+    extraBatPairIdx:-1,
+    extraInningsBowlers:[],
+    extraInningsStartOver:-1};
 }
 G=freshState();
 // roster loaded lazily in showRoster() — not needed on page load
@@ -1065,7 +1090,10 @@ const batIdx=()=>G.batSched[G.overIdx]??0;
 const bowlIdx=()=>Math.max(0,G.bowlSched[G.overIdx]??0);
 
 function updateUI(){
-  if(G.overIdx>=G.totalOvers){endMatch();return;}
+  if(G.overIdx>=G.totalOvers){
+    if(!G.extraBatPairOffered&&G.numPlayers>=7&&G.numPlayers<=10){showExtraBatPairModal();return;}
+    endMatch();return;
+  }
   // For dynamic (leaders) overs, always re-resolve at the start of the over
   if((G.bowlSchedRaw[G.overIdx]==='L'||G.bowlSchedRaw[G.overIdx]==='2')&&G.overBowler===null){
     G.bowlSched[G.overIdx]=getDynamicExtraBowler();
@@ -1320,17 +1348,20 @@ function confirmWkt(){
   const runsFirst=isRunout?(parseInt(document.getElementById('ro-runs').value)||0):0;
   const snap=snap_scores(),facingBefore=G.facingIdx;
   const netRun=runsFirst-5;
-  G.history.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,noBonus:noB,isRunout,facingBefore});
-  G.scores[bi].bat+=netRun;   // can go negative — no floor
-  if(!noB&&!isRunout){
+  const isExtraInningsOver=G.extraBatPairActive&&G.extraInningsStartOver>=0&&G.overIdx>=G.extraInningsStartOver;
+  const noBowlBonus=noB||isExtraInningsOver;
+  G.history.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,noBonus:noBowlBonus,isRunout,facingBefore});
+  G.scores[bi].bat+=netRun;
+  if(!noBowlBonus&&!isRunout){
     const isSolo=G.pairs[bwi]&&!!G.pairs[bwi].fixedBowler;
     G.scores[bwi].bowl+=isSolo?4:2;
   }
   G.ballInOver++;
   switchStriker();pushBallUpdate();
   let msg=`${pendingDis}! ${runsFirst>0?runsFirst+' run'+(runsFirst!==1?'s':'')+' then ':''}-5 penalty`;
-  if(!isRunout&&!noB){const isSolo=G.pairs[bwi]&&!!G.pairs[bwi].fixedBowler;msg+=isSolo?' · +4 bowl bonus (solo)':' · +2 bowl bonus';}
+  if(!isRunout&&!noBowlBonus){const isSolo=G.pairs[bwi]&&!!G.pairs[bwi].fixedBowler;msg+=isSolo?' · +4 bowl bonus (solo)':' · +2 bowl bonus';}
   if(isRunout)msg+=' · no bowl bonus (run out)';
+  else if(isExtraInningsOver)msg+=' · no bowl bonus (extra overs)';
   setFb(msg,'bad');
   checkOver();updateUI();saveGameState();
 }
@@ -1536,6 +1567,14 @@ function suggestedBowlerOrder(bwi){
 
 function showBowlerModal(){
   G.pendingBowlerSelect=false;
+  // Auto-select pre-assigned bowler for extra innings (no modal needed)
+  if(G.extraBatPairActive&&G.extraInningsStartOver>=0){
+    const overOffset=G.overIdx-G.extraInningsStartOver;
+    if(overOffset>=0&&overOffset<G.extraInningsBowlers.length){
+      const bowler=G.extraInningsBowlers[overOffset];
+      if(bowler){selectOverBowler(bowler);return;}
+    }
+  }
   // Always resolve dynamic overs fresh when showing the modal
   const isDyn=(G.bowlSchedRaw[G.overIdx]==='L'||G.bowlSchedRaw[G.overIdx]==='2');
   if(isDyn) G.bowlSched[G.overIdx]=getDynamicExtraBowler();
@@ -2106,6 +2145,88 @@ function confirmPairSelection(){
 // ══════════════════════════════════════════
 // END
 // ══════════════════════════════════════════
+// EXTRA BATTING PAIR (7–10 player games)
+// ══════════════════════════════════════════
+let _pendingExtraBatters=[];
+let _pendingExtraBowlers=[];
+let _pendingExtraStartingBonus=0;
+
+function showExtraBatPairModal(){
+  G.extraBatPairOffered=true;
+  // Find leader's players — excluded from being the extra batting pair
+  const ranked=rankByScore();
+  const leaderPlayers=new Set(G.pairs[ranked[0]].players);
+  // Pool: all players minus the leading pair
+  const pool=G.players.filter(p=>!leaderPlayers.has(p));
+  if(pool.length<2){endMatch();return;}
+  // Shuffle and pick 2 from DIFFERENT original pairs
+  const getOrigPairIdx=p=>G.pairs.findIndex(pr=>pr.players.includes(p));
+  const shuffled=[...pool].sort(()=>Math.random()-.5);
+  let bat1=null,bat2=null;
+  for(let i=0;i<shuffled.length;i++){
+    if(!bat1){bat1=shuffled[i];continue;}
+    if(getOrigPairIdx(shuffled[i])!==getOrigPairIdx(bat1)){bat2=shuffled[i];break;}
+  }
+  // Fallback: any 2 remaining players if all happen to be in same pair
+  if(!bat2)bat2=shuffled.find(p=>p!==bat1)||null;
+  if(!bat2){endMatch();return;}
+  _pendingExtraBatters=[bat1,bat2];
+  // Wickets taken by bat1 & bat2 as bowlers → starting bowling bonus
+  const batSet=new Set([bat1,bat2]);
+  const wktsTaken=G.history.filter(b=>b.type==='wkt'&&!b.isRunout&&b.bowling&&batSet.has(b.bowling)).length;
+  _pendingExtraStartingBonus=wktsTaken*2;
+  // Pick 4 individual bowlers (not the batting pair)
+  const bowlPool=G.players.filter(p=>!batSet.has(p));
+  _pendingExtraBowlers=[...bowlPool].sort(()=>Math.random()-.5).slice(0,4);
+  // Populate modal
+  const c1=G.pairs[getOrigPairIdx(bat1)]?.color||'grey';
+  const c2=G.pairs[getOrigPairIdx(bat2)]?.color||'grey';
+  document.getElementById('extra-bat-pair-name').innerHTML=
+    `<span class="t-${c1}">${bat1}</span> &amp; <span class="t-${c2}">${bat2}</span>`;
+  const bonusText=_pendingExtraStartingBonus>0
+    ?`+${_pendingExtraStartingBonus} starting bowling bonus (${wktsTaken} wicket${wktsTaken!==1?'s':''} taken as bowlers)`
+    :'No starting bonus (0 wickets taken as bowlers)';
+  document.getElementById('extra-start-bonus').textContent=bonusText;
+  document.getElementById('extra-bowl-pairs').textContent=
+    _pendingExtraBowlers.length?_pendingExtraBowlers.join(', ')+' (1 over each)':'—';
+  document.getElementById('extra-bat-modal').classList.remove('hidden');
+}
+
+function confirmExtraBatPair(){
+  document.getElementById('extra-bat-modal').classList.add('hidden');
+  const[bat1,bat2]=_pendingExtraBatters;
+  // New pair slot — orange (always free in 7–10 player games) so it's visually distinct
+  const newPairIdx=G.pairs.length;
+  G.pairs.push({color:'orange',cname:'Extra',players:[bat1,bat2],isExtraBat:true,absent:false,fixedBowler:null,borrowedPlayer:null});
+  G.scores.push({bat:0,bowl:_pendingExtraStartingBonus});
+  G.numPairs++;
+  G.extraBatPairActive=true;
+  G.extraBatPairIdx=newPairIdx;
+  G.extraInningsBowlers=_pendingExtraBowlers;
+  G.extraInningsStartOver=G.totalOvers; // overIdx at start of extra innings
+  // Build 4 extra overs — each of the 4 pre-assigned bowlers bowls 1 over
+  for(let i=0;i<4;i++){
+    const bowlerName=_pendingExtraBowlers[i]||_pendingExtraBowlers[0];
+    const bowlPairIdx=G.pairs.findIndex((p,idx)=>idx<newPairIdx&&p.players.includes(bowlerName));
+    G.batSched.push(newPairIdx);
+    G.bowlSched.push(bowlPairIdx>=0?bowlPairIdx:0);
+    G.bowlSchedRaw.push(bowlPairIdx>=0?bowlPairIdx:0);
+  }
+  G.totalOvers+=4;
+  G.pendingBowlerSelect=true;
+  G.overBowler=null;
+  G.facingIdx=0;
+  G.pendingWhoFacing=true;
+  show('s-score');
+  updateUI();
+  saveGameState();
+}
+
+function declineExtraBatPair(){
+  document.getElementById('extra-bat-modal').classList.add('hidden');
+  endMatch();
+}
+
 async function endMatch(){
   // Push finished state and surface the scoreboard link
   const shareCard=document.getElementById('live-share-card');
@@ -2158,7 +2279,8 @@ async function endMatch(){
       if(b.boundaries!==a.boundaries)return b.boundaries-a.boundaries;
       return b.bat-a.bat; // most batting runs as final tiebreaker
     });
-  document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min`;
+  const extraNote=G.extraBatPairActive?' · ⭐ extra innings played':'';
+  document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min${extraNote}`;
   const lb=document.getElementById('leaderboard');lb.innerHTML='';
   const isTied=(i)=>i>0&&res[i].total===res[i-1].total;
   const isTiedBnd=(i)=>isTied(i)&&res[i].boundaries===res[i-1].boundaries;
@@ -2169,7 +2291,8 @@ async function endMatch(){
     const tiedNote=isTied(rank)?isTiedBnd(rank)
       ?` <span style="font-size:10px;color:var(--orange)">(tied — won on batting runs)</span>`
       :` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
-    row.innerHTML=`<div class="pod-rank">${rankLabel}</div><div class="pod-info"><div class="pod-pname t-${r.p.color}">${r.p.cname} pair</div><div class="pod-players">${r.p.players.join(' & ')}</div><div class="pod-breakdown">Batting: ${r.bat} + Bowl bonus: ${r.bowl} · ${r.boundaries} boundaries${tiedNote}</div></div><div class="pod-total">${r.total}</div>`;
+    const extraBadge=r.p.isExtraBat?` <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px;font-weight:700">⭐ extra innings</span>`:'';
+    row.innerHTML=`<div class="pod-rank">${rankLabel}</div><div class="pod-info"><div class="pod-pname t-${r.p.color}">${r.p.cname} pair${extraBadge}</div><div class="pod-players">${r.p.players.join(' & ')}</div><div class="pod-breakdown">Batting: ${r.bat} + Bowl bonus: ${r.bowl}${r.p.isExtraBat?' (incl. pre-match wicket bonus)':''} · ${r.boundaries} boundaries${tiedNote}</div></div><div class="pod-total">${r.total}</div>`;
     lb.appendChild(row);
   });
   const wkts=G.history.filter(b=>b.type==='wkt').length;
