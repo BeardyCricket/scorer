@@ -229,8 +229,6 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .tog-sl:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
 .tog input:checked+.tog-sl{background:var(--brand)}
 .tog input:checked+.tog-sl:before{transform:translateX(20px)}
-.seed-mode-banner{background:#1d4ed8;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:4px 16px;letter-spacing:.04em;display:none}
-.seed-mode-banner.active{display:block}
 .skip-pair-btn{width:100%;padding:10px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer;color:var(--text)}
 .skip-pair-btn:active{opacity:.7}
 /* Passcode screen */
@@ -483,7 +481,6 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </div>
   </div>
   <div id="test-mode-banner" class="test-mode-banner">🧪 TEST MODE — scores not sent to live site or notifications</div>
-  <div id="seed-mode-banner" class="seed-mode-banner">🌱 SEED MODE — pairs determined by seed numbers</div>
   <div class="t-strip ontrack" id="t-strip">
     <span id="t-msg">⏱ —</span>
     <span style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -1542,9 +1539,7 @@ function updateUI(){
   for(let i=0;i<bowlSel.options.length;i++){if(bowlSel.options[i].text===toSelect){bowlSel.selectedIndex=i;break;}}
 
   // Seed mode UI
-  const seedBanner=document.getElementById('seed-mode-banner');
-  if(seedBanner)seedBanner.classList.toggle('active',!!G.seedMode);
-  const skipRow=document.getElementById('skip-pair-row');
+const skipRow=document.getElementById('skip-pair-row');
   if(skipRow){
     let canSkip=false;
     if(G.seedMode&&G.batSched&&G.batSched.length){
