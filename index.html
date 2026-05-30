@@ -328,6 +328,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="card">
       <div class="card-title">Registered players</div>
       <div id="roster-list"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="document.getElementById('roster-csv-inp').click()">↑ Import CSV</button>
+        <span style="font-size:11px;color:var(--muted)">CSV columns: name, seed number (1–10)</span>
+      </div>
+      <input type="file" id="roster-csv-inp" accept=".csv,.txt" style="display:none" onchange="importRosterCSV(this)">
     </div>
     <div class="card" id="roster-today-card">
       <div class="card-title">Today's session</div>
@@ -1273,7 +1278,9 @@ function shufflePairs(){
 
 function updateOddPairBorrowed(){
   const lastPair=G.pairs[G.numPairs-1];
-  const newBorrowed=G.pairs[0].players[0];
+  const sourceIdx=G.seedMode?(G.numPlayers<=9?2:3):0;
+  const sourcePair=G.pairs[sourceIdx]||G.pairs[0];
+  const newBorrowed=sourcePair.players[0];
   lastPair.players=[lastPair.players[0],newBorrowed];
   lastPair.borrowedPlayer=newBorrowed;
 }
@@ -2622,7 +2629,8 @@ function confirmPairSelection(){
   // Odd game: borrow first player from first batting pair to bat with the solo pair
   if(G.isOdd&&solo.length===1){
     const soloActualIdx=keepPairs[keepPairs.length-1]; // solo pair is always last
-    const firstActualIdx=keepPairs[0];                 // first batting pair (Purple)
+    const purpleActualIdx=G.seedMode?(G.numPlayers<=9?2:3):0;
+    const firstActualIdx=keepPairs.find(i=>i===purpleActualIdx)??keepPairs[0]; // first batting pair (Purple)
     const borrowed=G.pairs[firstActualIdx].players[0];
     // Add borrowed player — they bat with the solo player but fixedBowler ensures they never bowl
     const soloPlayer=G.pairs[soloActualIdx].fixedBowler||G.pairs[soloActualIdx].players[0];
@@ -2887,6 +2895,38 @@ function saveRoster(){
   catch(e){}
 }
 
+function importRosterCSV(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const lines=e.target.result.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    let added=0,updated=0;
+    for(const line of lines){
+      // Handle quoted and unquoted CSV
+      const cols=line.split(',').map(c=>c.trim().replace(/^"|"$/g,''));
+      const name=cols[0];
+      if(!name||name.toLowerCase()==='name')continue; // skip blank or header row
+      const rawSeed=parseInt(cols[1]);
+      const validSeedNum=(rawSeed>=1&&rawSeed<=10)?rawSeed:null;
+      const existing=rosterPlayers.find(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(existing){
+        existing.seedNum=validSeedNum;
+        updated++;
+      } else {
+        rosterPlayers.push({name,seed:2,seedNum:validSeedNum});
+        sessionStatuses[name]='present';
+        added++;
+      }
+    }
+    saveRoster();
+    renderRoster();
+    alert(`CSV imported: ${added} player${added!==1?'s':''} added, ${updated} updated.`);
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
 function showRoster(){
   loadRoster();
   renderRoster();
@@ -3111,10 +3151,12 @@ function buildSeedPairs(){
   G.numPairs=G.pairs.length;
   G.lateArrivals=new Set(lateNames);
 
-  // Odd game: solo pair borrows first player of the Blue pair (index 0)
+  // Odd game: solo pair borrows first player of the Purple pair (first non-seeded pair)
+  const purpleIdx=small?2:3;
   const lastPair=G.pairs[G.numPairs-1];
   if(G.isOdd&&lastPair&&lastPair.players.length===1){
-    const borrowed=G.pairs[0].players[0];
+    const sourcePair=G.pairs[purpleIdx]||G.pairs[0];
+    const borrowed=sourcePair.players[0];
     lastPair.players.push(borrowed);
     lastPair.borrowedPlayer=borrowed;
   }
