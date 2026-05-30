@@ -96,6 +96,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .t-strip.ontrack{background:#f0fdf4;color:#166534}
 .t-strip.late{background:var(--red-l);color:#991b1b}
 .t-strip.early{background:var(--blue-l);color:#1e40af}
+.test-mode-banner{background:#d97706;color:#fff;padding:6px 16px;font-size:12px;font-weight:700;text-align:center;letter-spacing:.04em;display:none}
+.test-mode-banner.active{display:block}
+.btn-test-mode{background:transparent;border:1px solid rgba(255,255,255,.3);color:var(--muted);font-size:12px;padding:7px 14px;margin-top:16px}
+.btn-test-mode.active{background:#d97706;border-color:#d97706;color:#fff}
 .sel-row{padding:10px 16px 4px;display:flex;gap:8px}
 .sel-wrap{flex:1}
 .sel-lbl{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
@@ -215,6 +219,20 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .seed-wrap{display:flex;gap:3px;flex-shrink:0}
 .seed-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--grey-l);font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);padding:0;line-height:1}
 .seed-btn.sel-seed{border-color:var(--brand);background:var(--brand);color:#fff}
+.seed-num-inp{width:34px;height:26px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:700;text-align:center;padding:0 2px;background:var(--grey-l);color:var(--muted);}
+.seed-num-inp:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.seed-num-inp.has-seed{background:var(--brand-l);border-color:var(--brand);color:var(--brand)}
+.seed-mode-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:8px}
+.tog{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.tog-sl{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:12px;transition:.2s}
+.tog-sl:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+.tog input:checked+.tog-sl{background:var(--brand)}
+.tog input:checked+.tog-sl:before{transform:translateX(20px)}
+.seed-mode-banner{background:#1d4ed8;color:#fff;font-size:12px;font-weight:700;text-align:center;padding:4px 16px;letter-spacing:.04em;display:none}
+.seed-mode-banner.active{display:block}
+.skip-pair-btn{width:100%;padding:10px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--card);font-size:13px;font-weight:600;cursor:pointer;color:var(--text)}
+.skip-pair-btn:active{opacity:.7}
 /* Passcode screen */
 .pc-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px 24px;background:var(--brand)}
 .pc-logo{font-size:28px;font-weight:800;color:#fff;letter-spacing:-.5px;margin-bottom:8px}
@@ -288,6 +306,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <button class="btn btn-primary" onclick="showRoster()">👥 Player roster</button>
     <button class="btn btn-secondary" onclick="show('s-setup');window.scrollTo(0,0)" style="margin-top:10px">Manual setup</button>
     <button class="btn btn-secondary" onclick="show('s-end');renderSavedMatches()" style="margin-top:10px">Previous matches</button>
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,.15)">
+      <button id="test-mode-btn" class="btn btn-test-mode" onclick="toggleTestMode()">🧪 Test Mode: OFF</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">Scores stay local only — nothing sent to live scoreboard or push notifications</div>
+    </div>
   </div>
 </div>
 
@@ -325,6 +347,13 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
           <label class="lbl">Start time</label>
           <input class="inp" type="time" id="r-start-time" value="14:00">
         </div>
+      </div>
+      <div class="seed-mode-row">
+        <div>
+          <div style="font-size:13px;font-weight:700">Seed mode</div>
+          <div style="font-size:11px;color:var(--muted)">Use seed numbers to determine pairs & batting order</div>
+        </div>
+        <label class="tog"><input type="checkbox" id="r-seed-mode" onchange="rToggleSeedMode(this.checked)"><span class="tog-sl"></span></label>
       </div>
     </div>
     <div class="gap"></div>
@@ -448,6 +477,8 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       </div>
     </div>
   </div>
+  <div id="test-mode-banner" class="test-mode-banner">🧪 TEST MODE — scores not sent to live site or notifications</div>
+  <div id="seed-mode-banner" class="seed-mode-banner">🌱 SEED MODE — pairs determined by seed numbers</div>
   <div class="t-strip ontrack" id="t-strip">
     <span id="t-msg">⏱ —</span>
     <span style="display:flex;align-items:center;gap:8px;flex-shrink:0">
@@ -469,6 +500,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="bowling-sel" onchange="onBowlerSelChange(this.value)"></select></div>
   </div>
   <div class="fb" id="fb"></div>
+  <div id="skip-pair-row" class="hidden" style="padding:4px 16px 0">
+    <button class="skip-pair-btn" onclick="skipBattingPair()">⏭ Skip to next pair</button>
+  </div>
   <div class="sp">
     <button class="sb" onclick="ball(0,'0')">0</button>
     <button class="sb" onclick="ball(1,'1')">1</button>
@@ -842,9 +876,96 @@ const SCHED = {
 };
 
 // ══════════════════════════════════════════
+// SEED MODE SCHEDULES (from Excel)
+// Pair order: 8-9p → [0=Blue,1=Red,2=Purple,3=Grey,4=Green(solo)]
+//             10-14p → [0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink]
+// 'L' = leaders bowl dynamically
+// ══════════════════════════════════════════
+const SEED_SCHED = {
+  // batOrder = batting sequence (pair indices); slots[pairIdx] = bowling template for when that pair bats
+  // 8-9p pair order: 0=Blue,1=Red,2=Purple,3=Grey,4=Green(solo)
+  // 10-14p pair order: 0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink
+  8:  { opp:4, odd:false,
+    batOrder:[2,0,3,1],            // Purple→Blue→Grey→Red
+    slots:{
+      0:[2,2,1,1],    // Blue bats: Purple,Purple,Red,Red
+      1:[0,0,3,3],    // Red bats: Blue,Blue,Grey,Grey
+      2:[3,3,1,1],    // Purple bats: Grey,Grey,Red,Red
+      3:[0,0,2,2]     // Grey bats: Blue,Blue,Purple,Purple
+  }},
+  9:  { opp:4, odd:true,
+    batOrder:[2,0,3,1,4],          // Purple→Blue→Grey→Red→Green(solo)
+    slots:{
+      0:[4,1,1,2],    // Blue bats: Green,Red,Red,Purple
+      1:[2,4,0,0],    // Red bats: Purple,Green,Blue,Blue
+      2:[3,3,1,1],    // Purple bats: Grey,Grey,Red,Red
+      3:[2,0,0,2],    // Grey bats: Purple,Blue,Blue,Purple
+      4:[3,3,'L','L'] // Green (solo): Grey,Grey,Leaders,Leaders
+  }},
+  10: { opp:4, odd:false,
+    batOrder:[3,0,4,1,2],          // Purple→Blue→Grey→Red→Green
+    slots:{
+      0:[2,2,1,1],    // Blue bats: Green,Green,Red,Red
+      1:[2,2,4,4],    // Red bats: Green,Green,Grey,Grey
+      2:[0,0,3,3],    // Green bats: Blue,Blue,Purple,Purple
+      3:[4,4,1,1],    // Purple bats: Grey,Grey,Red,Red
+      4:[3,3,0,0]     // Grey bats: Purple,Purple,Blue,Blue
+  }},
+  11: { opp:4, odd:true,
+    batOrder:[3,0,4,1,2,5],        // Purple→Blue→Grey→Red→Green→Orange(solo)
+    slots:{
+      0:[1,2,2,3],    // Blue bats: Red,Green,Green,Purple
+      1:[0,0,4,4],    // Red bats: Blue,Blue,Grey,Grey
+      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      3:[4,4,5,1],    // Purple bats: Grey,Grey,Orange,Red
+      4:[3,5,2,2],    // Grey bats: Purple,Orange,Green,Green
+      5:[3,3,'L','L'] // Orange (solo): Purple,Purple,Leaders,Leaders
+  }},
+  12: { opp:4, odd:false,
+    batOrder:[3,0,4,1,2,5],        // Purple→Blue→Grey→Red→Green→Orange
+    slots:{
+      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
+      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
+      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
+      4:[3,3,5,5],    // Grey bats: Purple,Purple,Orange,Orange
+      5:[4,4,3,3]     // Orange bats: Grey,Grey,Purple,Purple
+  }},
+  13: { opp:4, odd:true,
+    batOrder:[3,0,4,1,2,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink(solo)
+    slots:{
+      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
+      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
+      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
+      4:[6,3,3,6],    // Grey bats: Pink,Purple,Purple,Pink
+      5:[4,4,3,3],    // Orange bats: Grey,Grey,Purple,Purple
+      6:[5,5,'L','L'] // Pink (solo): Orange,Orange,Leaders,Leaders
+  }},
+  14: { opp:4, odd:false,
+    batOrder:[3,0,4,1,2,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink
+    slots:{
+      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
+      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
+      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
+      4:[6,6,3,3],    // Grey bats: Pink,Pink,Purple,Purple
+      5:[6,6,4,4],    // Orange bats: Pink,Pink,Grey,Grey
+      6:[5,5,3,3]     // Pink bats: Orange,Orange,Purple,Purple
+  }}
+};
+
+// Color/name arrays for seed mode (in pair-index order)
+const SEED_COLORS_SMALL = ['blue','red','purple','grey','green'];
+const SEED_CNAMES_SMALL = ['Blue','Red','Purple','Grey','Green'];
+const SEED_COLORS_LARGE = ['blue','red','green','purple','grey','orange','pink'];
+const SEED_CNAMES_LARGE = ['Blue','Red','Green','Purple','Grey','Orange','Pink'];
+
+// ══════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════
 let G={};
+let testMode=localStorage.getItem('cricket_test_mode')==='1';
 function freshState(){
   return{numPlayers:0,numPairs:0,isOdd:false,teamMode:false,teamSizes:[0,0],teamOdd:[false,false],players:[],pairs:[],locked:[],
     startTime:'14:00',matchDurMins:50,matchStartMs:0,
@@ -869,7 +990,8 @@ function freshState(){
     extraBatPairActive:false,
     extraBatPairIdx:-1,
     extraInningsBowlers:[],
-    extraInningsStartOver:-1};
+    extraInningsStartOver:-1,
+    seedMode:false};
 }
 G=freshState();
 // roster loaded lazily in showRoster() — not needed on page load
@@ -1411,6 +1533,23 @@ function updateUI(){
   bowlSel.innerHTML=bowlHtml;
   const toSelect=G.overBowler||bwp.players[0];
   for(let i=0;i<bowlSel.options.length;i++){if(bowlSel.options[i].text===toSelect){bowlSel.selectedIndex=i;break;}}
+
+  // Seed mode UI
+  const seedBanner=document.getElementById('seed-mode-banner');
+  if(seedBanner)seedBanner.classList.toggle('active',!!G.seedMode);
+  const skipRow=document.getElementById('skip-pair-row');
+  if(skipRow){
+    let canSkip=false;
+    if(G.seedMode&&G.batSched&&G.batSched.length){
+      const currentPair=G.batSched[G.overIdx];
+      const isFirstOverOfBlock=G.overIdx===0||G.batSched[G.overIdx-1]!==currentPair;
+      let blockEnd=G.overIdx;
+      while(blockEnd+1<G.totalOvers&&G.batSched[blockEnd+1]===currentPair)blockEnd++;
+      const hasNextBlock=blockEnd+1<G.totalOvers;
+      canSkip=G.ballInOver===0&&isFirstOverOfBlock&&hasNextBlock;
+    }
+    skipRow.classList.toggle('hidden',!canSkip);
+  }
 
   // Check if we need to show a transition modal (new batting or bowling pair)
   checkTransitions();
@@ -2253,6 +2392,7 @@ function showBowlerLB(){
 // PLAYER COUNT REDUCTION (late arrivals)
 // ══════════════════════════════════════════
 function reduceCutoffOver(){
+  if(G.seedMode)return 4; // seed mode: locked after over 4
   // Cutoff: before over 5 for ≤9 players, before over 9 for 14-15, before over 7 otherwise
   return G.numPlayers<=9?4:G.numPlayers>=14?8:6;
 }
@@ -2419,9 +2559,6 @@ function confirmPairSelection(){
   // solo array still needed for the borrowed-player block below
   const solo=soloActive.map(d=>d.i);
 
-  const s=SCHED[total]||SCHED[total+1]||SCHED[total-1];
-  if(!s){alert('No schedule for '+total+' players.');return;}
-
   const doneIdx=G.overIdx;
   const doneBat=G.batSched.slice(0,doneIdx);
   const doneBowl=G.bowlSched.slice(0,doneIdx);
@@ -2431,22 +2568,43 @@ function confirmPairSelection(){
   const alreadyBatted={};
   doneBat.forEach(bp=>{alreadyBatted[bp]=(alreadyBatted[bp]||0)+1;});
 
-  // Strictly follow the new SCHED template.
-  // For a pair that has already batted K overs, pick up at slot position K.
-  // For all other pairs (K=0) the full slot is used — exactly matching SCHED[target].
   const newBat=[],newBowl=[],newBowlRaw=[];
-  for(let pos=0;pos<newNP;pos++){
-    const actualIdx=keepPairs[pos];
-    const slot=s.slots[pos]||s.slots[0];
-    const batted=Math.min(alreadyBatted[actualIdx]||0,s.opp);
-    for(let o=batted;o<s.opp;o++){
-      const raw=slot[o]??0;
-      let bowlIdx;
-      if(raw==='L'||raw==='2'){bowlIdx=-1;}
-      else{const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);bowlIdx=keepPairs[sp];}
-      newBat.push(actualIdx);
-      newBowlRaw.push(raw);
-      newBowl.push(bowlIdx);
+  let schedOpp=4;
+
+  if(G.seedMode){
+    // Seed mode: rebuild remaining schedule from SEED_SCHED using batOrder
+    const ss=SEED_SCHED[total]||SEED_SCHED[total-1]||SEED_SCHED[total+1];
+    if(!ss){alert('No seed schedule for '+total+' players.');return;}
+    schedOpp=ss.opp||4;
+    const batOrder=ss.batOrder||keepPairs.slice();
+    for(const actualIdx of batOrder){
+      if(!keepPairs.includes(actualIdx))continue;
+      const slot=ss.slots[actualIdx]||ss.slots[0];
+      const batted=Math.min(alreadyBatted[actualIdx]||0,schedOpp);
+      for(let o=batted;o<schedOpp;o++){
+        const raw=slot[o]??0;
+        let bowlIdx;
+        if(raw==='L'||raw==='2'){bowlIdx=-1;}
+        else{bowlIdx=Math.min(typeof raw==='number'?raw:0,newNP-1);}
+        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlIdx);
+      }
+    }
+  } else {
+    // Standard mode: use SCHED by slot position
+    const s=SCHED[total]||SCHED[total+1]||SCHED[total-1];
+    if(!s){alert('No schedule for '+total+' players.');return;}
+    schedOpp=s.opp||4;
+    for(let pos=0;pos<newNP;pos++){
+      const actualIdx=keepPairs[pos];
+      const slot=s.slots[pos]||s.slots[0];
+      const batted=Math.min(alreadyBatted[actualIdx]||0,schedOpp);
+      for(let o=batted;o<schedOpp;o++){
+        const raw=slot[o]??0;
+        let bowlIdx;
+        if(raw==='L'||raw==='2'){bowlIdx=-1;}
+        else{const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);bowlIdx=keepPairs[sp];}
+        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlIdx);
+      }
     }
   }
 
@@ -2455,7 +2613,7 @@ function confirmPairSelection(){
   G.bowlSched=[...doneBowl,...newBowl];
   G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw];
   G.numPlayers=total;G.numPairs=newNP;G.isOdd=total%2!==0;
-  G.opp=s.opp;G.totalOvers=G.batSched.length;
+  G.opp=schedOpp;G.totalOvers=G.batSched.length;
   G.noBonusOvers=new Set();G.oddExtraStart=-1;
   G.pendingBowlerSelect=true;G.overBowler=null;
   G.pendingTransition=null;G.pendingWhoFacing=false;
@@ -2571,7 +2729,7 @@ async function endMatch(){
   const shareCard=document.getElementById('live-share-card');
   const shareUrl=document.getElementById('end-share-url');
   const savedMsg=document.getElementById('end-share-saved');
-  if(G.matchId&&shareCard&&shareUrl){
+  if(!testMode&&G.matchId&&shareCard&&shareUrl){
     const base=window.location.href.replace(/\/[^\/]*$/,'/');
     shareUrl.textContent=`${base}scores.html?match=${G.matchId}`;
     shareCard.style.display='block';
@@ -2605,8 +2763,10 @@ async function endMatch(){
   }catch(e){
     console.error('[Stats] match_stats computation FAILED:',e);
   }
-  await pushLiveScore('finished',matchStats);
-  if(savedMsg)savedMsg.style.display='block';
+  if(!testMode){
+    await pushLiveScore('finished',matchStats);
+    if(savedMsg)savedMsg.style.display='block';
+  }
   show('s-end');
   clearGameState();
   saveMatchToStorage();
@@ -2709,10 +2869,11 @@ function newMatch(){clearGameState();renderSavedMatches();G=freshState();documen
 // ══════════════════════════════════════════
 // ROSTER
 // ══════════════════════════════════════════
-let rosterPlayers=[]; // [{name}]
+let rosterPlayers=[]; // [{name, seed, seedNum}]
 let sessionStatuses={}; // {name:'present'|'late'|'absent'}
 let rVenueMins=50;
 let rVenueType='indoor';
+let rSeedMode=false;
 
 function loadRoster(){
   try{const d=JSON.parse(localStorage.getItem('cricket_roster')||'[]');rosterPlayers=d.filter(p=>p&&p.name);}
@@ -2738,16 +2899,28 @@ function renderRoster(){
   if(!rosterPlayers.length){
     list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No players yet — tap + Add to add your regular players.</div>';
   } else {
+    // Column header
+    const hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:0 0 6px;border-bottom:1px solid var(--border);margin-bottom:6px';
+    hdr.innerHTML='<span style="flex:1;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Name</span>'
+      +'<span style="width:88px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:center">Rank</span>'
+      +'<span style="width:36px;font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.04em;text-align:center" title="Seed number for seed mode (1=best)">Seed#</span>'
+      +'<span style="width:72px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:center">Status</span>'
+      +'<span style="width:28px"></span>';
+    list.appendChild(hdr);
     rosterPlayers.forEach((p,i)=>{
       const st=sessionStatuses[p.name]||'present';
       const row=document.createElement('div');row.className='roster-row';
       const sd=p.seed||2;
+      const sn=p.seedNum||'';
       row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
         <div class="seed-wrap">
-          <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Seed 1">1</button>
-          <button class="seed-btn${sd===2?' sel-seed':''}" onclick="setRosterSeed(${i},2,this)" title="Seed 2">2</button>
-          <button class="seed-btn${sd===3?' sel-seed':''}" onclick="setRosterSeed(${i},3,this)" title="Seed 3">3</button>
+          <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Rank 1 — bat early">1</button>
+          <button class="seed-btn${sd===2?' sel-seed':''}" onclick="setRosterSeed(${i},2,this)" title="Rank 2 — default">2</button>
+          <button class="seed-btn${sd===3?' sel-seed':''}" onclick="setRosterSeed(${i},3,this)" title="Rank 3 — bat later">3</button>
         </div>
+        <input class="seed-num-inp" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="—"
+          oninput="setRosterSeedNum(${i},this.value,this)" onblur="saveRoster()" title="Seed number for seed mode (1=best, blank=unseeded)">
         <div class="status-chips">
           <div class="status-chip${st==='present'?' s-present':''}" onclick="setPlayerStatus(${i},'present')">✓</div>
           <div class="status-chip${st==='late'?' s-late':''}" onclick="setPlayerStatus(${i},'late')">⏰</div>
@@ -2755,6 +2928,7 @@ function renderRoster(){
         </div>
         <button class="roster-del" onclick="removeRosterPlayer(${i})">×</button>`;
       list.appendChild(row);
+      if(sn){const inp=row.querySelector('.seed-num-inp');if(inp)inp.classList.add('has-seed');}
     });
   }
   updateRosterToday();
@@ -2781,9 +2955,20 @@ function setRosterSeed(i,seed,el){
   saveRoster();
 }
 
+function setRosterSeedNum(i,val,el){
+  const n=parseInt(val);
+  rosterPlayers[i].seedNum=(n>=1&&n<=10)?n:null;
+  if(el)el.classList.toggle('has-seed',!!rosterPlayers[i].seedNum);
+}
+
+function rToggleSeedMode(on){
+  rSeedMode=on;
+  updateRosterToday();
+}
+
 function addRosterPlayer(){
   const name='Player '+(rosterPlayers.length+1);
-  rosterPlayers.push({name,seed:2});
+  rosterPlayers.push({name,seed:2,seedNum:null});
   sessionStatuses[name]='present';
   saveRoster();
   renderRoster();
@@ -2814,9 +2999,26 @@ function updateRosterToday(){
     <div class="today-line"><span>Not coming</span><span style="font-weight:700;color:var(--muted)">${absent.length}</span></div>
     <div class="today-line" style="font-weight:700"><span>Playing today</span><span>${total}</span></div>`;
   const valid=total>=7&&total<=15;
+  const seedValid=rSeedMode&&total>=8&&total<=14;
   document.getElementById('play-today-btn').style.display=valid?'block':'none';
+  document.getElementById('play-today-btn').textContent=rSeedMode?'Start seed match →':'Play today →';
   if(!valid&&total>0){
     div.innerHTML+=`<div style="font-size:12px;color:var(--muted);margin-top:6px">${total<7?'Need at least 7 players':'Max 15 players'}</div>`;
+  }
+  if(rSeedMode&&valid&&!seedValid){
+    div.innerHTML+=`<div style="font-size:12px;color:var(--orange);margin-top:6px">Seed mode requires 8–14 players</div>`;
+    document.getElementById('play-today-btn').style.display='none';
+  }
+  if(rSeedMode&&total>=8&&total<=14){
+    // Show seeding preview
+    const seededPlayers=present
+      .filter(p=>p.seedNum>=1&&p.seedNum<=10)
+      .sort((a,b)=>a.seedNum-b.seedNum);
+    if(seededPlayers.length>0){
+      const small=total<=9;const sc=small?4:6;
+      const topN=seededPlayers.slice(0,sc);
+      div.innerHTML+=`<div style="font-size:11px;color:var(--brand);margin-top:6px;font-weight:600">Seed preview (top ${Math.min(seededPlayers.length,sc)}):<br>${topN.map(p=>`#${p.seedNum} ${p.name}`).join(' · ')}</div>`;
+    }
   }
   document.getElementById('roster-settings-card').classList.toggle('hidden',!valid);
 }
@@ -2845,8 +3047,142 @@ function playToday(){
   G.playerSeedMap={};
   rosterPlayers.forEach(p=>{G.playerSeedMap[p.name]=p.seed||2;});
   G.locked=new Array(G.numPairs).fill(false);
+
+  if(rSeedMode&&all.length>=8&&all.length<=14){
+    G.seedMode=true;
+    buildSeedPairs();
+    buildSeedSchedule();
+    document.getElementById('odd-note').classList.toggle('hidden',!G.isOdd);
+    startMatch();
+    return;
+  }
+
   document.getElementById('odd-note').classList.toggle('hidden',!G.isOdd);
   initPairs();shufflePairs();renderPairs();show('s-pairs');
+}
+
+// ══════════════════════════════════════════
+// SEED MODE — pair building & schedule
+// ══════════════════════════════════════════
+function buildSeedPairs(){
+  const rnd=arr=>{for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;};
+  const total=G.numPlayers;
+  const small=total<=9;
+  const seedColors=small?SEED_COLORS_SMALL:SEED_COLORS_LARGE;
+  const seedCnames=small?SEED_CNAMES_SMALL:SEED_CNAMES_LARGE;
+  const seedCount=small?4:6;
+
+  // Sort present players by seedNum ascending (null/0 → Infinity = last)
+  const presentObjs=rosterPlayers
+    .filter(p=>sessionStatuses[p.name]==='present')
+    .map(p=>({name:p.name,sn:p.seedNum>=1&&p.seedNum<=10?p.seedNum:Infinity}))
+    .sort((a,b)=>a.sn-b.sn);
+  const lateNames=rosterPlayers.filter(p=>sessionStatuses[p.name]==='late').map(p=>p.name);
+
+  const seeded=presentObjs.slice(0,seedCount);
+  const remainPresent=rnd(presentObjs.slice(seedCount).map(p=>p.name));
+
+  G.pairs=[];
+
+  if(small){
+    // 1&4, 2&3 → Blue, Red
+    G.pairs.push({color:'blue',cname:'Blue',players:[seeded[0]?.name,seeded[3]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
+    G.pairs.push({color:'red', cname:'Red', players:[seeded[1]?.name,seeded[2]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
+  } else {
+    // 1&6, 2&5, 3&4 → Blue, Red, Green
+    G.pairs.push({color:'blue', cname:'Blue', players:[seeded[0]?.name,seeded[5]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
+    G.pairs.push({color:'red',  cname:'Red',  players:[seeded[1]?.name,seeded[4]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
+    G.pairs.push({color:'green',cname:'Green',players:[seeded[2]?.name,seeded[3]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
+  }
+
+  // Remaining pairs (non-seeded present first, then late as TBC)
+  const rest=[...remainPresent,...lateNames];
+  for(let i=0;i<rest.length;i+=2){
+    const pi=G.pairs.length;
+    const color=seedColors[pi]||'purple';
+    const cname=seedCnames[pi]||'Purple';
+    if(i+1<rest.length){
+      G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});
+    } else {
+      G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});
+    }
+  }
+
+  G.numPairs=G.pairs.length;
+  G.lateArrivals=new Set(lateNames);
+
+  // Odd game: solo pair borrows first player of the Blue pair (index 0)
+  const lastPair=G.pairs[G.numPairs-1];
+  if(G.isOdd&&lastPair&&lastPair.players.length===1){
+    const borrowed=G.pairs[0].players[0];
+    lastPair.players.push(borrowed);
+    lastPair.borrowedPlayer=borrowed;
+  }
+
+  G.locked=new Array(G.numPairs).fill(false);
+  // Rebuild G.players in seed-ordered sequence (excluding borrowed duplicates)
+  G.players=[...new Set(G.pairs.flatMap(p=>p.players.filter(n=>n!==p.borrowedPlayer)))];
+}
+
+function buildSeedSchedule(){
+  const s=SEED_SCHED[G.numPlayers];
+  if(!s){return;} // fallback — shouldn't happen for 8-14 players
+  G.opp=s.opp||4;
+  G.batSched=[];G.bowlSched=[];G.bowlSchedRaw=[];G.noBonusOvers=new Set();
+  const np=G.numPairs;
+  // batOrder: sequence of pair indices that bat (Purple first, then Blue, Grey, Red, etc.)
+  const batOrder=s.batOrder||Array.from({length:np},(_,i)=>i);
+  for(const bi of batOrder){
+    if(bi>=np)continue; // safety: skip if pair doesn't exist
+    const slot=s.slots[bi]||s.slots[0];
+    for(let o=0;o<G.opp;o++){
+      G.batSched.push(bi);
+      const raw=slot[o]??0;
+      G.bowlSchedRaw.push(raw);
+      if(raw==='L'||raw==='2'){
+        G.bowlSched.push(-1);
+      } else {
+        let bowler=typeof raw==='number'?raw:0;
+        if(bowler===bi)bowler=(bi+1)%np;
+        bowler=Math.min(bowler,np-1);
+        G.bowlSched.push(bowler);
+      }
+    }
+  }
+  G.oddExtraStart=-1;
+  G.totalOvers=G.batSched.length;
+}
+
+function skipBattingPair(){
+  if(!G.seedMode)return;
+  const currentPair=G.batSched[G.overIdx];
+  // Find end of current pair's consecutive block from overIdx
+  let blockEnd=G.overIdx;
+  while(blockEnd+1<G.totalOvers&&G.batSched[blockEnd+1]===currentPair)blockEnd++;
+  const nextStart=blockEnd+1;
+  if(nextStart>=G.totalOvers){setFb('No next pair to skip to','bad');setTimeout(()=>setFb('',''),2000);return;}
+  const nextPair=G.batSched[nextStart];
+  let nextBlockEnd=nextStart;
+  while(nextBlockEnd+1<G.totalOvers&&G.batSched[nextBlockEnd+1]===nextPair)nextBlockEnd++;
+
+  // Swap the two blocks (bat + bowl + raw)
+  const curBat=G.batSched.slice(G.overIdx,blockEnd+1);
+  const nxtBat=G.batSched.slice(nextStart,nextBlockEnd+1);
+  const curBowl=G.bowlSched.slice(G.overIdx,blockEnd+1);
+  const nxtBowl=G.bowlSched.slice(nextStart,nextBlockEnd+1);
+  const curRaw=G.bowlSchedRaw.slice(G.overIdx,blockEnd+1);
+  const nxtRaw=G.bowlSchedRaw.slice(nextStart,nextBlockEnd+1);
+
+  G.batSched.splice(G.overIdx,curBat.length+nxtBat.length,...nxtBat,...curBat);
+  G.bowlSched.splice(G.overIdx,curBowl.length+nxtBowl.length,...nxtBowl,...curBowl);
+  G.bowlSchedRaw.splice(G.overIdx,curRaw.length+nxtRaw.length,...nxtRaw,...curRaw);
+
+  G.overBowler=null;G.pendingBowlerSelect=true;
+  const skipped=G.pairs[currentPair].cname;
+  const next=G.pairs[nextPair].cname;
+  setFb(`${skipped} skipped — ${next} bats next`,'info');
+  setTimeout(()=>setFb('',''),3000);
+  updateUI();saveGameState();
 }
 
 // ══════════════════════════════════════════
@@ -2856,6 +3192,8 @@ let pendingLateModal=null; // {type:'bowl'|'bat', pairIdx, playerName}
 
 function checkLateArrivalAlert(){
   if(!G.lateArrivals||!G.lateArrivals.size)return;
+  // seed mode: allow late-arrival checks but only up to end of over 4
+  if(G.seedMode&&G.overIdx>=4)return;
   if(G.pendingTransition||document.getElementById('trans-modal').className==='overlay')return;
   if(document.getElementById('bowler-modal').className!=='overlay hidden')return;
   if(document.getElementById('late-modal').className!=='overlay hidden')return;
@@ -3001,6 +3339,7 @@ function saveAndTestNtfy(){
 
 function pushBallUpdate(){
   if(G.ballInOver>=6)return; // over just ended — takeSnapshot() handles the push
+  if(testMode)return;
   pushLiveScore();
   const topic=localStorage.getItem('cricket_ntfy_topic');
   if(!topic)return;
@@ -3044,6 +3383,22 @@ function flashPushIndicator(){
   if(!el)return;
   el.style.opacity='1';
   setTimeout(()=>{el.style.opacity='0';},3500);
+}
+
+function toggleTestMode(){
+  testMode=!testMode;
+  localStorage.setItem('cricket_test_mode',testMode?'1':'0');
+  updateTestModeUI();
+}
+
+function updateTestModeUI(){
+  const btn=document.getElementById('test-mode-btn');
+  if(btn){
+    btn.textContent=`🧪 Test Mode: ${testMode?'ON':'OFF'}`;
+    btn.classList.toggle('active',testMode);
+  }
+  const banner=document.getElementById('test-mode-banner');
+  if(banner)banner.classList.toggle('active',testMode);
 }
 
 // ── SUPABASE LIVE SCORE PUSH ──────────────────────────────────────────
@@ -3253,13 +3608,15 @@ function takeSnapshot(label){
   const snap={ts,label,text:lines.join('\n')};
   G.snapshots.push(snap);
 
-  // Push to ntfy if configured (fire and forget)
-  if(localStorage.getItem('cricket_ntfy_topic')){
-    pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
+  if(!testMode){
+    // Push to ntfy if configured (fire and forget)
+    if(localStorage.getItem('cricket_ntfy_topic')){
+      pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
+    }
+    // Skip on the final over end — endMatch() pushes the 'finished' status with full stats.
+    // Pushing here too causes a race condition that can overwrite the finished payload.
+    if(label==='Match start'||G.overIdx+1<G.totalOvers) pushLiveScore();
   }
-  // Skip on the final over end — endMatch() pushes the 'finished' status with full stats.
-  // Pushing here too causes a race condition that can overwrite the finished payload.
-  if(label==='Match start'||G.overIdx+1<G.totalOvers) pushLiveScore();
 }
 
 function showSnapModal(){
@@ -3281,6 +3638,7 @@ function showSnapModal(){
 
 // Check for a saved game when page first loads
 checkForSavedGame();
+updateTestModeUI();
 
 // ══════════════════════════════════════════
 // PASSCODE
