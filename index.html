@@ -422,17 +422,17 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <div id="s-pairs" class="screen">
   <div class="hdr">
     <div class="hdr-row">
-      <button class="back" onclick="show('s-setup')">← Back</button>
+      <button class="back" onclick="backFromPairs()">← Back</button>
       <div class="hdr-title">Assign pairs</div>
-      <button class="back" onclick="shufflePairs()">Shuffle</button>
+      <button class="back" id="pairs-shuffle-hdr" onclick="shufflePairs()">Shuffle</button>
     </div>
-    <div class="hdr-sub">Tap a name to swap · lock pairs to protect them</div>
+    <div class="hdr-sub" id="pairs-sub">Tap a name to swap · lock pairs to protect them</div>
   </div>
   <div class="pad">
     <div id="pair-list"></div>
     <div class="gap"></div>
     <button class="btn btn-primary" onclick="goToBowling()">Next: Bowling order →</button>
-    <button class="btn btn-secondary" onclick="shufflePairs()">🔀 Re-shuffle</button>
+    <button class="btn btn-secondary" id="pairs-reshuffle-btn" onclick="shufflePairs()">🔀 Re-shuffle</button>
   </div>
 </div>
 
@@ -879,14 +879,18 @@ const SCHED = {
 
 // ══════════════════════════════════════════
 // SEED MODE SCHEDULES (from Excel)
-// Pair order: 8-9p → [0=Blue,1=Red,2=Purple,3=Grey,4=Green(solo)]
-//             10-14p → [0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink]
+// Pair order: 8p   → [0=Blue,1=Red,2=Purple,3=Grey]
+//             9p   → [0=Blue,1=Red,2=Purple,3=Green(solo),4=Grey]
+//             10p  → [0=Blue,1=Red,2=Purple,3=Green,4=Grey]
+//             11-14p → [0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink]
 // 'L' = leaders bowl dynamically
 // ══════════════════════════════════════════
 const SEED_SCHED = {
   // batOrder = batting sequence (pair indices); slots[pairIdx] = bowling template for when that pair bats
-  // 8-9p pair order: 0=Blue,1=Red,2=Purple,3=Grey,4=Green(solo)
-  // 10-14p pair order: 0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink
+  // 8p  pair order: 0=Blue,1=Red,2=Purple,3=Grey
+  // 9p  pair order: 0=Blue,1=Red,2=Purple,3=Green(solo),4=Grey
+  // 10p pair order: 0=Blue,1=Red,2=Purple,3=Green,4=Grey
+  // 11-14p pair order: 0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink
   8:  { opp:4, odd:false,
     batOrder:[2,0,3,1],            // Purple→Blue→Grey→Red
     slots:{
@@ -896,22 +900,22 @@ const SEED_SCHED = {
       3:[0,0,2,2]     // Grey bats: Blue,Blue,Purple,Purple
   }},
   9:  { opp:4, odd:true,
-    batOrder:[2,0,3,1,4],          // Purple→Blue→Grey→Red→Green(solo)
+    batOrder:[2,0,4,1,3],          // Purple→Blue→Grey→Red→Green(solo)
     slots:{
-      0:[4,1,1,2],    // Blue bats: Green,Red,Red,Purple
-      1:[2,4,0,0],    // Red bats: Purple,Green,Blue,Blue
-      2:[3,3,1,1],    // Purple bats: Grey,Grey,Red,Red
-      3:[2,0,0,2],    // Grey bats: Purple,Blue,Blue,Purple
-      4:[3,3,'L','L'] // Green (solo): Grey,Grey,Leaders,Leaders
+      0:[2,2,1,1],    // Blue bats: Purple,Purple,Red,Red
+      1:[0,0,4,4],    // Red bats: Blue,Blue,Grey,Grey
+      2:[4,4,1,1],    // Purple bats: Grey,Grey,Red,Red
+      3:[0,0,'L','L'], // Green(solo) bats: Blue,Blue,Leaders,Leaders
+      4:[3,2,2,3]     // Grey bats: Green,Purple,Purple,Green
   }},
   10: { opp:4, odd:false,
-    batOrder:[3,0,4,1,2],          // Purple→Blue→Grey→Red→Green
+    batOrder:[2,0,4,1,3],          // Purple→Blue→Grey→Red→Green
     slots:{
-      0:[2,2,1,1],    // Blue bats: Green,Green,Red,Red
-      1:[2,2,4,4],    // Red bats: Green,Green,Grey,Grey
-      2:[0,0,3,3],    // Green bats: Blue,Blue,Purple,Purple
-      3:[4,4,1,1],    // Purple bats: Grey,Grey,Red,Red
-      4:[3,3,0,0]     // Grey bats: Purple,Purple,Blue,Blue
+      0:[2,2,1,1],    // Blue bats: Purple,Purple,Red,Red
+      1:[0,0,3,3],    // Red bats: Blue,Blue,Green,Green
+      2:[4,4,1,1],    // Purple bats: Grey,Grey,Red,Red
+      3:[4,4,0,0],    // Green bats: Grey,Grey,Blue,Blue
+      4:[3,3,2,2]     // Grey bats: Green,Green,Purple,Purple
   }},
   11: { opp:4, odd:true,
     batOrder:[3,0,4,1,2,5],        // Purple→Blue→Grey→Red→Green→Orange(solo)
@@ -958,8 +962,10 @@ const SEED_SCHED = {
 };
 
 // Color/name arrays for seed mode (in pair-index order)
-const SEED_COLORS_SMALL = ['blue','red','purple','grey','green'];
-const SEED_CNAMES_SMALL = ['Blue','Red','Purple','Grey','Green'];
+const SEED_COLORS_SMALL = ['blue','red','purple','grey'];
+const SEED_CNAMES_SMALL = ['Blue','Red','Purple','Grey'];
+const SEED_COLORS_MID   = ['blue','red','purple','green','grey'];
+const SEED_CNAMES_MID   = ['Blue','Red','Purple','Green','Grey'];
 const SEED_COLORS_LARGE = ['blue','red','green','purple','grey','orange','pink'];
 const SEED_CNAMES_LARGE = ['Blue','Red','Green','Purple','Grey','Orange','Pink'];
 
@@ -1165,6 +1171,13 @@ function initTeamPairs(){
 
 let swapQ=null;
 function renderPairs(){
+  const isSeed=!!G.seedMode;
+  const sh=document.getElementById('pairs-shuffle-hdr');
+  const rb=document.getElementById('pairs-reshuffle-btn');
+  const sub=document.getElementById('pairs-sub');
+  if(sh)sh.style.display=isSeed?'none':'';
+  if(rb)rb.style.display=isSeed?'none':'';
+  if(sub)sub.textContent=isSeed?'Seeded batting order · tap a name to swap':'Tap a name to swap · lock pairs to protect them';
   const c=document.getElementById('pair-list');c.innerHTML='';
   const [ta]=G.teamSizes;
   G.pairs.forEach((pair,p)=>{
@@ -1275,7 +1288,7 @@ function shufflePairs(){
 
 function updateOddPairBorrowed(){
   const lastPair=G.pairs[G.numPairs-1];
-  const sourceIdx=G.seedMode?(G.numPlayers<=9?2:3):0;
+  const sourceIdx=G.seedMode?(G.numPlayers<=10?2:3):0;
   const sourcePair=G.pairs[sourceIdx]||G.pairs[0];
   const newBorrowed=sourcePair.players[0];
   lastPair.players=[lastPair.players[0],newBorrowed];
@@ -1412,8 +1425,9 @@ function buildSchedule(){
   G.totalOvers=G.batSched.length;
 }
 
-function goToBowling(){buildSchedule();renderBowling();show('s-bowling');}
-function resetBowling(){buildSchedule();renderBowling();}
+function goToBowling(){if(G.seedMode)buildSeedSchedule();else buildSchedule();renderBowling();show('s-bowling');}
+function resetBowling(){if(G.seedMode)buildSeedSchedule();else buildSchedule();renderBowling();}
+function backFromPairs(){show(G.seedMode?'s-roster':'s-setup');}
 
 function renderBowling(){
   if(G.teamMode){renderTeamBowling();return;}
@@ -2624,7 +2638,7 @@ function confirmPairSelection(){
   // Odd game: borrow first player from first batting pair to bat with the solo pair
   if(G.isOdd&&solo.length===1){
     const soloActualIdx=keepPairs[keepPairs.length-1]; // solo pair is always last
-    const purpleActualIdx=G.seedMode?(G.numPlayers<=9?2:3):0;
+    const purpleActualIdx=G.seedMode?(G.numPlayers<=10?2:3):0;
     const firstActualIdx=keepPairs.find(i=>i===purpleActualIdx)??keepPairs[0]; // first batting pair (Purple)
     const borrowed=G.pairs[firstActualIdx].players[0];
     // Add borrowed player — they bat with the solo player but fixedBowler ensures they never bowl
@@ -3086,9 +3100,9 @@ function playToday(){
   if(rSeedMode&&all.length>=8&&all.length<=14){
     G.seedMode=true;
     buildSeedPairs();
-    buildSeedSchedule();
     document.getElementById('odd-note').classList.toggle('hidden',!G.isOdd);
-    startMatch();
+    renderPairs();
+    show('s-pairs');
     return;
   }
 
@@ -3102,10 +3116,10 @@ function playToday(){
 function buildSeedPairs(){
   const rnd=arr=>{for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;};
   const total=G.numPlayers;
-  const small=total<=9;
-  const seedColors=small?SEED_COLORS_SMALL:SEED_COLORS_LARGE;
-  const seedCnames=small?SEED_CNAMES_SMALL:SEED_CNAMES_LARGE;
-  const seedCount=small?4:6;
+  const mid=(total===9||total===10);
+  const small=!mid&&total<=9; // effectively total===8 (seed mode runs for 8-14p)
+  const seedColors=mid?SEED_COLORS_MID:small?SEED_COLORS_SMALL:SEED_COLORS_LARGE;
+  const seedCnames=mid?SEED_CNAMES_MID:small?SEED_CNAMES_SMALL:SEED_CNAMES_LARGE;
 
   // Sort present players by seedNum ascending (null/0 → Infinity = last)
   const presentObjs=rosterPlayers
@@ -3114,46 +3128,72 @@ function buildSeedPairs(){
     .sort((a,b)=>a.sn-b.sn);
   const lateNames=rosterPlayers.filter(p=>sessionStatuses[p.name]==='late').map(p=>p.name);
 
-  const seeded=presentObjs.slice(0,seedCount);
-  const remainPresent=rnd(presentObjs.slice(seedCount).map(p=>p.name));
-
   G.pairs=[];
+  const mk=(color,cname,players)=>({color,cname,players:players.filter(Boolean),fixedBowler:null,borrowedPlayer:null});
 
-  if(small){
-    // 1&4, 2&3 → Blue, Red
-    G.pairs.push({color:'blue',cname:'Blue',players:[seeded[0]?.name,seeded[3]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
-    G.pairs.push({color:'red', cname:'Red', players:[seeded[1]?.name,seeded[2]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
-  } else {
-    // 1&6, 2&5, 3&4 → Blue, Red, Green
-    G.pairs.push({color:'blue', cname:'Blue', players:[seeded[0]?.name,seeded[5]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
-    G.pairs.push({color:'red',  cname:'Red',  players:[seeded[1]?.name,seeded[4]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
-    G.pairs.push({color:'green',cname:'Green',players:[seeded[2]?.name,seeded[3]?.name].filter(Boolean),fixedBowler:null,borrowedPlayer:null});
-  }
-
-  // Remaining pairs (non-seeded present first, then late as TBC)
-  const rest=[...remainPresent,...lateNames];
-  for(let i=0;i<rest.length;i+=2){
-    const pi=G.pairs.length;
-    const color=seedColors[pi]||'purple';
-    const cname=seedCnames[pi]||'Purple';
-    if(i+1<rest.length){
-      G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});
+  if(mid){
+    // 9 or 10 players: all seeded into fixed positions by seed rank
+    // Top 4: Blue(1st & 4th), Red(2nd & 3rd)
+    G.pairs.push(mk('blue',  'Blue',  [presentObjs[0]?.name,presentObjs[3]?.name]));
+    G.pairs.push(mk('red',   'Red',   [presentObjs[1]?.name,presentObjs[2]?.name]));
+    if(total===10){
+      // Next 4: Purple(5th & 8th), Green(6th & 7th); then Grey(9th & 10th)
+      G.pairs.push(mk('purple','Purple',[presentObjs[4]?.name,presentObjs[7]?.name]));
+      G.pairs.push(mk('green', 'Green', [presentObjs[5]?.name,presentObjs[6]?.name]));
+      G.pairs.push(mk('grey',  'Grey',  [presentObjs[8]?.name,presentObjs[9]?.name]));
     } else {
-      G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});
+      // 9 players: Purple(5th & 7th), Green(6th solo), Grey(8th & 9th)
+      G.pairs.push(mk('purple','Purple',[presentObjs[4]?.name,presentObjs[6]?.name]));
+      const greenPlayer=presentObjs[5]?.name;
+      G.pairs.push({color:'green',cname:'Green',players:greenPlayer?[greenPlayer]:[],fixedBowler:greenPlayer||null,borrowedPlayer:null});
+      G.pairs.push(mk('grey',  'Grey',  [presentObjs[7]?.name,presentObjs[8]?.name]));
+    }
+  } else if(small){
+    // 8 players: top 4 seeded → Blue(1st & 4th), Red(2nd & 3rd); remaining 4 randomly → Purple, Grey
+    const seeded=presentObjs.slice(0,4);
+    const remainPresent=rnd(presentObjs.slice(4).map(p=>p.name));
+    G.pairs.push(mk('blue','Blue',[seeded[0]?.name,seeded[3]?.name]));
+    G.pairs.push(mk('red', 'Red', [seeded[1]?.name,seeded[2]?.name]));
+    const rest=[...remainPresent,...lateNames];
+    for(let i=0;i<rest.length;i+=2){
+      const pi=G.pairs.length;
+      const color=seedColors[pi]||'purple';
+      const cname=seedCnames[pi]||'Purple';
+      if(i+1<rest.length){G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});}
+      else{G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});}
+    }
+  } else {
+    // 11-14 players: top 6 seeded → Blue(1st & 6th), Red(2nd & 5th), Green(3rd & 4th); rest random
+    const seeded=presentObjs.slice(0,6);
+    const remainPresent=rnd(presentObjs.slice(6).map(p=>p.name));
+    G.pairs.push(mk('blue', 'Blue', [seeded[0]?.name,seeded[5]?.name]));
+    G.pairs.push(mk('red',  'Red',  [seeded[1]?.name,seeded[4]?.name]));
+    G.pairs.push(mk('green','Green',[seeded[2]?.name,seeded[3]?.name]));
+    const rest=[...remainPresent,...lateNames];
+    for(let i=0;i<rest.length;i+=2){
+      const pi=G.pairs.length;
+      const color=seedColors[pi]||'purple';
+      const cname=seedCnames[pi]||'Purple';
+      if(i+1<rest.length){G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});}
+      else{G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});}
     }
   }
 
   G.numPairs=G.pairs.length;
   G.lateArrivals=new Set(lateNames);
 
-  // Odd game: solo pair borrows first player of the Purple pair (first non-seeded pair)
-  const purpleIdx=small?2:3;
-  const lastPair=G.pairs[G.numPairs-1];
-  if(G.isOdd&&lastPair&&lastPair.players.length===1){
-    const sourcePair=G.pairs[purpleIdx]||G.pairs[0];
-    const borrowed=sourcePair.players[0];
-    lastPair.players.push(borrowed);
-    lastPair.borrowedPlayer=borrowed;
+  // Odd game: solo pair borrows first player of Purple pair for batting
+  if(G.isOdd){
+    const purpleIdx=total<=10?2:3;
+    // In 9-player mid mode the solo pair (Green) is at index 3, not last
+    const soloIdx=(mid&&total===9)?3:G.numPairs-1;
+    const soloPair=G.pairs[soloIdx];
+    if(soloPair&&soloPair.players.length===1){
+      const sourcePair=G.pairs[purpleIdx]||G.pairs[0];
+      const borrowed=sourcePair.players[0];
+      soloPair.players.push(borrowed);
+      soloPair.borrowedPlayer=borrowed;
+    }
   }
 
   G.locked=new Array(G.numPairs).fill(false);
