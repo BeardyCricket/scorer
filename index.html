@@ -1193,9 +1193,11 @@ function renderPairs(){
     <div class="pair-players">${pair.players.map((pl,pos)=>{
       const isBorrowed=pair.borrowedPlayer&&pl===pair.borrowedPlayer;
       const isFixed=pair.fixedBowler&&pl===pair.fixedBowler;
+      const isLate=G.lateArrivals&&G.lateArrivals.has(pl)&&!isBorrowed;
       const cls=`pchip${locked||isBorrowed?' locked-chip':''}${swapQ&&swapQ.p===p&&swapQ.pos===pos?' pending':''}`;
       const click=locked||isBorrowed?'':'doSwap('+p+','+pos+')';
-      const label=isBorrowed?`${pl} <span style="font-size:10px;opacity:.6">(bats only)</span>`:(isFixed?`${pl} <span style="font-size:10px;opacity:.6">(bowler)</span>`:pl);
+      const lateBadge=isLate?` <span class="late-badge">⏰ late</span>`:'';
+      const label=isBorrowed?`${pl} <span style="font-size:10px;opacity:.6">(bats only)</span>`:(isFixed?`${pl}${lateBadge} <span style="font-size:10px;opacity:.6">(bowler)</span>`:`${pl}${lateBadge}`);
       return `<div class="${cls}" onclick="${click}">${label}</div>`;
     }).join('')}</div>`;
     c.appendChild(div);
@@ -3121,12 +3123,13 @@ function buildSeedPairs(){
   const seedColors=mid?SEED_COLORS_MID:small?SEED_COLORS_SMALL:SEED_COLORS_LARGE;
   const seedCnames=mid?SEED_CNAMES_MID:small?SEED_CNAMES_SMALL:SEED_CNAMES_LARGE;
 
-  // Sort present players by seedNum ascending (null/0 → Infinity = last)
-  const presentObjs=rosterPlayers
-    .filter(p=>sessionStatuses[p.name]==='present')
+  const lateNames=rosterPlayers.filter(p=>sessionStatuses[p.name]==='late').map(p=>p.name);
+
+  // Sort ALL players (present + late) by seedNum ascending — latecomers placed by seed rank
+  const allObjs=rosterPlayers
+    .filter(p=>sessionStatuses[p.name]==='present'||sessionStatuses[p.name]==='late')
     .map(p=>({name:p.name,sn:p.seedNum>=1&&p.seedNum<=10?p.seedNum:Infinity}))
     .sort((a,b)=>a.sn-b.sn);
-  const lateNames=rosterPlayers.filter(p=>sessionStatuses[p.name]==='late').map(p=>p.name);
 
   G.pairs=[];
   const mk=(color,cname,players)=>({color,cname,players:players.filter(Boolean),fixedBowler:null,borrowedPlayer:null});
@@ -3134,48 +3137,46 @@ function buildSeedPairs(){
   if(mid){
     // 9 or 10 players: all seeded into fixed positions by seed rank
     // Top 4: Blue(1st & 4th), Red(2nd & 3rd)
-    G.pairs.push(mk('blue',  'Blue',  [presentObjs[0]?.name,presentObjs[3]?.name]));
-    G.pairs.push(mk('red',   'Red',   [presentObjs[1]?.name,presentObjs[2]?.name]));
+    G.pairs.push(mk('blue',  'Blue',  [allObjs[0]?.name,allObjs[3]?.name]));
+    G.pairs.push(mk('red',   'Red',   [allObjs[1]?.name,allObjs[2]?.name]));
     if(total===10){
       // Next 4: Purple(5th & 8th), Green(6th & 7th); then Grey(9th & 10th)
-      G.pairs.push(mk('purple','Purple',[presentObjs[4]?.name,presentObjs[7]?.name]));
-      G.pairs.push(mk('green', 'Green', [presentObjs[5]?.name,presentObjs[6]?.name]));
-      G.pairs.push(mk('grey',  'Grey',  [presentObjs[8]?.name,presentObjs[9]?.name]));
+      G.pairs.push(mk('purple','Purple',[allObjs[4]?.name,allObjs[7]?.name]));
+      G.pairs.push(mk('green', 'Green', [allObjs[5]?.name,allObjs[6]?.name]));
+      G.pairs.push(mk('grey',  'Grey',  [allObjs[8]?.name,allObjs[9]?.name]));
     } else {
       // 9 players: Purple(5th & 7th), Green(6th solo), Grey(8th & 9th)
-      G.pairs.push(mk('purple','Purple',[presentObjs[4]?.name,presentObjs[6]?.name]));
-      const greenPlayer=presentObjs[5]?.name;
+      G.pairs.push(mk('purple','Purple',[allObjs[4]?.name,allObjs[6]?.name]));
+      const greenPlayer=allObjs[5]?.name;
       G.pairs.push({color:'green',cname:'Green',players:greenPlayer?[greenPlayer]:[],fixedBowler:greenPlayer||null,borrowedPlayer:null});
-      G.pairs.push(mk('grey',  'Grey',  [presentObjs[7]?.name,presentObjs[8]?.name]));
+      G.pairs.push(mk('grey',  'Grey',  [allObjs[7]?.name,allObjs[8]?.name]));
     }
   } else if(small){
-    // 8 players: top 4 seeded → Blue(1st & 4th), Red(2nd & 3rd); remaining 4 randomly → Purple, Grey
-    const seeded=presentObjs.slice(0,4);
-    const remainPresent=rnd(presentObjs.slice(4).map(p=>p.name));
+    // 8 players: top 4 seeded → Blue(1st & 4th), Red(2nd & 3rd); remaining randomly → Purple, Grey
+    const seeded=allObjs.slice(0,4);
+    const remain=rnd(allObjs.slice(4).map(p=>p.name));
     G.pairs.push(mk('blue','Blue',[seeded[0]?.name,seeded[3]?.name]));
     G.pairs.push(mk('red', 'Red', [seeded[1]?.name,seeded[2]?.name]));
-    const rest=[...remainPresent,...lateNames];
-    for(let i=0;i<rest.length;i+=2){
+    for(let i=0;i<remain.length;i+=2){
       const pi=G.pairs.length;
       const color=seedColors[pi]||'purple';
       const cname=seedCnames[pi]||'Purple';
-      if(i+1<rest.length){G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});}
-      else{G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});}
+      if(i+1<remain.length){G.pairs.push({color,cname,players:[remain[i],remain[i+1]],fixedBowler:null,borrowedPlayer:null});}
+      else{G.pairs.push({color,cname,players:[remain[i]],fixedBowler:remain[i],borrowedPlayer:null});}
     }
   } else {
     // 11-14 players: top 6 seeded → Blue(1st & 6th), Red(2nd & 5th), Green(3rd & 4th); rest random
-    const seeded=presentObjs.slice(0,6);
-    const remainPresent=rnd(presentObjs.slice(6).map(p=>p.name));
+    const seeded=allObjs.slice(0,6);
+    const remain=rnd(allObjs.slice(6).map(p=>p.name));
     G.pairs.push(mk('blue', 'Blue', [seeded[0]?.name,seeded[5]?.name]));
     G.pairs.push(mk('red',  'Red',  [seeded[1]?.name,seeded[4]?.name]));
     G.pairs.push(mk('green','Green',[seeded[2]?.name,seeded[3]?.name]));
-    const rest=[...remainPresent,...lateNames];
-    for(let i=0;i<rest.length;i+=2){
+    for(let i=0;i<remain.length;i+=2){
       const pi=G.pairs.length;
       const color=seedColors[pi]||'purple';
       const cname=seedCnames[pi]||'Purple';
-      if(i+1<rest.length){G.pairs.push({color,cname,players:[rest[i],rest[i+1]],fixedBowler:null,borrowedPlayer:null});}
-      else{G.pairs.push({color,cname,players:[rest[i]],fixedBowler:rest[i],borrowedPlayer:null});}
+      if(i+1<remain.length){G.pairs.push({color,cname,players:[remain[i],remain[i+1]],fixedBowler:null,borrowedPlayer:null});}
+      else{G.pairs.push({color,cname,players:[remain[i]],fixedBowler:remain[i],borrowedPlayer:null});}
     }
   }
 
