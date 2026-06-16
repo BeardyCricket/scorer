@@ -519,7 +519,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <button class="sb bye" onclick="showExtra('bye')">Bye/<br>Leg bye</button>
     <button class="sb wkt" onclick="showWkt()">Wicket</button>
     <button class="sb undo" style="grid-column:span 1" onclick="undoBall()">↩</button>
-    <div></div>
+    <button class="sb" onclick="showManagePlayersModal()" style="font-size:11px;color:var(--muted)">👤<br><span style="font-size:9px;font-weight:500">Players</span></button>
     <button class="sb" onclick="showSnapModal()" style="font-size:11px;color:var(--muted)">📷<br><span style="font-size:9px;font-weight:500">Timeline</span></button>
     <button class="sb" onclick="showBackupModal()" style="font-size:11px;color:var(--muted)">📡<br><span style="font-size:9px;font-weight:500">Backup</span></button>
   </div>
@@ -689,6 +689,35 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </div>
     <button class="btn btn-primary" onclick="confirmExtraBatPair()">⭐ Yes — play extra innings</button>
     <button class="btn btn-secondary" style="margin-top:10px" onclick="declineExtraBatPair()">No — go to results</button>
+  </div>
+</div>
+
+<!-- MANAGE PLAYERS MODAL -->
+<div class="overlay hidden" id="manage-players-modal">
+  <div class="sheet" style="padding:20px 16px 40px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="sheet-title" style="margin-bottom:0">Manage players</div>
+      <button onclick="document.getElementById('manage-players-modal').classList.add('hidden')" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+
+    <div class="card-title">Rename a player</div>
+    <label class="lbl" style="margin-top:8px">Player</label>
+    <select class="sel-sel" id="rename-player-sel" style="width:100%"></select>
+    <label class="lbl">New name</label>
+    <input class="inp" id="rename-player-inp" type="text" placeholder="Enter new name" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false">
+    <button class="btn btn-primary" onclick="confirmRenamePlayer()" style="margin-top:10px">Rename player</button>
+
+    <div id="add-player-section" style="border-top:1px solid var(--border);padding-top:16px;margin-top:20px">
+      <div class="card-title">Add a player</div>
+      <div id="add-player-note" style="font-size:12px;color:var(--muted);margin-bottom:4px"></div>
+      <label class="lbl" style="margin-top:6px">Player name</label>
+      <input class="inp" id="add-player-name-inp" type="text" placeholder="Enter player name" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false">
+      <label class="lbl">Join pair</label>
+      <select class="sel-sel" id="add-player-pair-sel" style="width:100%;margin-bottom:12px"></select>
+      <button class="btn btn-primary" onclick="confirmAddPlayer()">Add player</button>
+    </div>
+
+    <button class="btn btn-secondary" onclick="document.getElementById('manage-players-modal').classList.add('hidden')" style="margin-top:12px">Close</button>
   </div>
 </div>
 
@@ -3717,6 +3746,198 @@ function showSnapModal(){
 // Check for a saved game when page first loads
 checkForSavedGame();
 updateTestModeUI();
+
+// ══════════════════════════════════════════
+// MANAGE PLAYERS DURING MATCH (rename / add)
+// ══════════════════════════════════════════
+function showManagePlayersModal(){
+  const rSel=document.getElementById('rename-player-sel');
+  rSel.innerHTML=G.players.map(p=>`<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+  document.getElementById('rename-player-inp').value='';
+
+  const canAdd=G.overIdx<6&&G.numPlayers<15&&!G.teamMode;
+  const addSection=document.getElementById('add-player-section');
+  addSection.style.display=canAdd?'block':'none';
+  if(canAdd){
+    const pSel=document.getElementById('add-player-pair-sel');
+    let opts='<option value="">Choose a pair…</option>';
+    G.pairs.forEach((p,i)=>{
+      if(p.absent)return;
+      const realCount=p.players.filter(n=>n!==p.borrowedPlayer).length;
+      if(realCount<2)opts+=`<option value="${i}">${escHtml(p.cname)} pair (solo — add partner)</option>`;
+    });
+    if(G.numPlayers<15)opts+=`<option value="new">New solo pair</option>`;
+    pSel.innerHTML=opts;
+    document.getElementById('add-player-name-inp').value='';
+    const oversLeft=Math.max(0,6-G.overIdx);
+    document.getElementById('add-player-note').textContent=`Available for ${oversLeft} more over${oversLeft!==1?'s':''} · ${G.numPlayers}/15 players`;
+  }
+  document.getElementById('manage-players-modal').classList.remove('hidden');
+}
+
+function confirmRenamePlayer(){
+  const oldName=document.getElementById('rename-player-sel').value;
+  const newName=document.getElementById('rename-player-inp').value.trim();
+  if(!newName){alert('Please enter a new name.');return;}
+  if(newName===oldName){document.getElementById('manage-players-modal').classList.add('hidden');return;}
+  if(G.players.includes(newName)){alert('A player named "'+newName+'" already exists.');return;}
+
+  const pi=G.players.indexOf(oldName);
+  if(pi>=0)G.players[pi]=newName;
+
+  G.pairs.forEach(pair=>{
+    pair.players=pair.players.map(n=>n===oldName?newName:n);
+    if(pair.borrowedPlayer===oldName)pair.borrowedPlayer=newName;
+    if(pair.fixedBowler===oldName)pair.fixedBowler=newName;
+  });
+
+  if(G.playerSeedMap&&G.playerSeedMap[oldName]!==undefined){
+    G.playerSeedMap[newName]=G.playerSeedMap[oldName];
+    delete G.playerSeedMap[oldName];
+  }
+
+  if(G.overBowler===oldName)G.overBowler=newName;
+
+  if(G.lateArrivals&&G.lateArrivals.has(oldName)){
+    G.lateArrivals.delete(oldName);
+    G.lateArrivals.add(newName);
+  }
+
+  G.history.forEach(b=>{
+    if(b.facing===oldName)b.facing=newName;
+    if(b.bowling===oldName)b.bowling=newName;
+  });
+
+  document.getElementById('manage-players-modal').classList.add('hidden');
+  setFb(`Renamed ${oldName} → ${newName}`,'info');
+  setTimeout(()=>setFb('',''),3000);
+  updateUI();saveGameState();
+}
+
+function confirmAddPlayer(){
+  if(G.overIdx>=6){alert('Cannot add players after over 6.');return;}
+  const name=document.getElementById('add-player-name-inp').value.trim();
+  const pairVal=document.getElementById('add-player-pair-sel').value;
+  if(!name){alert('Please enter a player name.');return;}
+  if(!pairVal){alert('Please select a pair.');return;}
+  if(G.players.includes(name)){alert('A player named "'+name+'" already exists.');return;}
+  if(G.numPlayers>=15){alert('Cannot have more than 15 players.');return;}
+
+  let targetPairIdx=-1;
+
+  if(pairVal==='new'){
+    const newIdx=G.pairs.length;
+    const color=COLORS[newIdx%COLORS.length];
+    const cname=CNAMES[newIdx%CNAMES.length];
+    G.pairs.push({color,cname,players:[name],fixedBowler:name,borrowedPlayer:null,absent:false});
+    G.scores.push({bat:0,bowl:0});
+    G.locked.push(false);
+    targetPairIdx=newIdx;
+  } else {
+    targetPairIdx=parseInt(pairVal);
+    const pair=G.pairs[targetPairIdx];
+    if(!pair){alert('Invalid pair.');return;}
+    // Remove borrowed player if present (was odd solo pair)
+    if(pair.borrowedPlayer){
+      pair.players=pair.players.filter(n=>n!==pair.borrowedPlayer);
+      pair.borrowedPlayer=null;
+    }
+    pair.players.push(name);
+    pair.fixedBowler=null;
+  }
+
+  G.players.push(name);
+  G.numPlayers++;
+
+  // Rebuild remaining schedule for new player count
+  _rebuildRemainingSchedule();
+
+  // Re-establish borrowed player if now odd
+  if(G.isOdd){
+    const soloIdx=G.pairs.findIndex((p,i)=>!p.absent&&p.players.filter(n=>n!==p.borrowedPlayer).length===1);
+    if(soloIdx>=0&&!G.pairs[soloIdx].borrowedPlayer){
+      const sourceIdx=G.seedMode?(G.numPlayers<=10?2:3):0;
+      const sourcePair=G.pairs[sourceIdx]||G.pairs[0];
+      if(sourcePair&&sourcePair.players.length>=1){
+        const borrowed=sourcePair.players[0];
+        G.pairs[soloIdx].players=[G.pairs[soloIdx].players[0],borrowed];
+        G.pairs[soloIdx].borrowedPlayer=borrowed;
+        G.pairs[soloIdx].fixedBowler=G.pairs[soloIdx].players[0];
+      }
+    }
+  }
+
+  G.pendingBowlerSelect=true;
+  G.overBowler=null;
+  G.pendingTransition=null;
+
+  const pairName=G.pairs[targetPairIdx]?.cname||'';
+  document.getElementById('manage-players-modal').classList.add('hidden');
+  setFb(`${name} added to ${pairName} pair · schedule updated for ${G.numPlayers} players`,'info');
+  setTimeout(()=>setFb('',''),4000);
+  updateUI();saveGameState();
+}
+
+function _rebuildRemainingSchedule(){
+  const doneBat=G.batSched.slice(0,G.overIdx);
+  const doneBowl=G.bowlSched.slice(0,G.overIdx);
+  const doneBowlRaw=G.bowlSchedRaw.slice(0,G.overIdx);
+
+  const alreadyBatted={};
+  doneBat.forEach(bp=>{alreadyBatted[bp]=(alreadyBatted[bp]||0)+1;});
+
+  const active=G.pairs.map((p,i)=>({i,pl:p.players.filter(n=>n!==p.borrowedPlayer)})).filter(d=>d.pl.length>0&&!G.pairs[d.i].absent);
+  const total=active.reduce((s,d)=>s+d.pl.length,0);
+  const fullActive=active.filter(d=>d.pl.length>=2).sort((a,b)=>a.i-b.i);
+  const soloActive=active.filter(d=>d.pl.length===1);
+  const keepPairs=[...fullActive.map(d=>d.i),...soloActive.map(d=>d.i)];
+  const newNP=keepPairs.length;
+
+  const newBat=[],newBowl=[],newBowlRaw=[];
+  let schedOpp=4;
+
+  if(G.seedMode){
+    const ss=SEED_SCHED[total]||SEED_SCHED[total-1]||SEED_SCHED[total+1];
+    if(!ss){console.warn('No seed schedule for',total,'players');return;}
+    schedOpp=ss.opp||4;
+    for(const actualIdx of (ss.batOrder||keepPairs)){
+      if(!keepPairs.includes(actualIdx))continue;
+      const slot=ss.slots[actualIdx]||ss.slots[0];
+      const batted=Math.min(alreadyBatted[actualIdx]||0,schedOpp);
+      for(let o=batted;o<schedOpp;o++){
+        const raw=slot[o]??0;
+        const bowlIdx=(raw==='L'||raw==='2')?-1:Math.min(typeof raw==='number'?raw:0,newNP-1);
+        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlIdx);
+      }
+    }
+  } else {
+    const s=SCHED[total]||SCHED[total+1]||SCHED[total-1];
+    if(!s){console.warn('No schedule for',total,'players');return;}
+    schedOpp=s.opp||4;
+    for(let pos=0;pos<newNP;pos++){
+      const actualIdx=keepPairs[pos];
+      const slot=s.slots[pos]||s.slots[0];
+      const batted=Math.min(alreadyBatted[actualIdx]||0,schedOpp);
+      for(let o=batted;o<schedOpp;o++){
+        const raw=slot[o]??0;
+        const sp=Math.min(typeof raw==='number'?raw:0,newNP-1);
+        const bowlIdx=(raw==='L'||raw==='2')?-1:keepPairs[sp];
+        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlIdx);
+      }
+    }
+  }
+
+  G.batSched=[...doneBat,...newBat];
+  G.bowlSched=[...doneBowl,...newBowl];
+  G.bowlSchedRaw=[...doneBowlRaw,...newBowlRaw];
+  G.numPairs=newNP;
+  G.isOdd=total%2!==0;
+  G.opp=schedOpp;
+  G.totalOvers=G.batSched.length;
+  G.noBonusOvers=new Set();
+  G.oddExtraStart=-1;
+  G.lateCheckedOvers=new Set();
+}
 
 // ══════════════════════════════════════════
 // PASSCODE
