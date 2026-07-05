@@ -501,6 +501,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="sel-wrap"><div class="sel-lbl">Facing</div><select class="sel-sel" id="facing-sel" onchange="facingManualChange(this.value)"></select></div>
     <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="bowling-sel" onchange="onBowlerSelChange(this.value)"></select></div>
   </div>
+  <div id="batter-balls" style="text-align:center;font-size:12px;color:var(--muted);padding:4px 16px 0"></div>
   <div class="fb" id="fb"></div>
   <div id="skip-pair-row" class="hidden" style="padding:4px 16px 0">
     <button class="skip-pair-btn" onclick="skipBattingPair()">⏭ Skip to next pair</button>
@@ -531,6 +532,60 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="tot-title">Overs bowled per player</div>
     <div class="bowl-grid" id="bowl-overs-grid"></div>
     <div class="bowl-warn-bar" id="bowl-warn-bar"></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="so-offer-modal">
+  <div class="sheet">
+    <div class="sheet-title">⚡ Super Over?</div>
+    <div class="sheet-sub" id="so-offer-sub" style="text-align:center;margin-bottom:16px"></div>
+    <button class="btn btn-primary" onclick="startSuperOver()">Start super over</button>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="declineSuperOver()">Skip — end match</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="so-phase-modal">
+  <div class="sheet">
+    <div class="sheet-title" id="so-phase-title">Over complete</div>
+    <div class="sheet-sub" id="so-phase-sub" style="text-align:center;margin-bottom:16px"></div>
+    <button class="btn btn-primary" onclick="soNextPhase()">Continue</button>
+  </div>
+</div>
+
+<div id="s-superover" class="screen" style="padding-bottom:0">
+  <div class="hdr"><div class="hdr-title">⚡ Super Over</div><div class="hdr-sub" id="so-hdr-sub"></div></div>
+  <div id="so-bat-band" class="band c-blue">
+    <div style="flex:1">
+      <div class="band-name" id="so-bat-name">—</div>
+      <div class="band-sub" id="so-bat-info">1 over · innings 1</div>
+    </div>
+    <div class="band-score" id="so-bat-score">0</div>
+  </div>
+  <div class="ball-row" id="so-ball-row"></div>
+  <div class="sel-row">
+    <div class="sel-wrap"><div class="sel-lbl">Facing</div><select class="sel-sel" id="so-facing-sel" onchange="soFacingChange(this.value)"></select></div>
+    <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="so-bowling-sel"></select></div>
+  </div>
+  <div id="so-batter-balls" style="text-align:center;font-size:12px;color:var(--muted);padding:4px 16px 0"></div>
+  <div class="fb" id="so-fb"></div>
+  <div class="sp">
+    <button class="sb" onclick="soBall(0,'0')">0</button>
+    <button class="sb" onclick="soBall(1,'1')">1</button>
+    <button class="sb" onclick="soBall(2,'2')">2</button>
+    <button class="sb" onclick="soBall(3,'3')">3</button>
+    <button class="sb four" onclick="soBall(4,'4r')">4<br><span style="font-size:10px;font-weight:500">ran</span></button>
+    <button class="sb four" onclick="soBall(4,'4b')">4<br><span style="font-size:10px;font-weight:500">boundary</span></button>
+    <button class="sb six" onclick="soBall(6,'6')">6</button>
+    <button class="sb" onclick="soBall(5,'5')">5</button>
+    <button class="sb wide" onclick="soShowExtra('wide')">Wide</button>
+    <button class="sb nb" onclick="soShowExtra('nb')">No ball</button>
+    <button class="sb bye" onclick="soShowExtra('bye')">Bye/<br>Leg bye</button>
+    <button class="sb wkt" onclick="soShowWkt()">Wicket</button>
+    <button class="sb undo" onclick="soUndoBall()">↩</button>
+  </div>
+  <div class="tot-bar">
+    <div class="tot-title">Super over scores</div>
+    <div id="so-score-list"></div>
   </div>
 </div>
 
@@ -1028,7 +1083,8 @@ function freshState(){
     extraBatPairIdx:-1,
     extraInningsBowlers:[],
     extraInningsStartOver:-1,
-    seedMode:false};
+    seedMode:false,
+    soActive:false,soPairs:[],soPhase:0,soScores:[0,0],soBallInOver:0,soFacingIdx:0,soHistory:[],soFinalRes:null,soBoundaries:[0,0]};
 }
 G=freshState();
 // roster loaded lazily in showRoster() — not needed on page load
@@ -1574,6 +1630,12 @@ function updateUI(){
   document.getElementById('bowl-bonus').textContent=G.scores[bwi].bat+G.scores[bwi].bowl;
 
   document.getElementById('facing-sel').innerHTML=bp.players.map((p,i)=>`<option value="${p}"${i===G.facingIdx?' selected':''}>${p}</option>`).join('');
+  const battBalls=document.getElementById('batter-balls');
+  if(battBalls){
+    const pBalls={};bp.players.forEach(p=>{pBalls[p]=0;});
+    G.history.filter(b=>b.batPair===bi&&b.legal&&b.type!=='wide').forEach(b=>{if(b.facing&&pBalls[b.facing]!==undefined)pBalls[b.facing]++;});
+    battBalls.textContent=bp.players.length>1?bp.players.map(p=>`${p}: ${pBalls[p]} ball${pBalls[p]!==1?'s':''}`).join('  ·  '):'';
+  }
   // Build bowling selector — pair's players first, then everyone else in an optgroup
   const bowlSel=document.getElementById('bowling-sel');
   const otherBowlers=G.players.filter(p=>!bwp.players.includes(p));
@@ -1832,6 +1894,21 @@ function showExtra(type){
 function hideExtra(){document.getElementById('extra-modal').classList.add('hidden');}
 function stepE(d){const el=document.getElementById('extra-runs');el.value=Math.max(parseInt(el.min||0),parseInt(el.value||0)+d);}
 function confirmExtra(){
+  if(document.getElementById('extra-modal').dataset.soMode==='1'){
+    document.getElementById('extra-modal').dataset.soMode='';
+    const minR=extraType==='bye'?0:2;
+    const run=Math.max(minR,parseInt(document.getElementById('extra-runs').value)||0);
+    hideExtra();
+    const batPairIdx=G.soPairs[G.soPhase];
+    const bowlPairIdx=G.soPairs[1-G.soPhase];
+    G.soHistory.push({run,code:extraType,type:extraType,legal:true,phase:G.soPhase,ballNum:G.soBallInOver,batPair:batPairIdx,bowlPair:bowlPairIdx,facing:soFsel(),bowling:soBsel()});
+    G.soScores[G.soPhase]+=run;
+    if((run===4||run===6)&&(extraType==='wide'||extraType==='nb'))G.soBoundaries[G.soPhase]++;
+    G.soBallInOver++;
+    if((extraType==='wide'||extraType==='nb')&&(run===3||run===5)){const bp=G.pairs[batPairIdx];if(bp.players.length>1)G.soFacingIdx=1-G.soFacingIdx;}
+    soCheckOver();soUpdateUI();
+    return;
+  }
   const minR=extraType==='bye'?0:2;
   const run=Math.max(minR,parseInt(document.getElementById('extra-runs').value)||0);
   hideExtra();
@@ -1866,6 +1943,24 @@ function selDis(type){
 function stepRO(d){const el=document.getElementById('ro-runs');el.value=Math.max(0,parseInt(el.value||0)+d);}
 function confirmWkt(){
   if(!pendingDis)return;
+  if(document.getElementById('wkt-modal').dataset.soMode==='1'){
+    document.getElementById('wkt-modal').dataset.soMode='';
+    hideWkt();
+    const batPairIdx=G.soPairs[G.soPhase];
+    const bowlPairIdx=G.soPairs[1-G.soPhase];
+    const isRunout=pendingDis==='Run out';
+    const runsFirst=isRunout?(parseInt(document.getElementById('ro-runs').value)||0):0;
+    const netRun=runsFirst-5;
+    G.soHistory.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,phase:G.soPhase,ballNum:G.soBallInOver,batPair:batPairIdx,bowlPair:bowlPairIdx,facing:soFsel(),bowling:soBsel(),isRunout});
+    G.soScores[G.soPhase]+=netRun;
+    G.soBallInOver++;
+    const bp=G.pairs[batPairIdx];if(bp.players.length>1)G.soFacingIdx=1-G.soFacingIdx;
+    const msg=`${pendingDis}! ${runsFirst>0?runsFirst+' run'+(runsFirst!==1?'s':'')+' then ':''}-5 penalty`;
+    document.getElementById('so-fb').textContent=msg;
+    setTimeout(()=>{const el=document.getElementById('so-fb');if(el)el.textContent='';},2000);
+    soCheckOver();soUpdateUI();
+    return;
+  }
   hideWkt();
   const bi=batIdx(),bwi=bowlIdx();
   const noB=!isBowlerBonusEligible(bsel());
@@ -2772,8 +2867,191 @@ function declineExtraBatPair(){
   endMatch();
 }
 
+// ── SUPER OVER ────────────────────────────────────────────────────────────
+
+function soFsel(){return document.getElementById('so-facing-sel').value;}
+function soBsel(){return document.getElementById('so-bowling-sel').value;}
+
+function offerSuperOver(idx1,idx2){
+  // Determine batting order: who batted last bats first
+  let lastOver1=-1,lastOver2=-1;
+  for(let i=G.totalOvers-1;i>=0;i--){
+    if(lastOver1===-1&&G.batSched[i]===idx1)lastOver1=i;
+    if(lastOver2===-1&&G.batSched[i]===idx2)lastOver2=i;
+    if(lastOver1!==-1&&lastOver2!==-1)break;
+  }
+  const [firstBat,secondBat]=lastOver1>lastOver2?[idx1,idx2]:[idx2,idx1];
+  G.soPairs=[firstBat,secondBat];
+  const p1=G.pairs[firstBat],p2=G.pairs[secondBat];
+  document.getElementById('so-offer-sub').textContent=
+    `${p1.cname} pair bats first (batted last), then ${p2.cname} pair. Each face one over.`;
+  document.getElementById('so-offer-modal').classList.remove('hidden');
+}
+
+function declineSuperOver(){
+  document.getElementById('so-offer-modal').classList.add('hidden');
+  renderEndScreen(G.soFinalRes,null);
+  show('s-end');
+}
+
+function startSuperOver(){
+  document.getElementById('so-offer-modal').classList.add('hidden');
+  G.soActive=true;G.soPhase=0;G.soScores=[0,0];G.soBallInOver=0;G.soFacingIdx=0;G.soHistory=[];G.soBoundaries=[0,0];
+  soUpdateUI();
+  show('s-superover');
+}
+
+function soUpdateUI(){
+  const batPairIdx=G.soPairs[G.soPhase];
+  const bowlPairIdx=G.soPairs[1-G.soPhase];
+  const bp=G.pairs[batPairIdx];
+  const bwp=G.pairs[bowlPairIdx];
+  document.getElementById('so-bat-band').className=`band c-${bp.color}`;
+  document.getElementById('so-bat-name').textContent=`${bp.cname} — ${bp.players.join(' & ')}`;
+  document.getElementById('so-bat-score').textContent=G.soScores[G.soPhase];
+  const ballsLeft=6-G.soBallInOver;
+  document.getElementById('so-bat-info').textContent=`${ballsLeft} ball${ballsLeft!==1?'s':''} left · innings ${G.soPhase+1} of 2`;
+  document.getElementById('so-hdr-sub').textContent=`${bp.cname} batting · ${bwp.cname} bowling`;
+  // Facing selector
+  document.getElementById('so-facing-sel').innerHTML=bp.players.map((p,i)=>`<option value="${p}"${i===G.soFacingIdx?' selected':''}>${p}</option>`).join('');
+  // Bowling selector — bowl pair's players
+  document.getElementById('so-bowling-sel').innerHTML=bwp.players.map(p=>`<option>${p}</option>`).join('');
+  // Batter balls display
+  const pBalls={};bp.players.forEach(p=>{pBalls[p]=0;});
+  G.soHistory.filter(b=>b.phase===G.soPhase&&b.legal&&b.type!=='wide').forEach(b=>{if(b.facing&&pBalls[b.facing]!==undefined)pBalls[b.facing]++;});
+  document.getElementById('so-batter-balls').textContent=bp.players.length>1?bp.players.map(p=>`${p}: ${pBalls[p]} ball${pBalls[p]!==1?'s':''}`).join('  ·  '):'';
+  // Ball row
+  const c=document.getElementById('so-ball-row');c.innerHTML='';
+  const legal=G.soHistory.filter(b=>b.phase===G.soPhase&&b.legal);
+  const extras=G.soHistory.filter(b=>b.phase===G.soPhase&&!b.legal);
+  for(let i=0;i<6;i++){
+    const d=document.createElement('div');
+    if(i<legal.length){const b=legal[i];d.className='bdot '+bCls(b);d.textContent=bLbl(b);}
+    else if(i===G.soBallInOver){d.className='bdot b-cur';d.textContent='·';}
+    else{d.className='bdot';d.textContent='·';}
+    c.appendChild(d);
+  }
+  extras.forEach(b=>{const d=document.createElement('div');d.className='bdot '+bCls(b);d.textContent=bLbl(b);c.appendChild(d);});
+  // Score list (both pairs)
+  const sl=document.getElementById('so-score-list');sl.innerHTML='';
+  G.soPairs.forEach((pi,phase)=>{
+    const p=G.pairs[pi];
+    const row=document.createElement('div');row.className='tot-row'+(phase===G.soPhase?' bat-now':'');
+    const note=phase===G.soPhase?'batting now':(phase<G.soPhase?`scored ${G.soScores[phase]}`:'yet to bat');
+    row.innerHTML=`<div class="pdot d-${p.color}"></div><div class="tot-name">${p.cname} — ${p.players.join(' & ')}</div><div style="text-align:right"><div class="tot-score">${phase<=G.soPhase?G.soScores[phase]:'—'}</div><div class="tot-note">${note}</div></div>`;
+    sl.appendChild(row);
+  });
+  document.getElementById('so-fb').textContent='';
+}
+
+function soBall(run,code){
+  const batPairIdx=G.soPairs[G.soPhase];
+  const bowlPairIdx=G.soPairs[1-G.soPhase];
+  const facing=soFsel(),bowling=soBsel();
+  G.soHistory.push({run,code,type:'normal',legal:true,phase:G.soPhase,ballNum:G.soBallInOver,batPair:batPairIdx,bowlPair:bowlPairIdx,facing,bowling});
+  G.soScores[G.soPhase]+=run;
+  if(run===4||(run===6&&code==='6'))G.soBoundaries[G.soPhase]++;
+  G.soBallInOver++;
+  // Strike rotation: odd runs swap
+  if(run===1||run===3||run===5){const bp=G.pairs[batPairIdx];if(bp.players.length>1)G.soFacingIdx=1-G.soFacingIdx;}
+  soCheckOver();
+  soUpdateUI();
+}
+
+let soExtraType='';
+function soShowExtra(type){
+  soExtraType=type;
+  extraType=type; // reuse existing modal
+  const titles={wide:'Wide',nb:'No ball',bye:'Bye / Leg bye'};
+  const subs={wide:'Counts as a ball.',nb:'Counts as a ball.',bye:'Byes and leg byes count as a ball.'};
+  const mins={wide:2,nb:2,bye:0};
+  document.getElementById('extra-title').textContent=titles[type]||type;
+  document.getElementById('extra-sub').textContent=subs[type]||'';
+  document.getElementById('extra-runs').value=mins[type]??0;
+  document.getElementById('extra-runs').min=mins[type]??0;
+  // Override confirm button to call SO handler
+  document.getElementById('extra-modal').dataset.soMode='1';
+  document.getElementById('extra-modal').classList.remove('hidden');
+}
+
+function soShowWkt(){
+  pendingDis='';
+  document.querySelectorAll('.dis-btn').forEach(b=>b.classList.remove('dis-sel'));
+  document.getElementById('runout-sec').classList.add('hidden');
+  document.getElementById('wkt-confirm').classList.add('hidden');
+  document.getElementById('wkt-modal').dataset.soMode='1';
+  document.getElementById('wkt-modal').classList.remove('hidden');
+}
+
+function soFacingChange(val){
+  const bp=G.pairs[G.soPairs[G.soPhase]];
+  const idx=bp.players.indexOf(val);
+  if(idx>=0)G.soFacingIdx=idx;
+}
+
+function soCheckOver(){
+  if(G.soBallInOver>=6){
+    G.soBallInOver=0;
+    if(G.soPhase===0){
+      // Show transition modal
+      const p0=G.pairs[G.soPairs[0]],p1=G.pairs[G.soPairs[1]];
+      document.getElementById('so-phase-title').textContent=`${p0.cname} scored ${G.soScores[0]}`;
+      document.getElementById('so-phase-sub').textContent=`Now ${p1.cname} pair bats. They need ${G.soScores[0]+1} to win.`;
+      G.soPhase=1;G.soFacingIdx=0;
+      document.getElementById('so-phase-modal').classList.remove('hidden');
+    } else {
+      soFinish();
+    }
+  }
+}
+
+function soNextPhase(){
+  document.getElementById('so-phase-modal').classList.add('hidden');
+  soUpdateUI();
+}
+
+function soFinish(){
+  const winner=G.soScores[0]>G.soScores[1]?0:(G.soScores[1]>G.soScores[0]?1:(G.soBoundaries[0]>G.soBoundaries[1]?0:(G.soBoundaries[1]>G.soBoundaries[0]?1:-1)));
+  const soWinnerPairIdx=winner>=0?G.soPairs[winner]:null;
+  // Push superover_winner to Supabase
+  if(!testMode&&soWinnerPairIdx!==null){
+    const winColor=G.pairs[soWinnerPairIdx].color;
+    (async()=>{
+      try{
+        const {data}=await supabaseClient.from('live_scores').select('payload').eq('match_id',G.matchId).maybeSingle();
+        if(data){
+          const updated={...data.payload,superover_winner:winColor};
+          await supabaseClient.from('live_scores').update({payload:updated}).eq('match_id',G.matchId);
+        }
+      }catch(e){console.error('[SO] Failed to save superover_winner:',e);}
+    })();
+  }
+  G.soActive=false;
+  // Update res to put SO winner first
+  const res=[...G.soFinalRes];
+  if(soWinnerPairIdx!==null){
+    const wi=res.findIndex(r=>r.i===soWinnerPairIdx);
+    if(wi>0){const tmp=res[0];res[0]=res[wi];res[wi]=tmp;}
+  }
+  renderEndScreen(res,soWinnerPairIdx);
+  show('s-end');
+}
+
+function soUndoBall(){
+  if(!G.soHistory.length)return;
+  const b=G.soHistory.pop();
+  if(b.legal){
+    G.soScores[b.phase]-=b.run;
+    if(b.run===4||(b.run===6&&b.code==='6'))G.soBoundaries[b.phase]--;
+    G.soBallInOver--;
+    if(b.facing){const bp=G.pairs[G.soPairs[G.soPhase]];G.soFacingIdx=bp.players.indexOf(b.facing);}
+  }
+  document.getElementById('so-fb').textContent='Undone';
+  setTimeout(()=>{const el=document.getElementById('so-fb');if(el)el.textContent='';},1500);
+  soUpdateUI();
+}
+
 async function endMatch(){
-  // Push finished state and surface the scoreboard link
   const shareCard=document.getElementById('live-share-card');
   const shareUrl=document.getElementById('end-share-url');
   const savedMsg=document.getElementById('end-share-saved');
@@ -2782,7 +3060,6 @@ async function endMatch(){
     shareUrl.textContent=`${base}scores.html?match=${G.matchId}`;
     shareCard.style.display='block';
   }
-  // Compute full match stats here — explicit try/catch so failures are visible in console
   let matchStats=null;
   try{
     const ms=computeStats();
@@ -2815,21 +3092,26 @@ async function endMatch(){
     await pushLiveScore('finished',matchStats);
     if(savedMsg)savedMsg.style.display='block';
   }
-  show('s-end');
   clearGameState();
   saveMatchToStorage();
-  // Count boundaries (4s and 6s) per pair for tiebreaker
   const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
   const res=G.pairs.map((p,i)=>({p,i,bat:G.scores[i].bat,bowl:G.scores[i].bowl,total:G.scores[i].bat+G.scores[i].bowl,boundaries:pairBoundaries[i]}))
     .sort((a,b)=>{
       if(b.total!==a.total)return b.total-a.total;
       if(b.boundaries!==a.boundaries)return b.boundaries-a.boundaries;
-      return b.bat-a.bat; // most batting runs as final tiebreaker
+      return b.bat-a.bat;
     });
-  const extraNote=G.extraBatPairActive?' · ⭐ extra innings played':'';
-  const teamModeNote=G.teamMode?' · Team Mode':'';
-  document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min${extraNote}${teamModeNote}`;
-  // Team result card
+  document.getElementById('end-sub').textContent=`${G.totalOvers} overs · ${G.numPlayers} players · ${G.matchDurMins} min${G.extraBatPairActive?' · ⭐ extra innings played':''}${G.teamMode?' · Team Mode':''}`;
+  if(res.length>=2&&res[0].total===res[1].total&&res[0].boundaries===res[1].boundaries){
+    G.soFinalRes=res;
+    offerSuperOver(res[0].i,res[1].i);
+    return;
+  }
+  renderEndScreen(res,null);
+  show('s-end');
+}
+
+function renderEndScreen(res,soWinnerPairIdx){
   const trc=document.getElementById('team-result-card');
   if(G.teamMode&&trc){
     const [ta,tb]=G.teamSizes;
@@ -2848,9 +3130,13 @@ async function endMatch(){
     const row=document.createElement('div');row.className=`pod-row c-${r.p.color}`;
     const medals=['🥇','🥈','🥉'];
     const rankLabel=medals[rank]||`<span style="font-size:16px">${rank+1}th</span>`;
-    const tiedNote=isTied(rank)?isTiedBnd(rank)
-      ?` <span style="font-size:10px;color:var(--orange)">(tied — won on batting runs)</span>`
-      :` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
+    const isSoWinner=rank===0&&soWinnerPairIdx!==null&&r.i===soWinnerPairIdx;
+    const isSoLoser=rank===1&&soWinnerPairIdx!==null;
+    const tiedNote=isSoWinner?` <span style="font-size:10px;color:var(--green)">(won on super over)</span>`
+      :isSoLoser?` <span style="font-size:10px;color:var(--orange)">(lost super over)</span>`
+      :isTied(rank)?isTiedBnd(rank)
+        ?` <span style="font-size:10px;color:var(--orange)">(tied — won on batting runs)</span>`
+        :` <span style="font-size:10px;color:var(--orange)">(tied — won on boundaries)</span>`:'';
     const extraBadge=r.p.isExtraBat?` <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px;font-weight:700">⭐ extra innings</span>`:'';
     row.innerHTML=`<div class="pod-rank">${rankLabel}</div><div class="pod-info"><div class="pod-pname t-${r.p.color}">${r.p.cname} pair${extraBadge}</div><div class="pod-players">${r.p.players.join(' & ')}</div><div class="pod-breakdown">Batting: ${r.bat} + Bowl bonus: ${r.bowl}${r.p.isExtraBat?' (incl. pre-match wicket bonus)':''} · ${r.boundaries} boundaries${tiedNote}</div></div><div class="pod-total">${r.total}</div>`;
     lb.appendChild(row);
