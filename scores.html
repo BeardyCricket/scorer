@@ -324,6 +324,17 @@ function render(payload){
   const pairs=payload.pairs||[];
   const figures=payload.bowling_figures||[];
   const ms=payload.match_stats||null;
+  const superoverWinner=payload.superover_winner||null;
+  function sortPairs(arr){
+    return [...arr].sort((a,b)=>{
+      if(b.total!==a.total)return b.total-a.total;
+      if(superoverWinner){
+        if(a.color===superoverWinner)return -1;
+        if(b.color===superoverWinner)return 1;
+      }
+      return 0;
+    });
+  }
 
   // Status bar
   document.getElementById('status-bar').classList.remove('hidden');
@@ -346,7 +357,7 @@ function render(payload){
 
     // Final leaderboard
     if(pairs.length){
-      const sorted=[...pairs].sort((a,b)=>b.total-a.total);
+      const sorted=sortPairs(pairs);
       const medals=['🥇','🥈','🥉'];
       const lb=document.createElement('div');
       lb.className='card';
@@ -354,11 +365,13 @@ function render(payload){
         +sorted.map((p,rank)=>{
           const c=cc(p.color);
           const ovs=Math.floor(p.balls_faced/6),bls=p.balls_faced%6;
+          const isSuperoverWin=rank===0&&superoverWinner&&p.color===superoverWinner;
           return `<div class="sb-row">
             <div class="sb-rank">${medals[rank]||`<span style="font-size:14px;font-weight:700">${rank+1}</span>`}</div>
             <div class="sb-name">
               <div class="sb-cname t-${c}">${esc(p.cname)} pair</div>
               <div class="sb-players-txt">${esc(p.players.join(' & '))}</div>
+              ${isSuperoverWin?`<span class="sb-tag" style="background:#fff3cd;color:#856404;margin-top:3px">Won on a super over</span>`:''}
             </div>
             <div class="sb-score">
               <div class="sb-total t-${c}">${p.total}</div>
@@ -396,7 +409,7 @@ function render(payload){
     // ── Individual performances ────────────────────────────────────────
     // Build per-pair source: prefer match_stats.pairs, fall back to payload.pairs
     const perfPairs = ms&&ms.pairs&&ms.pairs.length ? ms.pairs : null;
-    const sortedPairs=[...(perfPairs||pairs)].sort((a,b)=>b.total-a.total);
+    const sortedPairs=sortPairs(perfPairs||pairs);
 
     const hasDetailedData=ms!=null||figures.length>0||pairs.some(p=>p.players_bat&&p.players_bat.length>0);
     const acc=document.createElement('div');
@@ -480,7 +493,7 @@ function render(payload){
       const MEDALS={1:{bg:'#FFD700',fg:'#4a2e00',emoji:'🥇',label:'1st Place Pair'},
                     2:{bg:'#D8D8D8',fg:'#303030',emoji:'🥈',label:'2nd Place Pair'},
                     3:{bg:'#C97A3A',fg:'#2a1000',emoji:'🥉',label:'3rd Place Pair'}};
-      const sortedByTotal=[...ms.pairs].sort((a,b)=>b.total-a.total);
+      const sortedByTotal=sortPairs(ms.pairs);
       ms.pairs.forEach(p=>{
         const rank=sortedByTotal.findIndex(sp=>sp.color===p.color)+1;
         const c=cc(p.color);
@@ -583,7 +596,7 @@ function render(payload){
 
     // All pairs
     if(pairs.length){
-      const sorted=[...pairs].sort((a,b)=>b.total-a.total);
+      const sorted=sortPairs(pairs);
       const card=document.createElement('div');
       card.className='card';
       card.innerHTML='<div class="card-hdr">All pairs</div>'
@@ -649,12 +662,18 @@ async function loadRecentMatches(){
   list.innerHTML=finished.map(r=>{
     const p=r.payload;
     const dateStr=fmtDate(p.started_at||r.updated_at);
-    const sorted=[...(p.pairs||[])].sort((a,b)=>b.total-a.total);
+    const sw=p.superover_winner||null;
+    const sorted=[...(p.pairs||[])].sort((a,b)=>{
+      if(b.total!==a.total)return b.total-a.total;
+      if(sw){if(a.color===sw)return -1;if(b.color===sw)return 1;}
+      return 0;
+    });
     const winner=sorted[0];
+    const superoverNote=winner&&sw&&winner.color===sw?' · Won on a super over':'';
     return `<a class="match-link" href="?match=${encodeURIComponent(r.match_id)}">
       <div class="match-info">
         <div class="match-date">${esc(dateStr)}</div>
-        ${winner?`<div class="match-winner">🏆 ${esc(winner.cname)} pair · ${winner.total} pts</div>`:''}
+        ${winner?`<div class="match-winner">🏆 ${esc(winner.cname)} pair · ${winner.total} pts${esc(superoverNote)}</div>`:''}
       </div>
       <div class="match-arrow">›</div>
     </a>`;
