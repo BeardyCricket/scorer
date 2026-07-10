@@ -380,6 +380,13 @@ function render(payload){
           </div>`;
         }).join('');
       mc.appendChild(lb);
+      const bookBtn=document.createElement('a');
+      bookBtn.href='https://beardy-cricket.sumupstore.com/products';
+      bookBtn.target='_blank';
+      bookBtn.rel='noopener noreferrer';
+      bookBtn.textContent='Beat your score at the next match - book here';
+      bookBtn.style.cssText='display:block;text-align:center;margin:12px 0 4px;padding:14px 20px;background:#1a1a1a;color:#fff;border-radius:12px;font-size:15px;font-weight:600;text-decoration:none;';
+      mc.appendChild(bookBtn);
     }
 
     // ── Aggregate totals ──────────────────────────────────────────────

@@ -837,6 +837,16 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   </div>
 </div>
 
+<!-- CLOUD RESUME MODAL -->
+<div class="overlay hidden" id="cloud-resume-modal">
+  <div class="sheet" style="text-align:center;padding:32px 24px 48px">
+    <div style="font-size:20px;font-weight:700;margin-bottom:8px">Resume from cloud?</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">An in-progress match was found saved to Supabase.</div>
+    <div id="cloud-resume-list" style="text-align:left;margin-bottom:12px"></div>
+    <button class="btn btn-secondary" onclick="discardCloudResume()" style="margin-top:6px">Dismiss</button>
+  </div>
+</div>
+
 <!-- TIMELINE / SNAPSHOTS MODAL -->
 <div class="overlay hidden" id="snap-modal">
   <div class="sheet" style="padding:20px 16px 40px">
@@ -3850,15 +3860,14 @@ async function pushLiveScore(status='in_progress',matchStats=null){
         sixes:G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length,
         players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0}))};
     }),
-    bowling_figures
+    bowling_figures,
+    history:G.history,
+    game_state:{...G,noBonusOvers:Array.from(G.noBonusOvers||[]),lateArrivals:Array.from(G.lateArrivals||[]),lateCheckedOvers:Array.from(G.lateCheckedOvers||[]),pendingTransition:null,pendingBowlerSelect:false,pendingWhoFacing:false}
   };
-  // match_stats is passed in from endMatch() — computed there with explicit logging
   if(matchStats) payload.match_stats=matchStats;
 
-  // on_conflict tells PostgREST which column to use for the upsert conflict check.
-  // return=minimal suppresses the response body (required alongside resolution= in Supabase).
   const row={match_id:G.matchId,updated_at:new Date().toISOString(),payload};
-  console.log('[Supabase] upsert row:', JSON.stringify(row));
+  console.log('[Supabase] upsert | matchId:',G.matchId,'| status:',status,'| balls:',G.history.length);
   try{
     const {error}=await supabaseClient
       .from('live_scores')
@@ -3936,6 +3945,69 @@ function resumeGame(){
 function discardSavedGame(){
   clearGameState();
   document.getElementById('resume-modal').classList.add('hidden');
+}
+
+async function checkForCloudResume(){
+  if(testMode)return;
+  try{
+    const localMatchId=loadSavedGame()?.matchId||null;
+    const {data,error}=await supabaseClient
+      .from('live_scores')
+      .select('match_id,updated_at,payload')
+      .filter('payload->>status','eq','in_progress')
+      .order('updated_at',{ascending:false})
+      .limit(5);
+    if(error||!data?.length)return;
+    // Exclude any match already shown by the local-storage resume prompt
+    const candidates=data.filter(r=>r.match_id!==localMatchId&&r.payload?.game_state);
+    if(!candidates.length)return;
+    const list=document.getElementById('cloud-resume-list');
+    list.innerHTML=candidates.map(m=>{
+      const p=m.payload;
+      const d=new Date(m.updated_at);
+      const ts=d.toLocaleDateString()+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+      const overInfo=`Over ${p.over||1} of ${p.total_overs||'?'}`;
+      const batting=p.batting?` · ${p.batting.cname} batting`:'';
+      const balls=p.history?.length||0;
+      return`<div style="padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:2px">${overInfo}${batting}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${ts} · ${balls} ball${balls===1?'':'s'}</div>
+        <button class="btn btn-primary" style="width:100%" onclick="resumeFromCloud('${m.match_id}')">Resume this match</button>
+      </div>`;
+    }).join('');
+    document.getElementById('cloud-resume-modal').classList.remove('hidden');
+  }catch(e){console.warn('[CloudResume]',e);}
+}
+
+async function resumeFromCloud(matchId){
+  document.getElementById('cloud-resume-modal').classList.add('hidden');
+  try{
+    const {data,error}=await supabaseClient
+      .from('live_scores')
+      .select('payload')
+      .eq('match_id',matchId)
+      .maybeSingle();
+    if(error||!data?.payload?.game_state){
+      alert('Could not load match data from cloud.');
+      return;
+    }
+    const gs=data.payload.game_state;
+    gs.noBonusOvers=new Set(gs.noBonusOvers||[]);
+    gs.lateArrivals=new Set(gs.lateArrivals||[]);
+    gs.lateCheckedOvers=new Set(gs.lateCheckedOvers||[]);
+    if(!gs.snapshots)gs.snapshots=[];
+    G=gs;
+    saveGameState(); // persist locally so same-device reload also works
+    show('s-score');
+    updateUI();
+  }catch(e){
+    console.error('[CloudResume]',e);
+    alert('Could not load match data from cloud.');
+  }
+}
+
+function discardCloudResume(){
+  document.getElementById('cloud-resume-modal').classList.add('hidden');
 }
 
 // ══════════════════════════════════════════
@@ -4031,6 +4103,7 @@ function showSnapModal(){
 
 // Check for a saved game when page first loads
 checkForSavedGame();
+checkForCloudResume(); // async — shows cloud resume modal if a different device left a match in progress
 updateTestModeUI();
 
 // ══════════════════════════════════════════
