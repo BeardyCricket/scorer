@@ -658,7 +658,7 @@ async function loadRecentMatches(){
     .limit(20);
 
   const finished=(data||[])
-    .filter(r=>r.payload&&isMatchDone(r.payload)&&r.match_id!==matchId)
+    .filter(r=>r.payload&&isMatchDone(r.payload)&&r.match_id!==matchId&&!r.match_id.startsWith('beardy-test-'))
     .slice(0,5);
 
   const section=document.getElementById('recent-section');
@@ -1008,8 +1008,9 @@ async function init(){
     if(data)render(data.payload);
     subscribeToMatch(matchId);
   } else {
-    const {data}=await client.from('live_scores').select('match_id,payload')
-      .order('updated_at',{ascending:false}).limit(1).maybeSingle();
+    const {data:recent}=await client.from('live_scores').select('match_id,payload')
+      .order('updated_at',{ascending:false}).limit(10);
+    const data=(recent||[]).find(r=>!r.match_id.startsWith('beardy-test-'));
     if(data){matchId=data.match_id;render(data.payload);subscribeToMatch(matchId);}
     else{subscribeForAnyMatch();}
   }

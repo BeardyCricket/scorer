@@ -219,6 +219,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .seed-wrap{display:flex;gap:3px;flex-shrink:0}
 .seed-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--grey-l);font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);padding:0;line-height:1}
 .seed-btn.sel-seed{border-color:var(--brand);background:var(--brand);color:#fff}
+.extras-btn.sel-extras{border-color:#d97706;background:#d97706;color:#fff}
 .seed-num-inp{width:34px;height:26px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:700;text-align:center;padding:0 2px;background:var(--grey-l);color:var(--muted);}
 .seed-num-inp:focus{outline:2px solid var(--brand);outline-offset:-1px}
 .seed-num-inp.has-seed{background:var(--brand-l);border-color:var(--brand);color:var(--brand)}
@@ -1086,7 +1087,7 @@ function freshState(){
     facingIdx:0,
     isIndoor:false,
     pendingWhoFacing:false,
-    playerSeedMap:{},
+    playerSeedMap:{},playerExtrasMap:{},
     snapshots:[],matchId:'',
     extraBatPairOffered:false,
     extraBatPairActive:false,
@@ -1110,6 +1111,7 @@ function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.re
 let venueMins = 50;
 let venueType = 'indoor';
 let playerSeeds = {}; // {playerIdx: 1|2|3} — set during player name entry
+let playerExtras = {}; // {playerIdx: bool} — extras flag set during player name entry
 function setVenue(type){
   venueType = type;
   venueMins = type==='indoor'?50:80;
@@ -1153,7 +1155,7 @@ function teamPairIdx(i){
 }
 
 function buildNames(n){
-  playerSeeds={};
+  playerSeeds={};playerExtras={};
   const c=document.getElementById('player-inputs');c.innerHTML='';
   if(G.teamMode){
     const taP=Math.floor(n/2);
@@ -1171,14 +1173,14 @@ function buildNames(n){
       }
       playerSeeds[i]=2;
       const pi=teamPairIdx(i),row=document.createElement('div');row.className='pi-row';
-      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div>`;
+      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
       c.appendChild(row);
     }
   } else {
     for(let i=0;i<n;i++){
       playerSeeds[i]=2;
       const pi=Math.floor(i/2),row=document.createElement('div');row.className='pi-row';
-      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div>`;
+      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
       c.appendChild(row);
     }
   }
@@ -1191,11 +1193,16 @@ function setSeed(playerIdx,seed,el){
   el.classList.add('sel-seed');
 }
 
+function toggleExtras(playerIdx,el){
+  playerExtras[playerIdx]=!playerExtras[playerIdx];
+  el.classList.toggle('sel-extras',!!playerExtras[playerIdx]);
+}
+
 function goToPairs(){
   if(!G.numPlayers)return;
   G.players=Array.from({length:G.numPlayers},(_,i)=>document.getElementById('p'+i).value.trim()||'Player '+(i+1));
-  G.playerSeedMap={};
-  G.players.forEach((name,i)=>{G.playerSeedMap[name]=playerSeeds[i]||2;});
+  G.playerSeedMap={};G.playerExtrasMap={};
+  G.players.forEach((name,i)=>{G.playerSeedMap[name]=playerSeeds[i]||2;G.playerExtrasMap[name]=!!playerExtras[i];});
   G.startTime=document.getElementById('start-time').value||'14:00';
   G.matchDurMins=venueMins;
   G.isIndoor=venueType==='indoor';
@@ -1315,10 +1322,26 @@ function doSwap(p,pos){
     renderPairs();setFb('Swapped!','good');setTimeout(()=>setFb('',''),1500);
   }
 }
+// Reorders a player pool so extras-flagged players are not at consecutive positions,
+// minimising the chance of two flagged players forming a pair. When unavoidable (more
+// flagged than non-flagged allows), conflicting pairs are permitted.
+function separateExtras(arr,extrasMap){
+  const isX=p=>!!(extrasMap&&extrasMap[p]);
+  const flagged=arr.filter(isX),normal=arr.filter(p=>!isX(p));
+  if(flagged.length<2)return arr;
+  const result=new Array(arr.length);
+  let fi=0,ni=0;
+  for(let pos=0;pos<arr.length;pos+=2){result[pos]=fi<flagged.length?flagged[fi++]:normal[ni++];}
+  for(let pos=1;pos<arr.length;pos+=2){result[pos]=ni<normal.length?normal[ni++]:flagged[fi++];}
+  return result;
+}
+
 function shufflePairs(){
   const rnd=arr=>{for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;};
   const lateSet=G.lateArrivals||new Set();
   const seedMap=G.playerSeedMap||{};
+  const extrasMap=G.playerExtrasMap||{};
+  const isX=p=>!!(extrasMap[p]);
   const getSeed=name=>seedMap[name]||2;
 
   // Collect all players from unlocked pairs
@@ -1337,7 +1360,20 @@ function shufflePairs(){
   for(let i=0;i<nMatch;i++) matchedPairs.push([s1[i],s3[i]]);
 
   // Remaining on-time players (unmatched s1, unmatched s3, all s2) — shuffled together
-  const remainPool=rnd([...s1.slice(nMatch),...s3.slice(nMatch),...s2]);
+  let remainPool=rnd([...s1.slice(nMatch),...s3.slice(nMatch),...s2]);
+
+  // Extras: if a seed-matched pair has two flagged players, swap one into remainPool
+  // with a non-flagged player from remainPool (if one exists)
+  for(const mp of matchedPairs){
+    if(mp.length===2&&isX(mp[0])&&isX(mp[1])){
+      const swapIdx=remainPool.findIndex(p=>!isX(p));
+      if(swapIdx!==-1){[mp[1],remainPool[swapIdx]]=[remainPool[swapIdx],mp[1]];}
+    }
+  }
+
+  // Reorder remainPool so extras-flagged players are spread across pair slots
+  remainPool=separateExtras(remainPool,extrasMap);
+
   const remainPairs=[];
   for(let i=0;i<remainPool.length;i+=2){
     if(i+1<remainPool.length) remainPairs.push([remainPool[i],remainPool[i+1]]);
@@ -1592,7 +1628,7 @@ function validateBowling(){
 // ══════════════════════════════════════════
 function startMatch(){
   G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
-  G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();G.matchId='beardy-'+Date.now().toString(36);
+  G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();G.matchId=(testMode?'beardy-test-':'beardy-')+Date.now().toString(36);
   G.facingIdx=0;G.snapshots=[];
   G.pendingBowlerSelect=true;
   // Auto-generate ntfy topic from match date + configured start time
@@ -3098,10 +3134,8 @@ async function endMatch(){
   }catch(e){
     console.error('[Stats] match_stats computation FAILED:',e);
   }
-  if(!testMode){
-    await pushLiveScore('finished',matchStats);
-    if(savedMsg)savedMsg.style.display='block';
-  }
+  await pushLiveScore('finished',matchStats);
+  if(!testMode&&savedMsg)savedMsg.style.display='block';
   clearGameState();
   saveMatchToStorage();
   const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
@@ -3289,6 +3323,7 @@ function renderRoster(){
       const row=document.createElement('div');row.className='roster-row';
       const sd=p.seed||2;
       const sn=p.seedNum||'';
+      const ex=!!p.extras;
       row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
         <div class="seed-wrap">
           <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Rank 1 — bat early">1</button>
@@ -3297,6 +3332,7 @@ function renderRoster(){
         </div>
         <input class="seed-num-inp" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="—"
           oninput="setRosterSeedNum(${i},this.value,this)" onblur="saveRoster()" title="Seed number for seed mode (1=best, blank=unseeded)">
+        <button class="seed-btn extras-btn${ex?' sel-extras':''}" onclick="setRosterExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>
         <div class="status-chips">
           <div class="status-chip${st==='present'?' s-present':''}" onclick="setPlayerStatus(${i},'present')">✓</div>
           <div class="status-chip${st==='late'?' s-late':''}" onclick="setPlayerStatus(${i},'late')">⏰</div>
@@ -3328,6 +3364,12 @@ function setRosterSeed(i,seed,el){
   const wrap=el.closest('.seed-wrap');
   wrap.querySelectorAll('.seed-btn').forEach(b=>b.classList.remove('sel-seed'));
   el.classList.add('sel-seed');
+  saveRoster();
+}
+
+function setRosterExtras(i,el){
+  rosterPlayers[i].extras=!rosterPlayers[i].extras;
+  el.classList.toggle('sel-extras',!!rosterPlayers[i].extras);
   saveRoster();
 }
 
@@ -3450,6 +3492,10 @@ function buildSeedPairs(){
 
   const lateNames=rosterPlayers.filter(p=>sessionStatuses[p.name]==='late').map(p=>p.name);
 
+  // Build extras map from roster for use during pair allocation
+  G.playerExtrasMap={};
+  rosterPlayers.forEach(p=>{G.playerExtrasMap[p.name]=!!p.extras;});
+
   // Sort ALL players (present + late) by seedNum ascending — latecomers placed by seed rank
   const allObjs=rosterPlayers
     .filter(p=>sessionStatuses[p.name]==='present'||sessionStatuses[p.name]==='late')
@@ -3479,7 +3525,7 @@ function buildSeedPairs(){
   } else if(small){
     // 8 players: top 4 seeded → Blue(1st & 4th), Red(2nd & 3rd); remaining randomly → Purple, Grey
     const seeded=allObjs.slice(0,4);
-    const remain=rnd(allObjs.slice(4).map(p=>p.name));
+    const remain=separateExtras(rnd(allObjs.slice(4).map(p=>p.name)),G.playerExtrasMap);
     G.pairs.push(mk('blue','Blue',[seeded[0]?.name,seeded[3]?.name]));
     G.pairs.push(mk('red', 'Red', [seeded[1]?.name,seeded[2]?.name]));
     for(let i=0;i<remain.length;i+=2){
@@ -3492,7 +3538,7 @@ function buildSeedPairs(){
   } else {
     // 11-14 players: top 6 seeded → Blue(1st & 6th), Red(2nd & 5th), Green(3rd & 4th); rest random
     const seeded=allObjs.slice(0,6);
-    const remain=rnd(allObjs.slice(6).map(p=>p.name));
+    const remain=separateExtras(rnd(allObjs.slice(6).map(p=>p.name)),G.playerExtrasMap);
     G.pairs.push(mk('blue', 'Blue', [seeded[0]?.name,seeded[5]?.name]));
     G.pairs.push(mk('red',  'Red',  [seeded[1]?.name,seeded[4]?.name]));
     G.pairs.push(mk('green','Green',[seeded[2]?.name,seeded[3]?.name]));
@@ -3742,8 +3788,8 @@ function saveAndTestNtfy(){
 
 function pushBallUpdate(){
   if(G.ballInOver>=6)return; // over just ended — takeSnapshot() handles the push
-  if(testMode)return;
   pushLiveScore();
+  if(testMode)return; // skip ntfy in test mode
   const topic=localStorage.getItem('cricket_ntfy_topic');
   if(!topic)return;
   const bi=batIdx(),bwi=bowlIdx();
@@ -3948,7 +3994,6 @@ function discardSavedGame(){
 }
 
 async function checkForCloudResume(){
-  if(testMode)return;
   try{
     const localMatchId=loadSavedGame()?.matchId||null;
     const {data,error}=await supabaseClient
@@ -3956,10 +4001,13 @@ async function checkForCloudResume(){
       .select('match_id,updated_at,payload')
       .filter('payload->>status','eq','in_progress')
       .order('updated_at',{ascending:false})
-      .limit(5);
+      .limit(10);
     if(error||!data?.length)return;
-    // Exclude any match already shown by the local-storage resume prompt
-    const candidates=data.filter(r=>r.match_id!==localMatchId&&r.payload?.game_state);
+    // In test mode show only beardy-test- matches; in normal mode exclude them
+    const candidates=data.filter(r=>{
+      const isTest=r.match_id.startsWith('beardy-test-');
+      return r.match_id!==localMatchId&&r.payload?.game_state&&(testMode?isTest:!isTest);
+    });
     if(!candidates.length)return;
     const list=document.getElementById('cloud-resume-list');
     list.innerHTML=candidates.map(m=>{
@@ -4073,14 +4121,12 @@ function takeSnapshot(label){
   const snap={ts,label,text:lines.join('\n')};
   G.snapshots.push(snap);
 
-  if(!testMode){
-    // Push to ntfy if configured (fire and forget)
-    if(localStorage.getItem('cricket_ntfy_topic')){
-      pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
-    }
-    // Skip on the final over end — endMatch() pushes the 'finished' status with full stats.
-    // Pushing here too causes a race condition that can overwrite the finished payload.
-    if(label==='Match start'||G.overIdx+1<G.totalOvers) pushLiveScore();
+  // Skip on the final over end — endMatch() pushes the 'finished' status with full stats.
+  // Pushing here too causes a race condition that can overwrite the finished payload.
+  if(label==='Match start'||G.overIdx+1<G.totalOvers) pushLiveScore();
+  // Ntfy: skip in test mode
+  if(!testMode&&localStorage.getItem('cricket_ntfy_topic')){
+    pushToNtfy(`Beardy Cricket - ${label}`,snap.text).then(ok=>{if(ok)flashPushIndicator();});
   }
 }
 
