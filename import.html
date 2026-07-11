@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Import Match CSVs — Beardy Cricket</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--brand:#2563eb;--border:#e5e7eb;--muted:#6b7280;--card:#fff;--grey-l:#f3f4f6;--red:#dc2626;--green:#16a34a}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;color:#111;padding:20px;max-width:580px;margin:0 auto}
+    h1{font-size:20px;font-weight:800;margin-bottom:4px}
+    .sub{font-size:13px;color:var(--muted);margin-bottom:24px;line-height:1.5}
+    .drop-zone{border:2px dashed var(--border);border-radius:14px;padding:36px 20px;text-align:center;cursor:pointer;background:var(--card);margin-bottom:20px;transition:border-color .15s,background .15s}
+    .drop-zone:hover,.drop-zone.over{border-color:var(--brand);background:#eff6ff}
+    .drop-zone input{display:none}
+    .drop-label{font-size:15px;font-weight:700;margin-bottom:6px}
+    .drop-sub{font-size:13px;color:var(--muted)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+    .card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+    .card-name{font-size:14px;font-weight:700}
+    .card-meta{font-size:12px;color:var(--muted);margin-top:2px}
+    .remove-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;line-height:1;padding:0 2px;flex-shrink:0}
+    .pair-row{font-size:13px;padding:4px 0;border-bottom:1px solid var(--grey-l);display:flex;justify-content:space-between}
+    .pair-row:last-child{border-bottom:none}
+    .pair-score{font-weight:700}
+    label.field-lbl{font-size:12px;font-weight:600;color:var(--muted);display:block;margin:10px 0 4px}
+    input[type=date]{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;width:100%}
+    .btn{width:100%;padding:14px;border-radius:12px;border:none;font-size:15px;font-weight:700;cursor:pointer;margin-top:4px;display:block;text-align:center}
+    .btn-primary{background:var(--brand);color:#fff}
+    .btn-primary:hover{background:#1d4ed8}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .notice{font-size:12px;padding:10px 14px;border-radius:10px;margin-top:12px;line-height:1.5;display:none}
+    .notice.ok{background:#dcfce7;color:#14532d;display:block}
+    .notice.err{background:#fee2e2;color:#7f1d1d;display:block}
+    .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;vertical-align:middle}
+    .badge-blue{background:#dbeafe;color:#1e40af}
+    .badge-red{background:#fee2e2;color:#991b1b}
+    .badge-purple{background:#f3e8ff;color:#6b21a8}
+    .badge-green{background:#dcfce7;color:#166534}
+    .badge-grey{background:#f3f4f6;color:#374151}
+    .badge-orange{background:#ffedd5;color:#9a3412}
+    .badge-teal{background:#ccfbf1;color:#115e59}
+    .badge-yellow{background:#fef9c3;color:#854d0e}
+    .divider{height:1px;background:var(--border);margin:20px 0}
+    .section-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px}
+    a.back{font-size:13px;color:var(--brand);text-decoration:none;display:inline-block;margin-bottom:16px}
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to scoring app</a>
+  <h1>Import Match CSVs</h1>
+  <p class="sub">Upload CSV files exported from the scoring app to save them to Supabase.<br>Also useful if Supabase was down mid-match and you need to backfill the data.</p>
+
+  <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <input type="file" id="file-input" accept=".csv" multiple>
+    <div class="drop-label">Drop CSV files here</div>
+    <div class="drop-sub">or tap to select — multiple files supported</div>
+  </div>
+
+  <div id="queue-section" style="display:none">
+    <div class="section-title" id="queue-title"></div>
+    <div id="queue"></div>
+    <div class="divider"></div>
+    <button class="btn btn-primary" id="upload-btn" onclick="uploadAll()">Upload to Supabase</button>
+    <div class="notice" id="notice"></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
+    const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
+    const client=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+    const COLOR_MAP={Blue:'blue',Red:'red',Purple:'purple',Green:'green',Grey:'grey',Orange:'orange',Teal:'teal',Yellow:'yellow'};
+    const FALLBACK_COLORS=['blue','red','purple','green','grey','orange','teal','yellow'];
+
+    let queue=[];
+
+    // ── Drag and drop ──────────────────────────────────────────
+    const dz=document.getElementById('drop-zone');
+    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over');});
+    dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');handleFiles(e.dataTransfer.files);});
+    document.getElementById('file-input').addEventListener('change',e=>{handleFiles(e.target.files);e.target.value='';});
+
+    function handleFiles(files){
+      Array.from(files).filter(f=>f.name.endsWith('.csv')).forEach(f=>{
+        const reader=new FileReader();
+        reader.onload=e=>processFile(f.name,e.target.result);
+        reader.readAsText(f);
+      });
+    }
+
+    // ── CSV parsing ────────────────────────────────────────────
+    function parseCSV(text){
+      const lines=text.split('\n').map(l=>l.trim());
+
+      // Find "Ball by ball" section marker
+      const bbIdx=lines.findIndex(l=>l.toLowerCase().startsWith('ball by ball'));
+      if(bbIdx===-1)return null;
+
+      // Pair summary: line 1 is header, lines 2..bbIdx-1 are data (skip blanks)
+      const pairLines=lines.slice(1,bbIdx).filter(l=>l&&!l.toLowerCase().startsWith('pair'));
+      const pairs=pairLines.map(l=>{
+        const cols=l.split(',');
+        if(cols.length<5)return null;
+        const [cname,p1,p2,bat,bowl]=cols;
+        return{cname:cname.trim(),players:[p1?.trim(),p2?.trim()].filter(Boolean),bat:parseInt(bat)||0,bowl:parseInt(bowl)||0};
+      }).filter(Boolean);
+      if(!pairs.length)return null;
+
+      // cname → pair index lookup
+      const pairIdx={};
+      pairs.forEach((p,i)=>pairIdx[p.cname]=i);
+
+      // Ball-by-ball: skip "Ball by ball" and the column header line
+      // Detect whether this CSV has the Code column (newer exports) or not (older exports)
+      const colHeader=lines[bbIdx+1]||'';
+      const hasCodeCol=colHeader.toLowerCase().includes('code');
+      const ballLines=lines.slice(bbIdx+2).filter(l=>l);
+      const history=ballLines.map(l=>{
+        const cols=l.split(',');
+        if(cols.length<9)return null;
+        const [over,ball,type,dismissal,batCname,bowlCname,facing,bowling,...rest]=cols;
+        const run=parseInt(rest[0])||0;
+        const t=type?.trim()||'normal';
+        const legal=t!=='wide'&&t!=='nb';
+        // Use exported Code column if present; otherwise infer boundary from run value
+        const exportedCode=hasCodeCol?(rest[1]?.trim()||''):'';
+        const code=exportedCode||(t==='normal'&&run===4?'4b':'');
+        return{
+          over:parseInt(over)-1,
+          ballNum:parseInt(ball)-1,
+          type:t,
+          dismissal:dismissal?.trim()||'',
+          batPair:pairIdx[batCname?.trim()]??0,
+          bowlPair:pairIdx[bowlCname?.trim()]??0,
+          facing:facing?.trim()||'',
+          bowling:bowling?.trim()||'',
+          run,legal,code
+        };
+      }).filter(Boolean);
+
+      return{pairs,history};
+    }
+
+    // Deterministic match ID from date + pair roster so re-uploading the same
+    // CSV on the same date overwrites rather than duplicates the Supabase row.
+    function makeMatchId(pairs,date){
+      const str=date+pairs.map(p=>p.cname+p.players.join('')).join('');
+      let h=0;
+      for(let i=0;i<str.length;i++)h=(Math.imul(31,h)+str.charCodeAt(i))|0;
+      return'beardy-'+Math.abs(h).toString(36);
+    }
+
+    function processFile(filename,text){
+      try{
+        const parsed=parseCSV(text);
+        if(!parsed){showNotice('Could not parse "'+filename+'" — make sure it\'s a CSV exported from the scoring app.','err');return;}
+        const totalOvers=parsed.history.length>0?Math.max(...parsed.history.map(b=>b.over))+1:0;
+        const today=new Date().toISOString().slice(0,10);
+        const item={filename,date:today,pairs:parsed.pairs,history:parsed.history,totalOvers};
+        item.matchId=makeMatchId(item.pairs,item.date);
+        queue.push(item);
+        renderQueue();
+      }catch(e){showNotice('Error reading "'+filename+'": '+e.message,'err');}
+    }
+
+    // ── Payload builder ────────────────────────────────────────
+    function buildPayload(item){
+      const{pairs,history,totalOvers,date}=item;
+      const startedAt=new Date(date+'T12:00:00').toISOString();
+
+      // Balls faced per pair
+      const facedMap={};
+      history.filter(b=>b.legal).forEach(b=>{facedMap[b.batPair]=(facedMap[b.batPair]||0)+1;});
+
+      // Bowling figures
+      const bowlerMap={};
+      history.forEach(b=>{
+        if(!b.bowling)return;
+        if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={balls:0,wickets:0,runs:0};
+        if(b.legal)bowlerMap[b.bowling].balls++;
+        if(b.type==='wkt')bowlerMap[b.bowling].wickets++;
+        if(b.run>0)bowlerMap[b.bowling].runs+=b.run;
+      });
+      const bowling_figures=Object.entries(bowlerMap).map(([player,f])=>({
+        player,
+        overs:Math.floor(f.balls/6)+'.'+f.balls%6,
+        wickets:f.wickets,runs:f.runs,
+        net:f.runs-(5*f.wickets)
+      })).sort((a,b)=>b.wickets-a.wickets||b.runs-a.runs);
+
+      // Per-pair stats
+      const pairsPayload=pairs.map((p,i)=>{
+        const color=COLOR_MAP[p.cname]||FALLBACK_COLORS[i]||'blue';
+        const pRuns={},pBalls={},pFours={},pSixes={};
+        p.players.forEach(pl=>{pRuns[pl]=0;pBalls[pl]=0;pFours[pl]=0;pSixes[pl]=0;});
+        history.filter(b=>b.batPair===i&&b.type==='normal'&&pRuns[b.facing]!==undefined).forEach(b=>{pRuns[b.facing]+=b.run;});
+        history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&pBalls[b.facing]!==undefined).forEach(b=>{pBalls[b.facing]++;});
+        history.filter(b=>b.batPair===i&&b.code==='4b'&&pFours[b.facing]!==undefined).forEach(b=>{pFours[b.facing]++;});
+        history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal'&&pSixes[b.facing]!==undefined).forEach(b=>{pSixes[b.facing]++;});
+        return{
+          cname:p.cname,players:p.players,color,
+          bat:p.bat,bowl:p.bowl,total:p.bat+p.bowl,
+          balls_faced:facedMap[i]||0,
+          wickets:history.filter(b=>b.batPair===i&&b.type==='wkt').length,
+          fours:history.filter(b=>b.batPair===i&&b.code==='4b').length,
+          sixes:history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length,
+          players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0}))
+        };
+      });
+
+      const match_stats={
+        total_runs:pairs.reduce((a,p)=>a+p.bat,0),
+        wickets:history.filter(b=>b.type==='wkt').length,
+        fours:history.filter(b=>b.code==='4b').length,
+        sixes:history.filter(b=>b.run===6&&b.type==='normal').length,
+        catches:history.filter(b=>b.type==='wkt'&&b.dismissal==='Caught').length,
+        pairs:pairsPayload
+      };
+
+      return{
+        status:'finished',
+        started_at:startedAt,
+        over:totalOvers,ball:6,total_overs:totalOvers,
+        batting:null,bowling:null,
+        pairs:pairsPayload,bowling_figures,history,match_stats
+      };
+    }
+
+    // ── Render queue ───────────────────────────────────────────
+    function renderQueue(){
+      const sec=document.getElementById('queue-section');
+      const qEl=document.getElementById('queue');
+      const title=document.getElementById('queue-title');
+      if(!queue.length){sec.style.display='none';return;}
+      sec.style.display='block';
+      title.textContent=queue.length+' match'+(queue.length===1?'':'es')+' ready to upload';
+      qEl.innerHTML='';
+      queue.forEach((item,idx)=>{
+        const div=document.createElement('div');
+        div.className='card';
+        const pairBadges=item.pairs.map(p=>{
+          const c=COLOR_MAP[p.cname]||'blue';
+          return`<span class="badge badge-${c}">${p.cname}</span>`;
+        }).join('');
+        div.innerHTML=`
+          <div class="card-hdr">
+            <div>
+              <div class="card-name">${item.filename}</div>
+              <div class="card-meta">${item.pairs.length} pairs · ${item.totalOvers} overs · ${item.history.length} deliveries</div>
+              <div style="margin-top:6px">${pairBadges}</div>
+            </div>
+            <button class="remove-btn" onclick="removeItem(${idx})" title="Remove">×</button>
+          </div>
+          ${item.pairs.map(p=>`<div class="pair-row"><span>${p.cname} — ${p.players.join(' &amp; ')}</span><span class="pair-score">${p.bat} + ${p.bowl} = ${p.bat+p.bowl}</span></div>`).join('')}
+          <label class="field-lbl">Match date (used for ordering on the scores page)</label>
+          <input type="date" value="${item.date}" onchange="updateDate(${idx},this.value)">
+        `;
+        qEl.appendChild(div);
+      });
+    }
+
+    function removeItem(idx){
+      queue.splice(idx,1);
+      renderQueue();
+      if(!queue.length)document.getElementById('notice').style.display='none';
+    }
+
+    function updateDate(idx,date){
+      queue[idx].date=date;
+      // Recompute deterministic match ID when date changes
+      queue[idx].matchId=makeMatchId(queue[idx].pairs,date);
+    }
+
+    // ── Upload ─────────────────────────────────────────────────
+    async function uploadAll(){
+      const btn=document.getElementById('upload-btn');
+      btn.disabled=true;
+      btn.textContent='Uploading…';
+      hideNotice();
+
+      const errors=[];
+      const uploaded=[];
+
+      for(const item of queue){
+        try{
+          const payload=buildPayload(item);
+          const row={
+            match_id:item.matchId,
+            updated_at:new Date(item.date+'T12:00:00').toISOString(),
+            payload
+          };
+          const{error}=await client.from('live_scores').upsert(row,{onConflict:'match_id'});
+          if(error)errors.push(item.filename+': '+error.message);
+          else uploaded.push(item.filename);
+        }catch(e){errors.push(item.filename+': '+e.message);}
+      }
+
+      btn.disabled=false;
+      btn.textContent='Upload to Supabase';
+
+      if(errors.length&&!uploaded.length){
+        showNotice('Upload failed:\n'+errors.join('\n'),'err');
+      }else if(errors.length){
+        showNotice(`${uploaded.length} uploaded, ${errors.length} failed:\n`+errors.join('\n'),'err');
+        queue=queue.filter(item=>uploaded.includes(item.filename)===false);
+        renderQueue();
+      }else{
+        const count=uploaded.length;
+        queue=[];
+        renderQueue();
+        showNotice(
+          count+' match'+(count===1?'':'es')+' uploaded successfully. '
+          +'They will appear on the scores page under recent matches. '
+          +'Uploading the same CSV again on the same date will safely overwrite, not duplicate.',
+          'ok'
+        );
+      }
+    }
+
+    function showNotice(msg,type){
+      const el=document.getElementById('notice');
+      el.textContent=msg;
+      el.className='notice '+type;
+    }
+    function hideNotice(){
+      document.getElementById('notice').style.display='none';
+    }
+  </script>
+</body>
+</html>

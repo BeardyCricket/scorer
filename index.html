@@ -842,7 +842,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <div class="overlay hidden" id="cloud-resume-modal">
   <div class="sheet" style="text-align:center;padding:32px 24px 48px">
     <div style="font-size:20px;font-weight:700;margin-bottom:8px">Resume from cloud?</div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:20px">An in-progress match was found saved to Supabase.</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:20px" id="cloud-resume-sub"></div>
     <div id="cloud-resume-list" style="text-align:left;margin-bottom:12px"></div>
     <button class="btn btn-secondary" onclick="discardCloudResume()" style="margin-top:6px">Dismiss</button>
   </div>
@@ -3195,8 +3195,8 @@ function renderEndScreen(res,soWinnerPairIdx){
 function buildCSV(){
   let csv='Pair,Player 1,Player 2,Batting,Bowling Bonus,Total\n';
   G.pairs.forEach((p,i)=>{csv+=`${p.cname},${p.players[0]||''},${p.players[1]||''},${G.scores[i].bat},${G.scores[i].bowl},${G.scores[i].bat+G.scores[i].bowl}\n`;});
-  csv+='\nBall by ball\nOver,Ball,Type,Dismissal,Batting Pair,Bowling Pair,Facing,Bowling,Runs\n';
-  G.history.forEach(b=>{const bn=G.pairs[b.batPair]?.cname||'';csv+=`${b.over+1},${b.ballNum+1},${b.type},${b.dismissal||''},${bn},${G.pairs[b.bowlPair]?.cname||''},${b.facing||''},${b.bowling||''},${b.run}\n`;});
+  csv+='\nBall by ball\nOver,Ball,Type,Dismissal,Batting Pair,Bowling Pair,Facing,Bowling,Runs,Code\n';
+  G.history.forEach(b=>{const bn=G.pairs[b.batPair]?.cname||'';csv+=`${b.over+1},${b.ballNum+1},${b.type},${b.dismissal||''},${bn},${G.pairs[b.bowlPair]?.cname||''},${b.facing||''},${b.bowling||''},${b.run},${b.code||''}\n`;});
   return csv;
 }
 function exportCSV(){
@@ -4004,13 +4004,20 @@ async function checkForCloudResume(){
       .limit(10);
     if(error||!data?.length)return;
     // In test mode show only beardy-test- matches; in normal mode exclude them
+    // Also exclude any match whose game_state shows all overs complete (stale in_progress status)
     const candidates=data.filter(r=>{
       const isTest=r.match_id.startsWith('beardy-test-');
-      return r.match_id!==localMatchId&&r.payload?.game_state&&(testMode?isTest:!isTest);
+      const gs=r.payload?.game_state;
+      const looksFinished=gs&&gs.totalOvers>0&&gs.overIdx>=gs.totalOvers;
+      return r.match_id!==localMatchId&&gs&&!looksFinished&&(testMode?isTest:!isTest);
     });
     if(!candidates.length)return;
+    const shown=candidates.slice(0,3);
+    document.getElementById('cloud-resume-sub').textContent=
+      shown.length===1?'An in-progress match was found saved to Supabase.'
+                      :`${shown.length} in-progress matches were found — pick the right one.`;
     const list=document.getElementById('cloud-resume-list');
-    list.innerHTML=candidates.map(m=>{
+    list.innerHTML=shown.map(m=>{
       const p=m.payload;
       const d=new Date(m.updated_at);
       const ts=d.toLocaleDateString()+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
