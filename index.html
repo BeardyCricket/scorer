@@ -220,6 +220,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .seed-btn{width:26px;height:26px;border-radius:6px;border:1px solid var(--border);background:var(--grey-l);font-size:11px;font-weight:700;cursor:pointer;color:var(--muted);padding:0;line-height:1}
 .seed-btn.sel-seed{border-color:var(--brand);background:var(--brand);color:#fff}
 .extras-btn.sel-extras{border-color:#d97706;background:#d97706;color:#fff}
+.seed-num-inp.seed-num-auto{border-color:var(--brand);background:#eff6ff}
+.seed-num-inp.seed-num-unranked{border-color:#f59e0b}
+.seed-num-inp.seed-num-unranked::placeholder{color:#f59e0b}
 .seed-num-inp{width:34px;height:26px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:700;text-align:center;padding:0 2px;background:var(--grey-l);color:var(--muted);}
 .seed-num-inp:focus{outline:2px solid var(--brand);outline-offset:-1px}
 .seed-num-inp.has-seed{background:var(--brand-l);border-color:var(--brand);color:var(--brand)}
@@ -893,6 +896,95 @@ const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 // ══════════════════════════════════════════
+// PLAYER STATS ENGINE — auto seed + extras
+// ══════════════════════════════════════════
+const NAME_CORRECTIONS={'Domi':'Dom','Jural':'Jarell','Nero':'Niro'};
+const correctName=n=>NAME_CORRECTIONS[n]||n;
+let _playerStatsCache=null;
+let _statsLoading=false;
+
+async function getPlayerStats(){
+  if(_playerStatsCache)return _playerStatsCache;
+  if(_statsLoading)return new Promise(res=>{const t=setInterval(()=>{if(!_statsLoading){clearInterval(t);res(_playerStatsCache||{});}},100);});
+  _statsLoading=true;
+  try{
+    const{data,error}=await supabaseClient.from('live_scores').select('payload').not('match_id','like','beardy-test-%');
+    const history=[];
+    (data||[]).forEach(row=>(row.payload?.history||[]).forEach(b=>{
+      if(!b)return;
+      history.push({...b,facing:b.facing?correctName(b.facing):b.facing,bowling:b.bowling?correctName(b.bowling):b.bowling});
+    }));
+    _playerStatsCache=_computePlayerStats(history);
+  }catch(e){console.warn('[Stats]',e);_playerStatsCache={};}
+  _statsLoading=false;
+  return _playerStatsCache;
+}
+
+function _computePlayerStats(history){
+  const BAT_TYPES=new Set(['normal','wkt','bye','lb','nb']);
+  const RUN_TYPES=new Set(['normal','wkt','nb']);
+  const raw={};
+  const ens=n=>{if(!raw[n])raw[n]={bb:0,br:0,lb:0,lr:0,wi:0,nbb:0,fb:{},bt:{}};};
+  history.forEach(b=>{
+    const btr=b.facing,bwr=b.bowling;
+    if(btr){ens(btr);if(BAT_TYPES.has(b.type)){raw[btr].bb++;if(bwr)raw[btr].fb[bwr]=(raw[btr].fb[bwr]||0)+1;}if(RUN_TYPES.has(b.type)&&b.run>0)raw[btr].br+=b.run;}
+    if(bwr){ens(bwr);raw[bwr].lb++;if(b.type!=='wkt'&&b.run>0)raw[bwr].lr+=b.run;if(b.type==='wide')raw[bwr].wi++;if(b.type==='nb')raw[bwr].nbb++;if(btr)raw[bwr].bt[btr]=(raw[bwr].bt[btr]||0)+1;}
+  });
+  const pl={};
+  Object.entries(raw).forEach(([name,r])=>{pl[name]={...r,raw_bat:r.bb>0?(r.br/r.bb)*100:0,raw_bowl:r.lb>0?(r.lr/r.lb)*100:0,extras_pct:r.lb>0?((r.wi+r.nbb)/r.lb)*100:0};});
+  const bats=Object.values(pl).filter(p=>p.bb>0),bowls=Object.values(pl).filter(p=>p.lb>0);
+  const lg_bat=bats.length?bats.reduce((s,p)=>s+p.raw_bat,0)/bats.length:50;
+  const lg_bowl=bowls.length?bowls.reduce((s,p)=>s+p.raw_bowl,0)/bowls.length:50;
+  Object.entries(pl).forEach(([name,p])=>{
+    let ws=0,wb=0;Object.entries(p.fb).forEach(([bn,b])=>{ws+=(pl[bn]?.raw_bowl??lg_bowl)*b;wb+=b;});p.opp_bowl=wb>0?ws/wb:lg_bowl;
+    ws=0;wb=0;Object.entries(p.bt).forEach(([bn,b])=>{ws+=(pl[bn]?.raw_bat??lg_bat)*b;wb+=b;});p.opp_bat=wb>0?ws/wb:lg_bat;
+    p.adj_bat=p.opp_bowl>0?p.raw_bat*(lg_bowl/p.opp_bowl):p.raw_bat;
+    p.adj_bowl=p.opp_bat>0?p.raw_bowl*(lg_bat/p.opp_bat):p.raw_bowl;
+    p.net=p.adj_bat-p.adj_bowl;
+  });
+  return pl;
+}
+
+function _applyRosterStats(stats){
+  if(!stats||!Object.keys(stats).length)return;
+  const active=rosterPlayers.filter(p=>(sessionStatuses[p.name]||'present')!=='absent');
+  const ranked=active.map(p=>({p,gi:rosterPlayers.indexOf(p),s:stats[correctName(p.name)]})).filter(x=>x.s?.bb>0).sort((a,b)=>b.s.net-a.s.net);
+  ranked.forEach(({p,gi},rank)=>{
+    if(!rosterPlayers[gi].seedNumLocked){rosterPlayers[gi].seedNum=rank+1;rosterPlayers[gi].seedNumAuto=true;}
+    const s=stats[correctName(p.name)];
+    if(!rosterPlayers[gi].extrasLocked&&s?.lb>0){rosterPlayers[gi].extras=s.extras_pct>=20;rosterPlayers[gi].extrasAuto=true;}
+  });
+  active.forEach(p=>{
+    const gi=rosterPlayers.indexOf(p);const s=stats[correctName(p.name)];
+    if((!s||!s.bb)&&!rosterPlayers[gi].seedNumLocked){rosterPlayers[gi].seedNum=null;rosterPlayers[gi].seedNumAuto=false;}
+  });
+}
+
+let playerSeedsManual={};
+let playerExtrasManual={};
+let _playerAutoName={};
+
+async function autoStatsForPlayer(idx,name){
+  name=(name||'').trim();if(!name)return;
+  const corrected=correctName(name);
+  if(_playerAutoName[idx]!==corrected){playerSeedsManual[idx]=false;playerExtrasManual[idx]=false;_playerAutoName[idx]=corrected;}
+  const stats=await getPlayerStats();
+  const ps=stats[corrected];if(!ps)return;
+  const row=document.getElementById('p'+idx)?.closest('.pi-row');if(!row)return;
+  if(!playerExtrasManual[idx]&&ps.lb>0){
+    playerExtras[idx]=ps.extras_pct>=20;
+    row.querySelector('.extras-btn')?.classList.toggle('sel-extras',!!playerExtras[idx]);
+  }
+  if(!playerSeedsManual[idx]&&ps.bb>0){
+    const seed=ps.net>0?1:ps.net<0?3:2;
+    playerSeeds[idx]=seed;
+    const seedBtns=[...row.querySelectorAll('.seed-btn')].filter(b=>!b.classList.contains('extras-btn'));
+    seedBtns.forEach(b=>b.classList.remove('sel-seed'));
+    seedBtns[seed-1]?.classList.add('sel-seed');
+  }
+}
+
+// ══════════════════════════════════════════
 // EXACT BOWLING SCHEDULES FROM EXCEL
 // Pair indices: 0=Purple,1=Blue,2=Grey,3=Red,4=Green,5=Orange,6=Pink
 // 'L' = current leaders, '2' = current 2nd place
@@ -1155,7 +1247,7 @@ function teamPairIdx(i){
 }
 
 function buildNames(n){
-  playerSeeds={};playerExtras={};
+  playerSeeds={};playerExtras={};playerSeedsManual={};playerExtrasManual={};_playerAutoName={};
   const c=document.getElementById('player-inputs');c.innerHTML='';
   if(G.teamMode){
     const taP=Math.floor(n/2);
@@ -1173,28 +1265,28 @@ function buildNames(n){
       }
       playerSeeds[i]=2;
       const pi=teamPairIdx(i),row=document.createElement('div');row.className='pi-row';
-      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
+      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}" onblur="autoStatsForPlayer(${i},this.value)"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
       c.appendChild(row);
     }
   } else {
     for(let i=0;i<n;i++){
       playerSeeds[i]=2;
       const pi=Math.floor(i/2),row=document.createElement('div');row.className='pi-row';
-      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
+      row.innerHTML=`<div class="pi-tag t-${COLORS[pi]}">${CNAMES[pi]}</div><div class="pi-dot d-${COLORS[pi]}"></div><input class="inp" style="flex:1" id="p${i}" type="text" placeholder="Player ${i+1}" value="${DEFAULTS[i]||''}" onblur="autoStatsForPlayer(${i},this.value)"><div class="seed-wrap"><button class="seed-btn" onclick="setSeed(${i},1,this)" title="Seed 1 — bat early">1</button><button class="seed-btn sel-seed" onclick="setSeed(${i},2,this)" title="Seed 2 — default">2</button><button class="seed-btn" onclick="setSeed(${i},3,this)" title="Seed 3 — bat later">3</button></div><button class="seed-btn extras-btn" onclick="toggleExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>`;
       c.appendChild(row);
     }
   }
 }
 
 function setSeed(playerIdx,seed,el){
-  playerSeeds[playerIdx]=seed;
+  playerSeeds[playerIdx]=seed;playerSeedsManual[playerIdx]=true;
   const row=el.closest('.pi-row');
   row.querySelectorAll('.seed-btn').forEach(b=>b.classList.remove('sel-seed'));
   el.classList.add('sel-seed');
 }
 
 function toggleExtras(playerIdx,el){
-  playerExtras[playerIdx]=!playerExtras[playerIdx];
+  playerExtras[playerIdx]=!playerExtras[playerIdx];playerExtrasManual[playerIdx]=true;
   el.classList.toggle('sel-extras',!!playerExtras[playerIdx]);
 }
 
@@ -3304,10 +3396,20 @@ function showRoster(){
 }
 
 function renderRoster(){
+  // Apply auto-stats synchronously if cache is ready
+  if(_playerStatsCache)_applyRosterStats(_playerStatsCache);
+
   const list=document.getElementById('roster-list');
   list.innerHTML='';
+
+  // Loading indicator
+  const statusEl=document.createElement('div');
+  statusEl.id='roster-stats-status';
+  if(_statsLoading){statusEl.style.cssText='font-size:11px;color:var(--muted);padding:4px 0 8px';statusEl.textContent='Calculating seeds from match history…';}
+  list.appendChild(statusEl);
+
   if(!rosterPlayers.length){
-    list.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No players yet — tap + Add to add your regular players.</div>';
+    list.innerHTML+='<div style="font-size:13px;color:var(--muted);padding:8px 0">No players yet — tap + Add to add your regular players.</div>';
   } else {
     // Column header
     const hdr=document.createElement('div');
@@ -3315,6 +3417,7 @@ function renderRoster(){
     hdr.innerHTML='<span style="flex:1;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Name</span>'
       +'<span style="width:88px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:center">Rank</span>'
       +'<span style="width:36px;font-size:10px;font-weight:700;color:var(--brand);text-transform:uppercase;letter-spacing:.04em;text-align:center" title="Seed number for seed mode (1=best)">Seed#</span>'
+      +'<span style="width:26px;font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:.04em;text-align:center" title="Extras flag">E</span>'
       +'<span style="width:72px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:center">Status</span>'
       +'<span style="width:28px"></span>';
     list.appendChild(hdr);
@@ -3324,15 +3427,19 @@ function renderRoster(){
       const sd=p.seed||2;
       const sn=p.seedNum||'';
       const ex=!!p.extras;
+      const hasHistory=!!(_playerStatsCache&&_playerStatsCache[correctName(p.name)]?.bb>0);
+      const snAuto=!!p.seedNumAuto&&!p.seedNumLocked;
+      const snClass=snAuto?'seed-num-auto':(!hasHistory&&_playerStatsCache?'seed-num-unranked':'');
+      const snPlaceholder=(!hasHistory&&_playerStatsCache)?'new':'—';
       row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
         <div class="seed-wrap">
           <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Rank 1 — bat early">1</button>
           <button class="seed-btn${sd===2?' sel-seed':''}" onclick="setRosterSeed(${i},2,this)" title="Rank 2 — default">2</button>
           <button class="seed-btn${sd===3?' sel-seed':''}" onclick="setRosterSeed(${i},3,this)" title="Rank 3 — bat later">3</button>
         </div>
-        <input class="seed-num-inp" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="—"
-          oninput="setRosterSeedNum(${i},this.value,this)" onblur="saveRoster()" title="Seed number for seed mode (1=best, blank=unseeded)">
-        <button class="seed-btn extras-btn${ex?' sel-extras':''}" onclick="setRosterExtras(${i},this)" title="Extras flag — avoid pairing with another extras player">E</button>
+        <input class="seed-num-inp${snClass?' '+snClass:''}" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="${snPlaceholder}"
+          oninput="setRosterSeedNum(${i},this.value,this)" onblur="saveRoster()" title="${snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)'}">
+        <button class="seed-btn extras-btn${ex?' sel-extras':''}" onclick="setRosterExtras(${i},this)" title="Extras flag — avoid pairing with another extras player${p.extrasAuto&&!p.extrasLocked?' (auto-calculated)':''}">E</button>
         <div class="status-chips">
           <div class="status-chip${st==='present'?' s-present':''}" onclick="setPlayerStatus(${i},'present')">✓</div>
           <div class="status-chip${st==='late'?' s-late':''}" onclick="setPlayerStatus(${i},'late')">⏰</div>
@@ -3344,6 +3451,14 @@ function renderRoster(){
     });
   }
   updateRosterToday();
+
+  // If stats not yet loaded, trigger async fetch then re-render
+  if(!_playerStatsCache&&!_statsLoading){
+    getPlayerStats().then(stats=>{
+      saveRoster();
+      renderRoster();
+    });
+  }
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -3369,6 +3484,8 @@ function setRosterSeed(i,seed,el){
 
 function setRosterExtras(i,el){
   rosterPlayers[i].extras=!rosterPlayers[i].extras;
+  rosterPlayers[i].extrasLocked=true;
+  rosterPlayers[i].extrasAuto=false;
   el.classList.toggle('sel-extras',!!rosterPlayers[i].extras);
   saveRoster();
 }
@@ -3376,6 +3493,8 @@ function setRosterExtras(i,el){
 function setRosterSeedNum(i,val,el){
   const n=parseInt(val);
   rosterPlayers[i].seedNum=(n>=1&&n<=10)?n:null;
+  rosterPlayers[i].seedNumLocked=!!rosterPlayers[i].seedNum;
+  rosterPlayers[i].seedNumAuto=false;
   if(el)el.classList.toggle('has-seed',!!rosterPlayers[i].seedNum);
 }
 
@@ -4157,6 +4276,7 @@ function showSnapModal(){
 // Check for a saved game when page first loads
 checkForSavedGame();
 checkForCloudResume(); // async — shows cloud resume modal if a different device left a match in progress
+getPlayerStats(); // pre-load stats in background so auto-seeding is ready when roster opens
 updateTestModeUI();
 
 // ══════════════════════════════════════════
