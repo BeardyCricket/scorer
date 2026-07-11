@@ -328,7 +328,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   </div>
   <div class="pad">
     <div class="card">
-      <div class="card-title">Registered players</div>
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">Registered players<button id="recalc-btn" style="font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--brand);font-weight:600" onclick="recalculateSeeds()">↻ Recalculate seeds</button></div>
       <div id="roster-list"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px">
         <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px" onclick="document.getElementById('roster-csv-inp').click()">↑ Import CSV</button>
@@ -3438,7 +3438,7 @@ function renderRoster(){
           <button class="seed-btn${sd===3?' sel-seed':''}" onclick="setRosterSeed(${i},3,this)" title="Rank 3 — bat later">3</button>
         </div>
         <input class="seed-num-inp${snClass?' '+snClass:''}" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="${snPlaceholder}"
-          oninput="setRosterSeedNum(${i},this.value,this)" onblur="saveRoster()" title="${snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)'}">
+          oninput="setRosterSeedNum(${i},this.value,this)" onblur="finalizeRosterSeedNum(${i})" title="${snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)'}">
         <button class="seed-btn extras-btn${ex?' sel-extras':''}" onclick="setRosterExtras(${i},this)" title="Extras flag — avoid pairing with another extras player${p.extrasAuto&&!p.extrasLocked?' (auto-calculated)':''}">E</button>
         <div class="status-chips">
           <div class="status-chip${st==='present'?' s-present':''}" onclick="setPlayerStatus(${i},'present')">✓</div>
@@ -3496,6 +3496,34 @@ function setRosterSeedNum(i,val,el){
   rosterPlayers[i].seedNumLocked=!!rosterPlayers[i].seedNum;
   rosterPlayers[i].seedNumAuto=false;
   if(el)el.classList.toggle('has-seed',!!rosterPlayers[i].seedNum);
+}
+
+function finalizeRosterSeedNum(i){
+  const newSeed=rosterPlayers[i].seedNum;
+  if(newSeed){
+    // Push everyone else at the same rank or lower (higher number) down by 1
+    rosterPlayers.forEach((p,j)=>{
+      if(j!==i&&p.seedNum!=null&&p.seedNum>=newSeed){
+        p.seedNum=Math.min(p.seedNum+1,10);
+      }
+    });
+  }
+  saveRoster();
+  renderRoster();
+}
+
+async function recalculateSeeds(){
+  const btn=document.getElementById('recalc-btn');
+  if(btn){btn.textContent='↻ Calculating…';btn.disabled=true;}
+  _playerStatsCache=null;
+  _statsLoading=false;
+  // Briefly show loading state in the status element
+  const statusEl=document.getElementById('roster-stats-status');
+  if(statusEl){statusEl.style.cssText='font-size:11px;color:var(--muted);padding:4px 0 8px';statusEl.textContent='Recalculating seeds from match history…';}
+  await getPlayerStats();
+  saveRoster();
+  renderRoster();
+  if(btn){btn.textContent='↻ Recalculate seeds';btn.disabled=false;}
 }
 
 function rToggleSeedMode(on){
