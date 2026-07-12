@@ -153,6 +153,19 @@ canvas{display:block;width:100%}
 
 <div id="screen-loading">Loading…</div>
 
+<!-- Set password screen (shown after clicking invite link) -->
+<div id="screen-setpw" class="hidden" style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px">
+  <div class="login-card">
+    <div class="login-logo">BC</div>
+    <div class="login-title">Set your password</div>
+    <div class="login-sub">Choose a password to access your stats</div>
+    <input class="login-inp" id="setpw-pw" type="password" placeholder="New password" autocomplete="new-password">
+    <input class="login-inp" id="setpw-pw2" type="password" placeholder="Confirm password" autocomplete="new-password">
+    <button class="login-btn" id="setpw-btn" onclick="doSetPassword()">Set password &amp; continue</button>
+    <div class="login-err" id="setpw-err"></div>
+  </div>
+</div>
+
 <div id="screen-login" class="hidden">
   <div class="login-card">
     <div class="login-logo">BC</div>
@@ -202,13 +215,13 @@ canvas{display:block;width:100%}
   <div class="pad">
     <!-- OVERVIEW -->
     <div id="tab-overview">
-      <div class="card" style="text-align:center;padding:24px 16px">
-        <div class="stat-big" id="net-score">—</div>
-        <div class="stat-sub">Net contribution score · 100 = average player</div>
+      <div class="card" style="background:#fffbeb;border-color:#fde68a">
+        <div style="font-size:12px;color:#92400e;font-weight:600">Stats available from May 2026 onwards — earlier matches are not included.</div>
       </div>
       <div class="card">
         <div class="card-title">Match summary</div>
-        <div class="mini-row">
+        <div class="mini-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="mini-cell"><div class="mini-val" id="matches-played">—</div><div class="mini-lbl">Played</div></div>
           <div class="mini-cell"><div class="mini-val" id="win-pct">—</div><div class="mini-lbl">Win %</div></div>
           <div class="mini-cell"><div class="mini-val" id="p2-pct">—</div><div class="mini-lbl">2nd %</div></div>
           <div class="mini-cell"><div class="mini-val" id="p3-pct">—</div><div class="mini-lbl">3rd %</div></div>
@@ -216,7 +229,12 @@ canvas{display:block;width:100%}
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Season trajectory</div>
+        <div class="card-title">Ranking score</div>
+        <div style="text-align:center;padding:8px 0 14px">
+          <div class="stat-big" id="net-score">—</div>
+          <div class="stat-sub">100+ = above average</div>
+        </div>
+        <div class="card-title" style="margin-top:4px">Score trajectory</div>
         <canvas id="chart-trajectory" height="150"></canvas>
       </div>
       <div class="card">
@@ -228,24 +246,24 @@ canvas{display:block;width:100%}
     <!-- BATTING -->
     <div id="tab-batting" class="hidden">
       <div class="card">
-        <div class="card-title">Batting</div>
+        <div class="card-title">Individual Batting Stats</div>
         <div class="stats-grid" id="bat-grid"></div>
       </div>
       <div class="card">
         <div class="card-title">vs all-player average</div>
         <div id="bat-cmp"></div>
       </div>
-      <div class="card">
-        <div class="card-title">Runs per match <span style="font-size:9px;font-weight:400;color:var(--muted)">green=0wkt amber=1wkt red=2+</span></div>
-        <canvas id="chart-bat-match" height="150"></canvas>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Runs per match <span style="font-size:9px;font-weight:400;color:var(--muted)">green=0wkt amber=1wkt red=2+</span></div>
+        <canvas id="chart-bat-match" height="170"></canvas>
       </div>
-      <div class="card">
-        <div class="card-title">Scoring breakdown <span style="font-size:9px;font-weight:400;color:var(--muted)">% of balls faced</span></div>
-        <canvas id="chart-scoring" height="160"></canvas>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Scoring breakdown <span style="font-size:9px;font-weight:400;color:var(--muted)">% of balls faced</span></div>
+        <canvas id="chart-scoring" height="180"></canvas>
       </div>
-      <div class="card">
-        <div class="card-title">Strike rate by over</div>
-        <canvas id="chart-sr-over" height="160"></canvas>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Strike rate by over</div>
+        <canvas id="chart-sr-over" height="180"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Head-to-head vs bowlers <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
@@ -275,10 +293,17 @@ canvas{display:block;width:100%}
 
     <!-- WIN ZONES -->
     <div id="tab-winzones" class="hidden">
+      <div class="card" style="background:#f0f9ff;border-color:#bae6fd">
+        <div class="card-title" style="color:#0369a1">What are Win Zones?</div>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of innings tends to win matches — and how often you play that way. Every innings is placed in one of 9 zones based on two things: how many wickets your pair lost, and how many boundaries (4s and 6s) you hit.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> Each cell shows three numbers — the large coloured percentage is the overall win rate for all pairs who ever landed in that zone. Below it is the total number of pair innings in that zone, and in bold is how many of those were yours.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:6px"><b>Colours:</b> <span style="color:#1D9E75;font-weight:600">Green = 40%+ win rate</span> · <span style="color:#BA7517;font-weight:600">Amber = 15–39%</span> · <span style="color:#E24B4A;font-weight:600">Red = under 15%</span></p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65">Use it to understand what style of innings gives you the best chance of winning — and whether your natural game puts you in the high-win zones.</p>
+      </div>
       <div class="card">
-        <div class="card-title">Win zones — overall win rate / pairs / <b style="color:var(--navy)">your innings</b></div>
+        <div class="card-title">Win zones — win rate / total pairs / <b style="color:var(--navy)">your innings</b></div>
         <div style="overflow-x:auto"><table class="wz-table" id="wz-table"></table></div>
-        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries (4s + 6s)</div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s)</div>
       </div>
       <div class="card">
         <div class="card-title">Insights</div>
@@ -311,7 +336,7 @@ let customFrom=null,customTo=null;
 
 // ── Screen helpers ────────────────────────────────────────
 function show(id){
-  ['screen-loading','screen-login','screen-stats'].forEach(s=>{
+  ['screen-loading','screen-login','screen-setpw','screen-stats'].forEach(s=>{
     document.getElementById(s).classList.toggle('hidden',s!==id);
   });
 }
@@ -320,10 +345,42 @@ function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 // ── Auth ─────────────────────────────────────────────────
 async function init(){
   try{
-    const{data:{session}}=await db.auth.getSession();
+    // Supabase puts the session tokens in the URL hash after an invite/reset link
+    const{data,error}=await db.auth.getSession();
+    const session=data?.session;
+    const hash=new URLSearchParams(window.location.hash.slice(1));
+    const tokenType=hash.get('type');
+
+    if((tokenType==='invite'||tokenType==='recovery')&&session){
+      // User arrived via invite or password-reset link — make them set a password
+      show('screen-setpw');
+      return;
+    }
     if(session) await loadPlayer(session.user.email);
     else show('screen-login');
   }catch(e){show('screen-login');}
+}
+
+async function doSetPassword(){
+  const pw=document.getElementById('setpw-pw').value;
+  const pw2=document.getElementById('setpw-pw2').value;
+  const errEl=document.getElementById('setpw-err');
+  const btn=document.getElementById('setpw-btn');
+  errEl.textContent='';
+  if(pw.length<8){errEl.textContent='Password must be at least 8 characters.';return;}
+  if(pw!==pw2){errEl.textContent='Passwords do not match.';return;}
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    const{error}=await db.auth.updateUser({password:pw});
+    if(error)throw error;
+    // Clean the hash from the URL so refresh doesn't re-trigger this screen
+    history.replaceState(null,'',window.location.pathname);
+    const{data:{user}}=await db.auth.getUser();
+    await loadPlayer(user.email);
+  }catch(e){
+    errEl.textContent=e.message||'Could not set password. Try again.';
+    btn.disabled=false;btn.textContent='Set password & continue';
+  }
 }
 
 async function doLogin(){
@@ -554,6 +611,7 @@ function renderOverview(pn,pl,ms,flat){
     if(pp)totalRuns+=pp.runs;
   }
   const nm=playerMs.length||1;
+  document.getElementById('matches-played').textContent=playerMs.length;
   document.getElementById('win-pct').textContent=fPct(wins/nm*100);
   document.getElementById('p2-pct').textContent=fPct(p2/nm*100);
   document.getElementById('p3-pct').textContent=fPct(p3/nm*100);
@@ -701,7 +759,6 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat){
   document.getElementById('bat-cmp').innerHTML=`
     <div class="cmp-row"><span class="cmp-lbl">Dismissals per match</span><span class="cmp-me ${myDpm>lgDpm?'flag-red':'flag-green'}">${f1(myDpm)}</span><span class="cmp-avg">avg ${f1(lgDpm)}</span></div>
     <div class="cmp-row"><span class="cmp-lbl">Strike rate</span><span class="cmp-me ${(ps?.raw_bat||0)>=avgSR?'flag-green':'flag-red'}">${f1(ps?.raw_bat)}</span><span class="cmp-avg">avg ${f1(avgSR)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Adj bat score</span><span class="cmp-me">${f1(ps?.adj_bat)}</span><span class="cmp-avg">avg ${f1(lg_bat)}</span></div>
   `;
 
   drawBatMatchBars(pn,flat,ms);
@@ -828,7 +885,6 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat){
     <div class="cmp-row"><span class="cmp-lbl">Economy rate</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">avg ${f1(avgEco)}</span></div>
     <div class="cmp-row"><span class="cmp-lbl">Extras % ${extrasFlag?'⚠️':''}</span><span class="cmp-me ${extrasFlag?'flag-red':''}">${fPct(ps?.extras_pct)}</span><span class="cmp-avg">avg ${fPct(avgExtras)}</span></div>
     <div class="cmp-row"><span class="cmp-lbl">Dot ball %</span><span class="cmp-me ${(ps?.dot_pct||0)>=avgDot?'flag-green':'flag-red'}">${fPct(ps?.dot_pct)}</span><span class="cmp-avg">avg ${fPct(avgDot)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Adj bowl score</span><span class="cmp-me">${f1(ps?.adj_bowl)}</span><span class="cmp-avg">avg ${f1(lg_bowl)}</span></div>
   `;
 
   drawEcoByMatch(pn,flat,avgEco);
@@ -975,7 +1031,7 @@ function shortDate(d){
 function drawSimpleBars(canvas,bars,opts={}){
   const ctx=canvas.getContext('2d');
   const H=opts.height||150;
-  const W=Math.max(canvas.parentElement.clientWidth-32,100);
+  const W=Math.max(canvas.parentElement.clientWidth-16,100);
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.scale(2,2);
 
@@ -1028,7 +1084,7 @@ function drawSimpleBars(canvas,bars,opts={}){
 function drawGroupedBars(canvas,groups,seriesValues,colors,seriesLabels,opts={}){
   const ctx=canvas.getContext('2d');
   const H=opts.height||160;
-  const W=Math.max(canvas.parentElement.clientWidth-32,100);
+  const W=Math.max(canvas.parentElement.clientWidth-16,100);
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.scale(2,2);
 
