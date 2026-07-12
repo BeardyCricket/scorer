@@ -132,9 +132,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .wz-table{border-collapse:collapse;width:100%;font-size:12px}
 .wz-th{background:var(--bg);font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;padding:6px 4px;border:1px solid var(--border);text-align:center}
 .wz-td{border:1px solid var(--border);padding:8px 4px;text-align:center;vertical-align:middle}
+.wz-td.wz-won{background:#f0fdf4;border-color:#86efac}
 .wz-pct{font-size:18px;font-weight:800}
 .wz-total{font-size:10px;color:var(--muted);margin-top:1px}
 .wz-player{font-size:11px;font-weight:700;color:var(--navy);margin-top:1px}
+.wz-player-win{font-size:11px;font-weight:700;color:var(--green);margin-top:1px}
 .wz-green{color:var(--green)}.wz-amber{color:var(--amber)}.wz-red{color:var(--red)}
 
 /* Insights */
@@ -220,12 +222,16 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Match summary</div>
-        <div class="mini-row" style="grid-template-columns:repeat(5,1fr)">
+        <div class="mini-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">
           <div class="mini-cell"><div class="mini-val" id="matches-played">—</div><div class="mini-lbl">Played</div></div>
           <div class="mini-cell"><div class="mini-val" id="win-pct">—</div><div class="mini-lbl">Win %</div></div>
           <div class="mini-cell"><div class="mini-val" id="p2-pct">—</div><div class="mini-lbl">2nd %</div></div>
           <div class="mini-cell"><div class="mini-val" id="p3-pct">—</div><div class="mini-lbl">3rd %</div></div>
-          <div class="mini-cell"><div class="mini-val" id="avg-score">—</div><div class="mini-lbl">Avg score</div></div>
+        </div>
+        <div class="mini-row" style="grid-template-columns:repeat(3,1fr)">
+          <div class="mini-cell"><div class="mini-val" id="avg-score">—</div><div class="mini-lbl">Avg partnership</div></div>
+          <div class="mini-cell"><div class="mini-val" id="all-avg-score">—</div><div class="mini-lbl">All players avg</div></div>
+          <div class="mini-cell"><div class="mini-val" id="win-avg-score">—</div><div class="mini-lbl">Avg winner</div></div>
         </div>
       </div>
       <div class="card">
@@ -295,15 +301,15 @@ canvas{display:block;width:100%}
     <div id="tab-winzones" class="hidden">
       <div class="card" style="background:#f0f9ff;border-color:#bae6fd">
         <div class="card-title" style="color:#0369a1">What are Win Zones?</div>
-        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of innings tends to win matches — and how often you play that way. Every innings is placed in one of 9 zones based on two things: how many wickets your pair lost, and how many boundaries (4s and 6s) you hit.</p>
-        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> Each cell shows three numbers — the large coloured percentage is the overall win rate for all pairs who ever landed in that zone. Below it is the total number of pair innings in that zone, and in bold is how many of those were yours.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of <b>pair innings</b> tends to win matches — and how often your pair plays that way. Every pair innings (you + your partner for that match) is placed in one of 9 zones based on two things: how many wickets your pair lost, and how many boundaries (4s and 6s) your pair hit.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> The large coloured percentage is the overall win rate for all pairs who landed in that zone. Below it is the total number of pair innings across all players. "Your pair" shows how many of your pair innings fell there — green background means your pair won at least once from that zone 🏆.</p>
         <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:6px"><b>Colours:</b> <span style="color:#1D9E75;font-weight:600">Green = 40%+ win rate</span> · <span style="color:#BA7517;font-weight:600">Amber = 15–39%</span> · <span style="color:#E24B4A;font-weight:600">Red = under 15%</span></p>
         <p style="font-size:13px;color:#1A2744;line-height:1.65">Use it to understand what style of innings gives you the best chance of winning — and whether your natural game puts you in the high-win zones.</p>
       </div>
       <div class="card">
-        <div class="card-title">Win zones — win rate / total pairs / <b style="color:var(--navy)">your innings</b></div>
+        <div class="card-title">Win zones — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
         <div style="overflow-x:auto"><table class="wz-table" id="wz-table"></table></div>
-        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s)</div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets your pair lost · Columns = boundaries your pair hit (4s + 6s) · Green background = your pair won there 🏆</div>
       </div>
       <div class="card">
         <div class="card-title">Insights</div>
@@ -617,6 +623,18 @@ function renderOverview(pn,pl,ms,flat){
   document.getElementById('p3-pct').textContent=fPct(p3/nm*100);
   document.getElementById('avg-score').textContent=f0(totalRuns/nm);
 
+  // All players avg partnership + avg winning partnership
+  let allPairRuns=0,allPairCount=0,winPairRuns=0,winPairCount=0;
+  for(const m of filteredMatches){
+    const s=ms[m.matchId];if(!s)continue;
+    for(const pair of s.sorted){
+      allPairRuns+=pair.runs;allPairCount++;
+    }
+    if(s.sorted.length>0){winPairRuns+=s.sorted[0].runs;winPairCount++;}
+  }
+  document.getElementById('all-avg-score').textContent=allPairCount?f0(allPairRuns/allPairCount):'—';
+  document.getElementById('win-avg-score').textContent=winPairCount?f0(winPairRuns/winPairCount):'—';
+
   // Trajectory
   drawTrajectory(pn);
 
@@ -649,7 +667,7 @@ function renderOverview(pn,pl,ms,flat){
 function drawTrajectory(pn){
   const canvas=document.getElementById('chart-trajectory');
   const ctx=canvas.getContext('2d');
-  const W=Math.max(canvas.parentElement.clientWidth-32,200);
+  const W=Math.max(canvas.parentElement.clientWidth-32,window.innerWidth-48,100);
   const H=150;
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.scale(2,2);
@@ -757,8 +775,8 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat){
   `;
 
   document.getElementById('bat-cmp').innerHTML=`
-    <div class="cmp-row"><span class="cmp-lbl">Dismissals per match</span><span class="cmp-me ${myDpm>lgDpm?'flag-red':'flag-green'}">${f1(myDpm)}</span><span class="cmp-avg">avg ${f1(lgDpm)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Strike rate</span><span class="cmp-me ${(ps?.raw_bat||0)>=avgSR?'flag-green':'flag-red'}">${f1(ps?.raw_bat)}</span><span class="cmp-avg">avg ${f1(avgSR)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Dismissals per match</span><span class="cmp-me ${myDpm>lgDpm?'flag-red':'flag-green'}">${f1(myDpm)}</span><span class="cmp-avg">all players avg: ${f1(lgDpm)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Strike rate</span><span class="cmp-me ${(ps?.raw_bat||0)>=avgSR?'flag-green':'flag-red'}">${f1(ps?.raw_bat)}</span><span class="cmp-avg">all players avg: ${f1(avgSR)}</span></div>
   `;
 
   drawBatMatchBars(pn,flat,ms);
@@ -882,9 +900,9 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat){
 
   const extrasFlag=ps&&ps.extras_pct>=20;
   document.getElementById('bowl-cmp').innerHTML=`
-    <div class="cmp-row"><span class="cmp-lbl">Economy rate</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">avg ${f1(avgEco)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Extras % ${extrasFlag?'⚠️':''}</span><span class="cmp-me ${extrasFlag?'flag-red':''}">${fPct(ps?.extras_pct)}</span><span class="cmp-avg">avg ${fPct(avgExtras)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Dot ball %</span><span class="cmp-me ${(ps?.dot_pct||0)>=avgDot?'flag-green':'flag-red'}">${fPct(ps?.dot_pct)}</span><span class="cmp-avg">avg ${fPct(avgDot)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Economy rate</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">all players avg: ${f1(avgEco)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Extras % ${extrasFlag?'⚠️':''}</span><span class="cmp-me ${extrasFlag?'flag-red':''}">${fPct(ps?.extras_pct)}</span><span class="cmp-avg">all players avg: ${fPct(avgExtras)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Dot ball %</span><span class="cmp-me ${(ps?.dot_pct||0)>=avgDot?'flag-green':'flag-red'}">${fPct(ps?.dot_pct)}</span><span class="cmp-avg">all players avg: ${fPct(avgDot)}</span></div>
   `;
 
   drawEcoByMatch(pn,flat,avgEco);
@@ -903,7 +921,7 @@ function drawEcoByMatch(pn,flat,avgEco){
   });
   const dArr=Object.values(byMatch).sort((a,b)=>a.date-b.date);
   if(!dArr.length){
-    const W=canvas.parentElement.clientWidth-32;
+    const W=Math.max(canvas.parentElement.clientWidth-32,window.innerWidth-48,100);
     canvas.width=W*2;canvas.height=300;canvas.style.width=W+'px';canvas.style.height='150px';
     const ctx=canvas.getContext('2d');ctx.scale(2,2);
     ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
@@ -942,8 +960,8 @@ function renderH2HBatters(pn,ps,pl,flat){
 
 // ── Win zones ──────────────────────────────────────────────
 function renderWinZones(pn,ms,flat){
-  // cell[wktRow][bndCol]: {total, wins, playerCount}
-  const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0})));
+  // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
+  const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0,playerWins:0})));
   const wktRow=w=>w>=2?2:w;
   const bndCol=b=>b>=5?2:b>=3?1:0;
 
@@ -954,8 +972,12 @@ function renderWinZones(pn,ms,flat){
       const r=wktRow(pair.wkts);
       const c=bndCol(pair.bnds);
       grid[r][c].total++;
-      if(winner&&pair.idx===winner.idx)grid[r][c].wins++;
-      if(pair.players.includes(pn))grid[r][c].player++;
+      const isWin=winner&&pair.idx===winner.idx;
+      if(isWin)grid[r][c].wins++;
+      if(pair.players.includes(pn)){
+        grid[r][c].player++;
+        if(isWin)grid[r][c].playerWins++;
+      }
     }
   }
 
@@ -972,10 +994,18 @@ function renderWinZones(pn,ms,flat){
       const cell=grid[r][c];
       const pct=cell.total?cell.wins/cell.total*100:null;
       const cls=pct==null?'':pct>=40?'wz-green':pct>=15?'wz-amber':'wz-red';
-      html+=`<td class="wz-td">
+      const wonCls=cell.playerWins>0?' wz-won':'';
+      let playerLine='';
+      if(cell.player){
+        const winStr=cell.playerWins>0?`, won ${cell.playerWins}`:'';
+        playerLine=cell.playerWins>0
+          ?`<div class="wz-player-win">Your pair: ${cell.player}${winStr} 🏆</div>`
+          :`<div class="wz-player">Your pair: ${cell.player}</div>`;
+      }
+      html+=`<td class="wz-td${wonCls}">
         <div class="wz-pct ${cls}">${pct!=null?Math.round(pct)+'%':'—'}</div>
         <div class="wz-total">${cell.total} pair${cell.total!==1?'s':''}</div>
-        ${cell.player?`<div class="wz-player">You: ${cell.player}</div>`:''}
+        ${playerLine}
       </td>`;
     }
     html+='</tr>';
@@ -1031,7 +1061,7 @@ function shortDate(d){
 function drawSimpleBars(canvas,bars,opts={}){
   const ctx=canvas.getContext('2d');
   const H=opts.height||150;
-  const W=Math.max(canvas.parentElement.clientWidth-16,100);
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.scale(2,2);
 
@@ -1084,7 +1114,7 @@ function drawSimpleBars(canvas,bars,opts={}){
 function drawGroupedBars(canvas,groups,seriesValues,colors,seriesLabels,opts={}){
   const ctx=canvas.getContext('2d');
   const H=opts.height||160;
-  const W=Math.max(canvas.parentElement.clientWidth-16,100);
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
   ctx.scale(2,2);
 
