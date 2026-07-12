@@ -206,6 +206,7 @@ canvas{display:block;width:100%}
     <input class="date-inp" type="date" id="date-to">
     <button class="apply-btn" onclick="applyCustom()">Go</button>
   </div>
+  <div id="custom-msg" style="display:none;padding:4px 12px 0;font-size:11px;color:var(--red)"></div>
 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="showTab('overview',this)">Overview</button>
@@ -467,11 +468,18 @@ function setPeriod(period,btn){
 function applyCustom(){
   const f=document.getElementById('date-from').value;
   const t=document.getElementById('date-to').value;
-  if(f&&t){
-    customFrom=new Date(f+'T00:00:00');
-    customTo=new Date(t+'T23:59:59');
-    applyFilter();renderAll();
+  const msgEl=document.getElementById('custom-msg');
+  if(!f&&!t){msgEl.textContent='Enter a start and/or end date.';msgEl.style.display='block';return;}
+  customFrom=f?new Date(f+'T00:00:00'):null;
+  customTo=t?new Date(t+'T23:59:59'):null;
+  applyFilter();
+  if(!filteredMatches.length){
+    msgEl.textContent='No matches found in that date range.';msgEl.style.display='block';
+  }else{
+    msgEl.textContent=`${filteredMatches.length} match${filteredMatches.length!==1?'es':''} found.`;
+    msgEl.style.color='var(--green)';msgEl.style.display='block';
   }
+  renderAll();
 }
 
 function applyFilter(){
@@ -780,7 +788,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat){
   `;
 
   drawBatMatchBars(pn,flat,ms);
-  drawScoringBreakdown(pn,pl,flat);
+  drawScoringBreakdown(pn,pl,ms,flat);
   drawSRByOver(pn,pl,ms,flat);
   renderH2HBowlers(pn,ps,pl);
 }
@@ -807,49 +815,74 @@ function drawBatMatchBars(pn,flat,ms){
   })),{height:150});
 }
 
-function drawScoringBreakdown(pn,pl,flat){
+function drawScoringBreakdown(pn,pl,ms,flat){
   const canvas=document.getElementById('chart-scoring');
   const cats=[0,1,2,3,4,6];
   const catLabels=['Dot','1','2','3','Four','Six'];
 
+  const winnerKeys=new Set();
+  for(const m of filteredMatches){
+    const s=ms[m.matchId];if(!s||!s.sorted.length)continue;
+    winnerKeys.add(m.matchId+'_'+s.sorted[0].idx);
+  }
+
   const countCat=(balls)=>{
     const total=balls.filter(b=>BAT_TYPES.has(b.type)).length;
-    if(!total)return cats.map(()=>0);
+    if(!total)return cats.map(()=>null);
     return cats.map(r=>balls.filter(b=>BAT_TYPES.has(b.type)&&b.run===r).length/total*100);
   };
 
   const pBalls=flat.filter(b=>b.facing===pn);
   const allBalls=flat.filter(b=>b.facing);
+  const winBalls=flat.filter(b=>b.facing&&winnerKeys.has(b.matchId+'_'+b.batPair));
   const playerPcts=countCat(pBalls);
   const allPcts=countCat(allBalls);
+  const winPcts=countCat(winBalls);
 
-  drawGroupedBars(canvas,catLabels,[playerPcts,allPcts],['#7F77DD','#C0C5D8'],['You','All'],{height:160,yMax:null,yLabel:'%'});
+  drawGroupedBars(canvas,catLabels,[playerPcts,allPcts,winPcts],['#7F77DD','#C0C5D8','#1D9E75'],['You','All','Winners'],{height:180,yMax:null,yLabel:'%',showLabels:true,labelFmt:v=>Math.round(v)+'%'});
 }
 
 function drawSRByOver(pn,pl,ms,flat){
   const canvas=document.getElementById('chart-sr-over');
-  // Identify winner pair-innings
   const winnerKeys=new Set();
   for(const m of filteredMatches){
     const s=ms[m.matchId];if(!s||!s.sorted.length)continue;
-    const w=s.sorted[0];
-    winnerKeys.add(m.matchId+'_'+w.idx);
+    winnerKeys.add(m.matchId+'_'+s.sorted[0].idx);
   }
 
-  const overSR=(filterFn)=>{
-    return [0,1,2,3].map(ov=>{
-      const balls=flat.filter(b=>b.over===ov&&BAT_TYPES.has(b.type)&&filterFn(b));
-      const runs=balls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+b.run,0);
-      return balls.length?runs/balls.length*100:null;
-    });
-  };
+  // Relative over: overs are global per match; we need each player/pair's 1st over as baseline
+  const minOvPlayer={};
+  flat.filter(b=>b.facing).forEach(b=>{
+    const k=b.facing+'|'+b.matchId;
+    if(minOvPlayer[k]==null||b.over<minOvPlayer[k])minOvPlayer[k]=b.over;
+  });
+  const minOvPair={};
+  flat.filter(b=>b.batPair!=null).forEach(b=>{
+    const k=b.matchId+'|'+b.batPair;
+    if(minOvPair[k]==null||b.over<minOvPair[k])minOvPair[k]=b.over;
+  });
 
-  const playerSR=overSR(b=>b.facing===pn);
-  const allSR=overSR(b=>!!b.facing);
-  const winSR=overSR(b=>winnerKeys.has(b.matchId+'_'+b.batPair));
+  const ovSR=(filterFn,getRelOv)=>[0,1,2,3].map(ro=>{
+    const balls=flat.filter(b=>BAT_TYPES.has(b.type)&&filterFn(b)&&getRelOv(b)===ro);
+    const runs=balls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+b.run,0);
+    return balls.length?runs/balls.length*100:null;
+  });
+
+  const playerSR=ovSR(
+    b=>b.facing===pn,
+    b=>{const m=minOvPlayer[b.facing+'|'+b.matchId];return m!=null?b.over-m:null;}
+  );
+  const allSR=ovSR(
+    b=>!!b.facing,
+    b=>{const m=minOvPlayer[b.facing+'|'+b.matchId];return m!=null?b.over-m:null;}
+  );
+  const winSR=ovSR(
+    b=>winnerKeys.has(b.matchId+'_'+b.batPair),
+    b=>{const m=minOvPair[b.matchId+'|'+b.batPair];return m!=null?b.over-m:null;}
+  );
 
   const labels=['Over 1','Over 2','Over 3','Over 4'];
-  drawGroupedBars(canvas,labels,[playerSR,allSR,winSR],['#7F77DD','#C0C5D8','#1D9E75'],['You','All','Winners'],{height:160,yLabel:'SR'});
+  drawGroupedBars(canvas,labels,[playerSR,allSR,winSR],['#7F77DD','#C0C5D8','#1D9E75'],['You','All','Winners'],{height:170,yLabel:'SR',showLabels:true,labelFmt:v=>Math.round(v)});
 }
 
 function renderH2HBowlers(pn,ps,pl){
@@ -1126,21 +1159,26 @@ function drawGroupedBars(canvas,groups,seriesValues,colors,seriesLabels,opts={})
     ctx.fillText('No data',W/2,H/2);return;
   }
 
+  const showLabels=opts.showLabels||false;
+  const labelFmt=opts.labelFmt||(v=>Math.round(v));
   const maxV=opts.yMax||Math.max(...allVals)*1.15||100;
   const legH=16;
-  const pad={t:12,r:6,b:24,l:6};
+  const pad={t:showLabels?22:12,r:6,b:24,l:6};
   const cw=W-pad.l-pad.r;
   const ch=H-pad.t-pad.b-legH;
   const groupW=cw/nG;
   const gap=2;
   const bW=Math.max(4,Math.min(22,(groupW-gap*(nS+1))/nS));
+  // Center bar cluster within each group cell
+  const clusterW=nS*bW+(nS+1)*gap;
+  const clusterOff=Math.max(0,(groupW-clusterW)/2);
 
   seriesValues.forEach((vals,si)=>{
     vals.forEach((v,gi)=>{
       if(v==null||isNaN(v))return;
       const gx=pad.l+gi*groupW;
       const bH=ch*(v/maxV);
-      const x=gx+gap*(si+1)+bW*si;
+      const x=gx+clusterOff+gap*(si+1)+bW*si;
       const y=pad.t+ch-bH;
       ctx.fillStyle=colors[si]||'#888';
       const r2=Math.min(2,bW/2);
@@ -1151,6 +1189,10 @@ function drawGroupedBars(canvas,groups,seriesValues,colors,seriesLabels,opts={})
         ctx.lineTo(x+bW,y+bH);ctx.lineTo(x,y+bH);
         ctx.arcTo(x,y,x+r2,y,r2);
         ctx.closePath();ctx.fill();
+      }
+      if(showLabels&&v>0){
+        ctx.fillStyle='#1A2744';ctx.font='8px -apple-system,sans-serif';ctx.textAlign='center';
+        ctx.fillText(labelFmt(v),x+bW/2,Math.max(y-2,pad.t-1));
       }
     });
   });
