@@ -131,6 +131,12 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       </ol>
       <div class="card-title" style="color:#991b1b;margin-top:14px">How to revoke access</div>
       <p style="font-size:13px;color:#1A2744;line-height:1.6">Click <b>Revoke</b> next to a player below. They will be blocked immediately on their next login attempt. Their Supabase account still exists but the stats page won't let them in.</p>
+      <div class="card-title" style="color:#92400e;margin-top:14px">How to change a player's email</div>
+      <ol style="padding-left:18px;font-size:13px;color:#1A2744;line-height:1.9">
+        <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/editor" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Table Editor → player_access</a> — click their row and update the email</li>
+        <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Authentication → Users</a> — delete their old account, then Add user → Create new user with the new email</li>
+        <li>Share the new login details with the player</li>
+      </ol>
     </div>
 
     <!-- Add player -->
