@@ -584,17 +584,27 @@ function matchSummaries(matches){
       idx:+pi,players:[...pPl[pi]],runs:pR[pi],wkts:pW[pi],bnds:pB[pi]
     }));
     const sorted=[...pairs].sort((a,b)=>b.runs-a.runs||b.bnds-a.bnds);
-    // Super over result overrides run-based ranking
+    let soWinnerIdx=null;
     if(m.soWinner&&m.pairColors?.length){
-      const soIdx=m.pairColors.indexOf(m.soWinner);
-      if(soIdx>=0){
-        const wi=sorted.findIndex(p=>p.idx===soIdx);
-        if(wi>0){const tmp=sorted[0];sorted[0]=sorted[wi];sorted[wi]=tmp;}
-      }
+      const si=m.pairColors.indexOf(m.soWinner);
+      if(si>=0)soWinnerIdx=si;
     }
-    out[m.matchId]={pairs,sorted,date:m.date};
+    out[m.matchId]={pairs,sorted,date:m.date,soWinnerIdx};
   }
   return out;
+}
+
+function matchWinner(s){
+  if(s.soWinnerIdx!=null)return s.pairs.find(p=>p.idx===s.soWinnerIdx)||s.sorted[0];
+  return s.sorted[0];
+}
+function playerRank(s,pn){
+  const rank=s.sorted.findIndex(p=>p.players.includes(pn));
+  if(rank<0||s.soWinnerIdx==null)return rank;
+  const pair=s.sorted[rank];
+  if(pair.idx===s.soWinnerIdx)return 0;
+  if(rank===0)return 1; // was sorted first but lost SO
+  return rank;
 }
 
 // ── Render entry point ────────────────────────────────────
@@ -635,10 +645,10 @@ function renderOverview(pn,pl,ms,flat){
   });
   let wins=0,p2=0,p3=0,totalRuns=0;
   for(const m of playerMs){
-    const{sorted}=ms[m.matchId];
-    const rank=sorted.findIndex(p=>p.players.includes(pn));
+    const s=ms[m.matchId];
+    const rank=playerRank(s,pn);
     if(rank===0)wins++;else if(rank===1)p2++;else if(rank===2)p3++;
-    const pp=sorted.find(p=>p.players.includes(pn));
+    const pp=s.sorted.find(p=>p.players.includes(pn));
     if(pp)totalRuns+=pp.runs;
   }
   const nm=playerMs.length||1;
@@ -655,7 +665,7 @@ function renderOverview(pn,pl,ms,flat){
     for(const pair of s.sorted){
       allPairRuns+=pair.runs;allPairCount++;
     }
-    if(s.sorted.length>0){winPairRuns+=s.sorted[0].runs;winPairCount++;}
+    const w=matchWinner(s);if(w){winPairRuns+=w.runs;winPairCount++;}
   }
   document.getElementById('all-avg-score').textContent=allPairCount?f0(allPairRuns/allPairCount):'—';
   document.getElementById('win-avg-score').textContent=winPairCount?f0(winPairRuns/winPairCount):'—';
@@ -669,7 +679,7 @@ function renderOverview(pn,pl,ms,flat){
     const s=ms[m.matchId];if(!s)continue;
     const pp=s.sorted.find(p=>p.players.includes(pn));if(!pp)continue;
     const partner=pp.players.find(n=>n!==pn)||'—';
-    const rank=s.sorted.indexOf(pp);
+    const rank=playerRank(s,pn);
     allPairs.push({runs:pp.runs,partner,date:m.date,rank});
   }
   allPairs.sort((a,b)=>b.runs-a.runs);
@@ -840,7 +850,7 @@ function drawScoringBreakdown(pn,pl,ms,flat){
   const winnerKeys=new Set();
   for(const m of filteredMatches){
     const s=ms[m.matchId];if(!s||!s.sorted.length)continue;
-    winnerKeys.add(m.matchId+'_'+s.sorted[0].idx);
+    const w=matchWinner(s);if(w)winnerKeys.add(m.matchId+'_'+w.idx);
   }
 
   const countCat=(balls)=>{
@@ -863,8 +873,8 @@ function drawSRByOver(pn,pl,ms,flat){
   const canvas=document.getElementById('chart-sr-over');
   const winnerKeys=new Set();
   for(const m of filteredMatches){
-    const s=ms[m.matchId];if(!s||!s.sorted.length)continue;
-    winnerKeys.add(m.matchId+'_'+s.sorted[0].idx);
+    const s=ms[m.matchId];if(!s)continue;
+    const w=matchWinner(s);if(w)winnerKeys.add(m.matchId+'_'+w.idx);
   }
 
   // Relative over: overs are global per match; we need each player/pair's 1st over as baseline
@@ -1017,7 +1027,7 @@ function renderWinZones(pn,ms,flat){
 
   for(const m of filteredMatches){
     const s=ms[m.matchId];if(!s)continue;
-    const winner=s.sorted[0];
+    const winner=matchWinner(s);
     for(const pair of s.pairs){
       const r=wktRow(pair.wkts);
       const c=bndCol(pair.bnds);
@@ -1081,7 +1091,7 @@ function renderWinZones(pn,ms,flat){
     const zeroWktMatchWins=filteredMatches.filter(m=>{
       const s=ms[m.matchId];if(!s)return false;
       const pp=s.sorted.find(p=>p.players.includes(pn));
-      return pp&&pp.wkts===0&&pp.idx===s.sorted[0].idx;
+      return pp&&pp.wkts===0&&pp.idx===matchWinner(s)?.idx;
     }).length;
     insights.push(`You've batted with <b>0 wickets lost</b> in <b>${zeroWktTotal}</b> innings, winning <b>${zeroWktMatchWins}</b> of them.`);
   }else{
@@ -1093,7 +1103,7 @@ function renderWinZones(pn,ms,flat){
     const fivePlusWins=filteredMatches.filter(m=>{
       const s=ms[m.matchId];if(!s)return false;
       const pp=s.sorted.find(p=>p.players.includes(pn));
-      return pp&&pp.bnds>=5&&pp.idx===s.sorted[0].idx;
+      return pp&&pp.bnds>=5&&pp.idx===matchWinner(s)?.idx;
     }).length;
     insights.push(`When hitting <b>5+ boundaries</b> (${fivePlusBnds} times), you've won <b>${fivePlusWins}</b> of those innings.`);
   }
