@@ -196,7 +196,8 @@ canvas{display:block;width:100%}
       <button class="period-pill active" onclick="setPeriod('all',this)">All time</button>
       <button class="period-pill" onclick="setPeriod('3m',this)">Last 3 months</button>
       <button class="period-pill" onclick="setPeriod('6m',this)">Last 6 months</button>
-      <button class="period-pill" onclick="setPeriod('season',this)">This season</button>
+      <button class="period-pill" onclick="setPeriod('outdoor',this)">Outdoor</button>
+      <button class="period-pill" onclick="setPeriod('indoor',this)">Indoor</button>
       <button class="period-pill" onclick="setPeriod('custom',this)">Custom</button>
     </div>
   </div>
@@ -487,9 +488,15 @@ function applyFilter(){
   let from=null,to=null;
   if(activePeriod==='3m'){from=new Date(now);from.setMonth(from.getMonth()-3);}
   else if(activePeriod==='6m'){from=new Date(now);from.setMonth(from.getMonth()-6);}
-  else if(activePeriod==='season'){
+  else if(activePeriod==='outdoor'){
     const y=now.getFullYear();
-    from=new Date(y,3,1);to=new Date(y,9,31,23,59,59);
+    from=new Date(y,4,1);to=new Date(y,8,15,23,59,59);
+  }
+  else if(activePeriod==='indoor'){
+    const y=now.getFullYear(),m=now.getMonth(),d=now.getDate();
+    const pastSep15=m>8||(m===8&&d>15);
+    if(pastSep15){from=new Date(y,8,16);to=new Date(y+1,3,30,23,59,59);}
+    else{from=new Date(y-1,8,16);to=new Date(y,3,30,23,59,59);}
   }
   else if(activePeriod==='custom'){from=customFrom;to=customTo;}
   filteredMatches=allMatches.filter(m=>{
