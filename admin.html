@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<!--
+  SUPABASE SETUP — run once in SQL Editor:
+
+  -- 1. Create your own Auth account first:
+  --    Supabase Dashboard → Authentication → Users → Invite user
+  --    (use your own email as the admin)
+
+  -- 2. Add admin policy (replace the email with yours):
+  create policy "admin_all" on player_access
+    for all to authenticated
+    using (auth.email() = 'your@email.com')
+    with check (auth.email() = 'your@email.com');
+
+  -- The "read_own" policy from stats.html setup still lets players
+  -- read their own row; this policy lets the admin read/write all rows.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Beardy Cricket — Admin</title>
+<style>
+:root{
+  --navy:#1A2744;--green:#1D9E75;--amber:#BA7517;--red:#E24B4A;
+  --muted:#6B7A99;--bg:#F0F2F7;--card:#fff;--border:#E2E6F0;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetica Neue',sans-serif;color:var(--navy);min-height:100vh}
+.hidden{display:none!important}
+.wrap{max-width:480px;margin:0 auto;padding:0 12px 40px}
+
+/* Loading */
+#screen-loading{display:flex;align-items:center;justify-content:center;min-height:100vh;font-size:14px;color:var(--muted)}
+
+/* Login */
+#screen-login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-card{background:var(--card);border-radius:16px;border:1px solid var(--border);padding:32px 24px;width:100%;max-width:380px;text-align:center}
+.login-logo{width:52px;height:52px;background:var(--navy);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;margin:0 auto 14px}
+.login-title{font-size:19px;font-weight:700;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
+.inp{width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:8px;font-size:15px;color:var(--navy);background:#fff;margin-bottom:10px;outline:none;-webkit-appearance:none}
+.inp:focus{border-color:var(--navy)}
+.btn-primary{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:2px}
+.btn-primary:disabled{opacity:.5;cursor:default}
+.err{font-size:13px;color:var(--red);margin-top:10px;min-height:18px}
+
+/* Header */
+.hdr{background:var(--navy);padding:14px 16px 12px;position:sticky;top:0;z-index:100}
+.hdr-row{display:flex;align-items:center;justify-content:space-between}
+.hdr-title{font-size:17px;font-weight:700;color:#fff}
+.hdr-sub{font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
+.signout{font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:5px 12px;cursor:pointer}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:12px}
+.card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+
+/* Form row */
+.form-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.form-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
+.lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.form-inp{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--navy);background:#fff;outline:none;width:100%;-webkit-appearance:none}
+.form-inp:focus{border-color:var(--navy)}
+.btn-add{padding:9px 18px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-add:disabled{opacity:.5;cursor:default}
+
+/* Player rows */
+.player-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.player-row:last-child{border-bottom:none}
+.player-name{font-size:14px;font-weight:600;flex:1}
+.player-email{font-size:12px;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-active{background:#dcfce7;color:#166534}
+.badge-inactive{background:#fee2e2;color:#991b1b}
+.toggle-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:#fff;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.toggle-btn:hover{border-color:var(--navy)}
+.del-btn{padding:5px 10px;border-radius:20px;border:1px solid #fee2e2;background:#fff;font-size:12px;color:var(--red);cursor:pointer}
+.del-btn:hover{background:#fee2e2}
+
+/* Invite note */
+.invite-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;font-size:13px;color:#1e40af;line-height:1.5;margin-top:10px}
+.invite-note a{color:#1e40af;font-weight:600}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1A2744;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+
+/* Empty */
+.empty{text-align:center;padding:24px 0;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<div id="screen-loading">Loading…</div>
+
+<div id="screen-login" class="hidden">
+  <div class="login-card">
+    <div class="login-logo">⚙️</div>
+    <div class="login-title">Admin Login</div>
+    <div class="login-sub">Beardy Cricket · Player management</div>
+    <input class="inp" id="login-email" type="email" placeholder="your@email.com" autocomplete="email">
+    <input class="inp" id="login-pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<div id="screen-admin" class="hidden">
+  <div class="hdr">
+    <div class="hdr-row">
+      <div>
+        <div class="hdr-title">Player Management</div>
+        <div class="hdr-sub">Beardy Cricket Admin</div>
+      </div>
+      <button class="signout" onclick="doSignOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Add player -->
+    <div class="card">
+      <div class="card-title">Add new player</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="lbl">Name</label>
+          <input class="form-inp" id="new-name" type="text" placeholder="e.g. Niro">
+        </div>
+        <div class="form-group">
+          <label class="lbl">Email</label>
+          <input class="form-inp" id="new-email" type="email" placeholder="player@email.com">
+        </div>
+        <button class="btn-add" id="add-btn" onclick="addPlayer()">+ Add</button>
+      </div>
+      <div class="invite-note" id="invite-note" style="display:none">
+        ✅ <b id="invite-name"></b> added. Now invite them to set a password:<br>
+        <a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener">
+          Open Supabase → Authentication → Users → Invite user →
+        </a>
+        enter <b id="invite-email"></b>
+      </div>
+    </div>
+
+    <!-- Player list -->
+    <div class="card">
+      <div class="card-title">Current players</div>
+      <div id="player-list"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+'use strict';
+const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
+const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
+const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+function show(id){
+  ['screen-loading','screen-login','screen-admin'].forEach(s=>{
+    document.getElementById(s).classList.toggle('hidden',s!==id);
+  });
+}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function toast(msg,ms=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+async function init(){
+  try{
+    const{data:{session}}=await db.auth.getSession();
+    if(session){await verifyAdmin(session.user.email);return;}
+  }catch(e){}
+  show('screen-login');
+}
+
+async function verifyAdmin(email){
+  // Try to fetch all players — will fail if not admin (RLS will return empty or error)
+  const{data,error}=await db.from('player_access').select('*').order('created_at');
+  if(error&&error.code==='PGRST301'){
+    // Not authenticated properly
+    await db.auth.signOut();show('screen-login');return;
+  }
+  if(!data||data.length===0&&error){
+    // Could be RLS denying all rows — treat as not admin
+    await db.auth.signOut();
+    show('screen-login');
+    document.getElementById('login-err').textContent='Access denied. This page is admin-only.';
+    return;
+  }
+  show('screen-admin');
+  renderPlayers(data||[]);
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pw=document.getElementById('login-pw').value;
+  const errEl=document.getElementById('login-err');
+  const btn=document.getElementById('login-btn');
+  errEl.textContent='';
+  if(!email||!pw){errEl.textContent='Enter email and password.';return;}
+  btn.disabled=true;btn.textContent='Signing in…';
+  try{
+    const{error}=await db.auth.signInWithPassword({email,password:pw});
+    if(error)throw error;
+    const{data:{user}}=await db.auth.getUser();
+    await verifyAdmin(user.email);
+  }catch(e){
+    errEl.textContent=e.message||'Sign in failed.';
+    btn.disabled=false;btn.textContent='Sign in';
+  }
+}
+
+async function doSignOut(){
+  await db.auth.signOut();
+  show('screen-login');
+  document.getElementById('login-err').textContent='';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-pw').value='';
+}
+
+async function addPlayer(){
+  const name=document.getElementById('new-name').value.trim();
+  const email=document.getElementById('new-email').value.trim().toLowerCase();
+  if(!name||!email){toast('Enter both name and email.');return;}
+
+  const btn=document.getElementById('add-btn');
+  btn.disabled=true;btn.textContent='Adding…';
+
+  const{error}=await db.from('player_access').insert({player_name:name,email,is_active:true});
+  btn.disabled=false;btn.textContent='+ Add';
+
+  if(error){
+    if(error.code==='23505')toast('That email already exists.');
+    else toast('Error: '+error.message);
+    return;
+  }
+
+  document.getElementById('new-name').value='';
+  document.getElementById('new-email').value='';
+
+  // Show invite note
+  const note=document.getElementById('invite-note');
+  document.getElementById('invite-name').textContent=name;
+  document.getElementById('invite-email').textContent=email;
+  note.style.display='block';
+
+  toast(`${name} added ✓`);
+  await refreshList();
+}
+
+async function toggleActive(id,current){
+  const{error}=await db.from('player_access').update({is_active:!current}).eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  toast(current?'Access revoked':'Access restored');
+  await refreshList();
+}
+
+async function deletePlayer(id,name){
+  if(!confirm(`Remove ${name} from the access list? Their Supabase Auth account will remain.`))return;
+  const{error}=await db.from('player_access').delete().eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  toast(`${name} removed`);
+  await refreshList();
+}
+
+async function refreshList(){
+  const{data,error}=await db.from('player_access').select('*').order('created_at');
+  if(!error)renderPlayers(data||[]);
+}
+
+function renderPlayers(players){
+  const el=document.getElementById('player-list');
+  if(!players.length){el.innerHTML='<div class="empty">No players yet</div>';return;}
+  el.innerHTML=players.map(p=>`
+    <div class="player-row">
+      <div style="flex:1;min-width:0">
+        <div class="player-name">${escHtml(p.player_name)}</div>
+        <div class="player-email">${escHtml(p.email)}</div>
+      </div>
+      <span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Inactive'}</span>
+      <button class="toggle-btn" onclick="toggleActive('${p.id}',${p.is_active})">${p.is_active?'Revoke':'Restore'}</button>
+      <button class="del-btn" onclick="deletePlayer('${p.id}','${escHtml(p.player_name)}')">✕</button>
+    </div>`).join('');
+}
+
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
