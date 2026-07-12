@@ -449,6 +449,8 @@ async function fetchAllData(){
     .map(r=>({
       matchId:r.match_id,
       date:new Date(r.updated_at),
+      soWinner:r.payload.superover_winner||null,
+      pairColors:(r.payload.pairs||[]).map(p=>p.color),
       history:(r.payload.history||[]).filter(Boolean).map(b=>({
         ...b,
         facing:b.facing?cn(b.facing):b.facing,
@@ -582,6 +584,14 @@ function matchSummaries(matches){
       idx:+pi,players:[...pPl[pi]],runs:pR[pi],wkts:pW[pi],bnds:pB[pi]
     }));
     const sorted=[...pairs].sort((a,b)=>b.runs-a.runs||b.bnds-a.bnds);
+    // Super over result overrides run-based ranking
+    if(m.soWinner&&m.pairColors?.length){
+      const soIdx=m.pairColors.indexOf(m.soWinner);
+      if(soIdx>=0){
+        const wi=sorted.findIndex(p=>p.idx===soIdx);
+        if(wi>0){const tmp=sorted[0];sorted[0]=sorted[wi];sorted[wi]=tmp;}
+      }
+    }
     out[m.matchId]={pairs,sorted,date:m.date};
   }
   return out;
