@@ -649,10 +649,15 @@ function matchSummaries(matches){
       const w=ss[0]>ss[1]?0:ss[1]>ss[0]?1:sb[0]>sb[1]?0:sb[1]>sb[0]?1:-1;
       if(w>=0)soWinnerIdx=m.gsSOPairs[w];
     }
-    // Manual override: Keith & Kristian SO win (match predates SO tracking)
-    if(soWinnerIdx==null&&m.matchId==='beardy-mr3tws4i'){
-      const p=pairs.find(p=>p.players.includes('Keith')||p.players.includes('Kristian'));
-      if(p)soWinnerIdx=p.idx;
+    // Manual override: beardy-mr3tws4i — grey pair (Keith & Kristian) won SO
+    if(m.matchId==='beardy-mr3tws4i'){
+      const ci=m.pairColors.indexOf('grey');
+      if(ci>=0){soWinnerIdx=ci;}
+      else{
+        const soP=pairs.find(p=>p.players.some(n=>n.toLowerCase().includes('keith')||n.toLowerCase().includes('krist')));
+        if(soP)soWinnerIdx=soP.idx;
+        else if(pairs.some(p=>p.idx===2))soWinnerIdx=2;
+      }
     }
     out[m.matchId]={pairs,sorted,date:m.date,soWinnerIdx};
   }
