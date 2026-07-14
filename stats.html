@@ -1665,25 +1665,26 @@ function renderLeaderboards(pn,ms){
     for(const b of m.history){
       if(!b.facing)continue;
       const n=b.facing;
-      if(!mr[n]){mr[n]=0;mb[n]=0;mw[n]=0;}
+      if(!(n in mr)){mr[n]=0;mb[n]=0;mw[n]=0;}
       if(BAT_TYPES.has(b.type))mb[n]++;
       if(RUN_TYPES.has(b.type)&&b.run>0)mr[n]+=b.run;
       if(b.type==='wkt')mw[n]++;
     }
     for(const n of Object.keys(mr)){
-      if(!bRuns[n]){bRuns[n]=0;bBalls[n]=0;bWkts[n]=0;bM[n]=0;}
+      if(!(n in bRuns)){bRuns[n]=0;bBalls[n]=0;bWkts[n]=0;bM[n]=0;}
       bRuns[n]+=mr[n];bBalls[n]+=mb[n];bWkts[n]+=mw[n];bM[n]++;
     }
   }
-  const topRuns=Object.entries(bRuns).sort((a,b)=>b[1]-a[1]).slice(0,5)
-    .map(([name,runs])=>({name,runs,matches:bM[name]}));
+  const topRuns=Object.entries(bRuns)
+    .sort((a,b)=>b[1]-a[1]||bM[a[0]]-bM[b[0]])
+    .slice(0,5).map(([name,runs])=>({name,runs,matches:bM[name]}));
   const topSR=Object.entries(bRuns).filter(([n])=>bM[n]>=MIN&&bBalls[n]>0)
     .map(([name,runs])=>({name,sr:(runs/bBalls[name])*100,matches:bM[name]}))
     .sort((a,b)=>b.sr-a.sr).slice(0,5);
-  // Balls per wicket lost — higher is better; players with 0 wkts rank first
+  // Balls per wicket lost — treat 0 wkts as 1 for ranking; higher is better
   const topBpW=Object.entries(bBalls).filter(([n])=>bM[n]>=MIN&&bBalls[n]>0)
-    .map(([name,balls])=>({name,bpw:bWkts[name]>0?balls/bWkts[name]:null,total:bWkts[name],matches:bM[name]}))
-    .sort((a,b)=>{if(a.bpw===null&&b.bpw===null)return 0;if(a.bpw===null)return -1;if(b.bpw===null)return 1;return b.bpw-a.bpw;})
+    .map(([name,balls])=>({name,bpw:balls/(bWkts[name]||1),total:bWkts[name],matches:bM[name],noWkts:bWkts[name]===0}))
+    .sort((a,b)=>b.bpw-a.bpw)
     .slice(0,5);
 
   // Individual bowling
@@ -1693,24 +1694,25 @@ function renderLeaderboards(pn,ms){
     for(const b of m.history){
       if(!b.bowling)continue;
       const n=b.bowling;
-      if(!mr[n]){mr[n]=0;mb[n]=0;mw[n]=0;}
+      if(!(n in mr)){mr[n]=0;mb[n]=0;mw[n]=0;}
       mb[n]++;
       if(b.type!=='wkt'&&b.run>0)mr[n]+=b.run;
       if(b.type==='wkt')mw[n]++;
     }
     for(const n of Object.keys(mb)){
-      if(!blR[n]){blR[n]=0;blB[n]=0;blW[n]=0;blM[n]=0;}
+      if(!(n in blR)){blR[n]=0;blB[n]=0;blW[n]=0;blM[n]=0;}
       blR[n]+=mr[n];blB[n]+=mb[n];blW[n]+=mw[n];blM[n]++;
     }
   }
-  const topWkts=Object.entries(blW).sort((a,b)=>b[1]-a[1]).slice(0,5)
-    .map(([name,wkts])=>({name,wkts,matches:blM[name]}));
+  const topWkts=Object.entries(blW)
+    .sort((a,b)=>b[1]-a[1]||blM[b[0]]-blM[a[0]])
+    .slice(0,5).map(([name,wkts])=>({name,wkts,matches:blM[name]}));
   const topEco=Object.entries(blB).filter(([n])=>blM[n]>=MIN&&blB[n]>0)
     .map(([name,balls])=>({name,eco:(blR[name]/balls)*6,matches:blM[name]}))
-    .sort((a,b)=>a.eco-b.eco).slice(0,5);
+    .sort((a,b)=>a.eco-b.eco||b.matches-a.matches).slice(0,5);
   const topWpm=Object.entries(blW).filter(([n])=>blM[n]>=MIN)
     .map(([name,wkts])=>({name,wpm:wkts/blM[name],total:wkts,matches:blM[name]}))
-    .sort((a,b)=>b.wpm-a.wpm).slice(0,5);
+    .sort((a,b)=>b.wpm-a.wpm||b.matches-a.matches).slice(0,5);
 
   // Render helpers
   const rb=i=>{const c=i===0?'lb-rank-1':i===1?'lb-rank-2':i===2?'lb-rank-3':'lb-rank-n';return`<div class="lb-rank ${c}">${i+1}</div>`;};
@@ -1734,7 +1736,7 @@ function renderLeaderboards(pn,ms){
     (topSR.map((p,i)=>row(i,p.name,p.name===pn,f1(p.sr),p.matches+' matches')).join('')||noData)+minNote;
 
   document.getElementById('lb-bat-wkts').innerHTML=
-    (topBpW.map((p,i)=>row(i,p.name,p.name===pn,p.bpw===null?'No wkts':f1(p.bpw),(p.bpw===null?'0 wkts':p.total+' wkt'+(p.total!==1?'s':''))+' · '+p.matches+' matches')).join('')||noData)+minNote;
+    (topBpW.map((p,i)=>row(i,p.name,p.name===pn,f1(p.bpw),(p.noWkts?'0 wkts in this period – counted as 1':p.total+' wkt'+(p.total!==1?'s':''))+' · '+p.matches+' matches')).join('')||noData)+minNote;
 
   document.getElementById('lb-bowl-wkts').innerHTML=
     topWkts.map((p,i)=>row(i,p.name,p.name===pn,String(p.wkts),p.matches+' matches')).join('')||noData;
