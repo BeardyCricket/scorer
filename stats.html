@@ -252,7 +252,7 @@ canvas{display:block;width:100%}
         <p class="desc">Your batting strike rate minus bowling economy, each adjusted for the quality of opponents you faced. 100 = league average.</p>
         <div style="text-align:center;padding:8px 0 14px">
           <div class="stat-big" id="net-score">—</div>
-          <div class="stat-sub">100+ = above average</div>
+          <div class="stat-sub">Ranking score factoring in batting and bowling performance, 100 = average</div>
         </div>
         <div class="card-title" style="margin-top:4px">Score trajectory</div>
         <p class="desc" style="margin-top:-2px">How your ranking score has evolved after each match.</p>
@@ -316,7 +316,7 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">vs all-player average</div>
-        <p class="desc">Green = better than average, red = worse. Extras flagged ⚠️ if ≥ 20%.</p>
+        <p class="desc">Green = better than average, red = worse.</p>
         <div id="bowl-cmp"></div>
       </div>
       <div class="card">
@@ -496,7 +496,7 @@ async function fetchAllData(){
       matchId:r.match_id,
       date:new Date(r.updated_at),
       soWinner:r.payload.superover_winner||null,
-      pairColors:(r.payload.pairs||[]).map(p=>p.color),
+      pairColors:(r.payload.pairs||[]).map((p,i)=>p.color||r.payload.game_state?.pairs?.[i]?.color||null),
       history:(r.payload.history||[]).filter(Boolean).map(b=>({
         ...b,
         facing:b.facing?cn(b.facing):b.facing,
@@ -1136,10 +1136,9 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat){
     <div class="stat-cell"><div class="stat-cell-val">${f0(ps?.lr)}</div><div class="stat-cell-lbl">Runs conceded</div></div>
   `;
 
-  const extrasFlag=ps&&ps.extras_pct>=20;
   document.getElementById('bowl-cmp').innerHTML=`
     <div class="cmp-row"><span class="cmp-lbl">Economy rate</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">all players avg: ${f1(avgEco)}</span></div>
-    <div class="cmp-row"><span class="cmp-lbl">Extras % ${extrasFlag?'⚠️':''}</span><span class="cmp-me ${extrasFlag?'flag-red':''}">${fPct(ps?.extras_pct)}</span><span class="cmp-avg">all players avg: ${fPct(avgExtras)}</span></div>
+    <div class="cmp-row"><span class="cmp-lbl">Extras %</span><span class="cmp-me">${fPct(ps?.extras_pct)}</span><span class="cmp-avg">all players avg: ${fPct(avgExtras)}</span></div>
     <div class="cmp-row"><span class="cmp-lbl">Dot ball %</span><span class="cmp-me ${(ps?.dot_pct||0)>=avgDot?'flag-green':'flag-red'}">${fPct(ps?.dot_pct)}</span><span class="cmp-avg">all players avg: ${fPct(avgDot)}</span></div>
   `;
 
