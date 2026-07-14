@@ -628,6 +628,8 @@ function matchSummaries(matches){
       const pi=b.batPair;if(pi==null)continue;
       if(!pR[pi]){pR[pi]=0;pW[pi]=0;pB[pi]=0;pPl[pi]=new Set();}
       if(b.facing)pPl[pi].add(b.facing);
+      // Also identify pair members via bowling (catches players with no facing records)
+      if(b.bowling&&b.bowlPair!=null){if(!pPl[b.bowlPair])pPl[b.bowlPair]=new Set();pPl[b.bowlPair].add(b.bowling);}
       if(RUN_TYPES.has(b.type)&&b.run>0)pR[pi]+=b.run;
       if(b.type==='wkt')pW[pi]++;
       if((b.run===4||b.run===6)&&b.type!=='wide')pB[pi]++;
@@ -649,16 +651,8 @@ function matchSummaries(matches){
       const w=ss[0]>ss[1]?0:ss[1]>ss[0]?1:sb[0]>sb[1]?0:sb[1]>sb[0]?1:-1;
       if(w>=0)soWinnerIdx=m.gsSOPairs[w];
     }
-    // Manual override: beardy-mr3tws4i — grey pair (Keith & Kristian) won SO
-    if(m.matchId==='beardy-mr3tws4i'){
-      const ci=m.pairColors.indexOf('grey');
-      if(ci>=0){soWinnerIdx=ci;}
-      else{
-        const soP=pairs.find(p=>p.players.some(n=>n.toLowerCase().includes('keith')||n.toLowerCase().includes('krist')));
-        if(soP)soWinnerIdx=soP.idx;
-        else if(pairs.some(p=>p.idx===2))soWinnerIdx=2;
-      }
-    }
+    // Manual override: beardy-mr3tws4i — grey pair (idx 4) won SO
+    if(m.matchId==='beardy-mr3tws4i')soWinnerIdx=4;
     out[m.matchId]={pairs,sorted,date:m.date,soWinnerIdx};
   }
   return out;
