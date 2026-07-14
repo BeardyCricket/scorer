@@ -500,6 +500,9 @@ async function fetchAllData(){
         const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
         return src.map(p=>p.color||(p.cname&&p.cname.toLowerCase())||null);
       })(),
+      gsSOPairs:r.payload.game_state?.soPairs||null,
+      gsSOScores:r.payload.game_state?.soScores||null,
+      gsSOBounds:r.payload.game_state?.soBoundaries||null,
       history:(r.payload.history||[]).filter(Boolean).map(b=>({
         ...b,
         facing:b.facing?cn(b.facing):b.facing,
@@ -634,9 +637,17 @@ function matchSummaries(matches){
     }));
     const sorted=[...pairs].sort((a,b)=>b.runs-a.runs||b.bnds-a.bnds);
     let soWinnerIdx=null;
+    // Primary: match colour string to pairColors array
     if(m.soWinner&&m.pairColors?.length){
       const si=m.pairColors.indexOf(m.soWinner);
       if(si>=0)soWinnerIdx=si;
+    }
+    // Fallback: read SO scores/pairs directly from game_state (avoids colour lookup entirely)
+    if(soWinnerIdx==null&&m.gsSOPairs?.length){
+      const ss=m.gsSOScores||[0,0];
+      const sb=m.gsSOBounds||[0,0];
+      const w=ss[0]>ss[1]?0:ss[1]>ss[0]?1:sb[0]>sb[1]?0:sb[1]>sb[0]?1:-1;
+      if(w>=0)soWinnerIdx=m.gsSOPairs[w];
     }
     out[m.matchId]={pairs,sorted,date:m.date,soWinnerIdx};
   }
