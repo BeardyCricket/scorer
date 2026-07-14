@@ -249,7 +249,6 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Ranking score</div>
-        <p class="desc">Your batting strike rate minus bowling economy, each adjusted for the quality of opponents you faced. 100 = league average.</p>
         <div style="text-align:center;padding:8px 0 14px">
           <div class="stat-big" id="net-score">—</div>
           <div class="stat-sub">Ranking score factoring in batting and bowling performance, 100 = average</div>
@@ -496,7 +495,11 @@ async function fetchAllData(){
       matchId:r.match_id,
       date:new Date(r.updated_at),
       soWinner:r.payload.superover_winner||null,
-      pairColors:(r.payload.pairs||[]).map((p,i)=>p.color||r.payload.game_state?.pairs?.[i]?.color||null),
+      pairColors:(()=>{
+        const pl=r.payload;
+        const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
+        return src.map(p=>p.color||(p.cname&&p.cname.toLowerCase())||null);
+      })(),
       history:(r.payload.history||[]).filter(Boolean).map(b=>({
         ...b,
         facing:b.facing?cn(b.facing):b.facing,
