@@ -149,6 +149,16 @@ canvas{display:block;width:100%}
 
 /* Empty */
 .empty{text-align:center;padding:28px 0;color:var(--muted);font-size:13px}
+.desc{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:8px}
+.opp-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.opp-tbl th{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 2px;text-align:center;border-bottom:1px solid var(--border)}
+.opp-tbl td{padding:6px 2px;text-align:center;border-bottom:1px solid var(--border);font-size:12px}
+.opp-tbl tr:last-child td{border-bottom:none}
+.opp-tbl .row-lbl{text-align:left;font-weight:600;color:var(--navy);padding-left:0}
+.pred-row{display:flex;gap:12px;margin-top:10px}
+.pred-cell{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:10px 4px}
+.pred-val{font-size:20px;font-weight:700}
+.pred-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
 </style>
 </head>
 <body>
@@ -224,6 +234,7 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Match summary</div>
+        <p class="desc">Results for matches where you played, in the selected time period.</p>
         <div class="mini-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">
           <div class="mini-cell"><div class="mini-val" id="matches-played">—</div><div class="mini-lbl">Played</div></div>
           <div class="mini-cell"><div class="mini-val" id="win-pct">—</div><div class="mini-lbl">Win %</div></div>
@@ -238,15 +249,18 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Ranking score</div>
+        <p class="desc">Your batting strike rate minus bowling economy, each adjusted for the quality of opponents you faced. 100 = league average.</p>
         <div style="text-align:center;padding:8px 0 14px">
           <div class="stat-big" id="net-score">—</div>
           <div class="stat-sub">100+ = above average</div>
         </div>
         <div class="card-title" style="margin-top:4px">Score trajectory</div>
+        <p class="desc" style="margin-top:-2px">How your ranking score has evolved after each match.</p>
         <canvas id="chart-trajectory" height="150"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Top 5 pair scores</div>
+        <p class="desc">Your highest-scoring pair innings, with partner, date and finishing position.</p>
         <div id="top-pairs"></div>
       </div>
     </div>
@@ -255,10 +269,12 @@ canvas{display:block;width:100%}
     <div id="tab-batting" class="hidden">
       <div class="card">
         <div class="card-title">Individual Batting Stats</div>
+        <p class="desc">Strike rate = runs per 100 balls faced. Runs per wicket = how many runs your pair scores before each dismissal.</p>
         <div class="stats-grid" id="bat-grid"></div>
       </div>
       <div class="card">
         <div class="card-title">vs all-player average</div>
+        <p class="desc">Green = better than average, red = worse.</p>
         <div id="bat-cmp"></div>
       </div>
       <div class="card" style="padding-left:8px;padding-right:8px">
@@ -271,11 +287,18 @@ canvas{display:block;width:100%}
       </div>
       <div class="card" style="padding-left:8px;padding-right:8px">
         <div class="card-title" style="padding-left:8px">Strike rate by over</div>
+        <p class="desc" style="padding-left:8px">How your run rate compares across each of your pair's 4 overs.</p>
         <canvas id="chart-sr-over" height="180"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Head-to-head vs bowlers <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
+        <p class="desc">Your strike rate and dismissals against each bowler you've faced (min 6 balls).</p>
         <div id="h2h-bowlers"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Batting vs bowler quality</div>
+        <p class="desc">Bowlers split into thirds by economy rate (min 2 overs bowled). Top third = most economical (toughest to score off), bottom third = most expensive.</p>
+        <div id="bat-opp"></div>
       </div>
     </div>
 
@@ -283,19 +306,28 @@ canvas{display:block;width:100%}
     <div id="tab-bowling" class="hidden">
       <div class="card">
         <div class="card-title">Bowling</div>
+        <p class="desc">Economy = runs conceded per over. Extras % = wides + no-balls as a share of all balls. Dot % = balls where the batter scored nothing.</p>
         <div class="stats-grid" id="bowl-grid"></div>
       </div>
       <div class="card">
         <div class="card-title">vs all-player average</div>
+        <p class="desc">Green = better than average, red = worse. Extras flagged ⚠️ if ≥ 20%.</p>
         <div id="bowl-cmp"></div>
       </div>
       <div class="card">
         <div class="card-title">Economy by match <span style="font-size:9px;font-weight:400;color:var(--muted)">🎯 = wicket taken</span></div>
+        <p class="desc">Your economy rate each match. Green = better than your average, amber = close, red = worse.</p>
         <canvas id="chart-eco" height="150"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Head-to-head vs batters <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
+        <p class="desc">Your economy and wickets against each batter you've bowled to (min 6 balls).</p>
         <div id="h2h-batters"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Bowling vs batter quality</div>
+        <p class="desc">Batters split into thirds by strike rate (min 12 balls faced). Top third = highest strike rates (hardest to bowl to), bottom third = lowest.</p>
+        <div id="bowl-opp"></div>
       </div>
     </div>
 
@@ -312,6 +344,15 @@ canvas{display:block;width:100%}
         <div class="card-title">Win zones — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
         <div style="overflow-x:auto"><table class="wz-table" id="wz-table"></table></div>
         <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets your pair lost · Columns = boundaries your pair hit (4s + 6s) · Green background = your pair won there 🏆</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Expected vs actual wins</div>
+        <p class="desc">Multiply the win rate of each zone by how many times your pair landed there — that gives your "expected" wins based purely on zone distribution. Compares to your actual wins.</p>
+        <div class="pred-row">
+          <div class="pred-cell"><div class="pred-val" id="pred-wins">—</div><div class="pred-lbl">Expected wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="actual-wins">—</div><div class="pred-lbl">Actual wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="pred-diff">—</div><div class="pred-lbl">Difference</div></div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">Insights</div>
@@ -818,6 +859,16 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat){
   drawScoringBreakdown(pn,pl,ms,flat);
   drawSRByOver(pn,pl,ms,flat);
   renderH2HBowlers(pn,ps,pl);
+  const batSplit=qualityBatSplit(pn,pl,flat);
+  const el=document.getElementById('bat-opp');
+  if(batSplit){
+    const sr=t=>batSplit[t].balls?batSplit[t].runs/batSplit[t].balls*100:null;
+    renderOppSplit('bat-opp',[
+      {label:'Run rate',vals:[sr(0),sr(1),sr(2)],fmt:v=>f1(v),good:null},
+      {label:'Wickets lost',vals:[batSplit[0].wkts,batSplit[1].wkts,batSplit[2].wkts],fmt:v=>String(v),good:null},
+      {label:'Balls faced',vals:[batSplit[0].balls,batSplit[1].balls,batSplit[2].balls],fmt:v=>String(v),good:null},
+    ],['Top bowlers','Mid bowlers','Bottom bowlers'],['Tightest eco','','Most expensive']);
+  }else if(el){el.innerHTML='<div class="empty">Not enough data yet</div>';}
 }
 
 function drawBatMatchBars(pn,flat,ms){
@@ -967,6 +1018,16 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat){
 
   drawEcoByMatch(pn,flat,avgEco);
   renderH2HBatters(pn,ps,pl,flat);
+  const bowlSplit=qualityBowlSplit(pn,pl,flat);
+  const elb=document.getElementById('bowl-opp');
+  if(bowlSplit){
+    const eco=t=>bowlSplit[t].balls?bowlSplit[t].runs/bowlSplit[t].balls*6:null;
+    renderOppSplit('bowl-opp',[
+      {label:'Economy',vals:[eco(0),eco(1),eco(2)],fmt:v=>f1(v),good:null},
+      {label:'Wickets',vals:[bowlSplit[0].wkts,bowlSplit[1].wkts,bowlSplit[2].wkts],fmt:v=>String(v),good:null},
+      {label:'Balls bowled',vals:[bowlSplit[0].balls,bowlSplit[1].balls,bowlSplit[2].balls],fmt:v=>String(v),good:null},
+    ],['Top batters','Mid batters','Bottom batters'],['Highest SR','','Lowest SR']);
+  }else if(elb){elb.innerHTML='<div class="empty">Not enough data yet</div>';}
 }
 
 function drawEcoByMatch(pn,flat,avgEco){
@@ -1072,6 +1133,29 @@ function renderWinZones(pn,ms,flat){
   }
   table.innerHTML=html;
 
+  let predWins=0,actWins=0;
+  for(let r=0;r<3;r++)for(let c=0;c<3;c++){
+    const cell=grid[r][c];
+    if(cell.player>0){
+      const wr=cell.total?cell.wins/cell.total:0;
+      predWins+=wr*cell.player;
+      actWins+=cell.playerWins;
+    }
+  }
+  const pwEl=document.getElementById('pred-wins');
+  const awEl=document.getElementById('actual-wins');
+  const diffEl=document.getElementById('pred-diff');
+  if(pwEl){
+    const hasData=predWins>0||actWins>0;
+    pwEl.textContent=hasData?predWins.toFixed(1):'—';
+    awEl.textContent=hasData?String(actWins):'—';
+    if(hasData){
+      const diff=actWins-predWins;
+      diffEl.textContent=(diff>=0?'+':'')+diff.toFixed(1);
+      diffEl.style.color=diff>=0?'var(--green)':'var(--red)';
+    }else{diffEl.textContent='—';}
+  }
+
   // Insights
   const insights=[];
   // Most common zone for player
@@ -1110,6 +1194,58 @@ function renderWinZones(pn,ms,flat){
 
   document.getElementById('wz-insights').innerHTML=
     insights.map(t=>`<div class="insight">${t}</div>`).join('')||'<div class="empty">No data yet</div>';
+}
+
+function renderOppSplit(elId,rows,colLabels,colDesc){
+  const el=document.getElementById(elId);
+  if(!el)return;
+  const anyData=rows.some(r=>r.vals.some(v=>v!=null));
+  if(!anyData){el.innerHTML='<div class="empty">Not enough data yet</div>';return;}
+  let html=`<table class="opp-tbl"><tr><th></th>`;
+  colLabels.forEach(l=>{html+=`<th>${l}</th>`;});
+  html+='</tr>';
+  if(colDesc){html+=`<tr><td></td>`;colDesc.forEach(d=>{html+=`<td style="font-size:9px;color:var(--muted);padding-bottom:4px">${d}</td>`;});html+='</tr>';}
+  rows.forEach(r=>{
+    html+=`<tr><td class="row-lbl">${r.label}</td>`;
+    r.vals.forEach(v=>{
+      const display=v==null?'—':r.fmt?r.fmt(v):String(Math.round(v));
+      const cls=v==null?'':r.good!=null?(v<=r.good?'flag-green':'flag-red'):'';
+      html+=`<td><span class="${cls}" style="font-weight:${cls?'700':'400'}">${display}</span></td>`;
+    });
+    html+='</tr>';
+  });
+  html+='</table>';
+  el.innerHTML=html;
+}
+
+function qualityBatSplit(pn,pl,flat){
+  const bowlers=Object.entries(pl).filter(([,p])=>p.lb>=12).sort((a,b)=>a[1].raw_bowl-b[1].raw_bowl);
+  const n=bowlers.length;if(n<3)return null;
+  const t1=Math.ceil(n/3),t2=Math.ceil(n*2/3);
+  const tierOf=name=>{const i=bowlers.findIndex(([k])=>k===name);if(i<0)return null;return i<t1?0:i<t2?1:2;};
+  const stats=Array.from({length:3},()=>({runs:0,balls:0,wkts:0}));
+  flat.filter(b=>b.facing===pn&&b.bowling).forEach(b=>{
+    const t=tierOf(b.bowling);if(t==null)return;
+    if(BAT_TYPES.has(b.type))stats[t].balls++;
+    if(RUN_TYPES.has(b.type)&&b.run>0)stats[t].runs+=b.run;
+    if(b.type==='wkt')stats[t].wkts++;
+  });
+  return stats;
+}
+
+function qualityBowlSplit(pn,pl,flat){
+  const batters=Object.entries(pl).filter(([,p])=>p.bb>=12).sort((a,b)=>b[1].raw_bat-a[1].raw_bat);
+  const n=batters.length;if(n<3)return null;
+  const t1=Math.ceil(n/3),t2=Math.ceil(n*2/3);
+  const tierOf=name=>{const i=batters.findIndex(([k])=>k===name);if(i<0)return null;return i<t1?0:i<t2?1:2;};
+  const stats=Array.from({length:3},()=>({runs:0,balls:0,wkts:0}));
+  flat.filter(b=>b.bowling===pn&&b.facing).forEach(b=>{
+    const t=tierOf(b.facing);if(t==null)return;
+    stats[t].balls++;
+    if(b.type!=='wkt'&&b.run>0)stats[t].runs+=b.run;
+    if(b.type==='wkt')stats[t].wkts++;
+  });
+  return stats;
 }
 
 // ── Canvas helpers ─────────────────────────────────────────
