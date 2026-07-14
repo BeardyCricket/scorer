@@ -651,8 +651,11 @@ function matchSummaries(matches){
       const w=ss[0]>ss[1]?0:ss[1]>ss[0]?1:sb[0]>sb[1]?0:sb[1]>sb[0]?1:-1;
       if(w>=0)soWinnerIdx=m.gsSOPairs[w];
     }
-    // Manual override: beardy-mr3tws4i — grey pair (idx 4) won SO
-    if(m.matchId==='beardy-mr3tws4i')soWinnerIdx=4;
+    // Manual override: beardy-r7xads — grey pair won SO (Green=47, Grey=47 tie)
+    if(m.matchId==='beardy-r7xads'&&soWinnerIdx==null){
+      soWinnerIdx=m.pairColors?.indexOf('grey')??-1;
+      if(soWinnerIdx<0)soWinnerIdx=4;
+    }
     out[m.matchId]={pairs,sorted,date:m.date,soWinnerIdx};
   }
   return out;
