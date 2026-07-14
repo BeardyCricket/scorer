@@ -390,11 +390,11 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Top 5 pair averages</div>
-        <p class="desc">Average score for the same two players across all their matches together.</p>
+        <p class="desc">Average pair score per player across all their matches, regardless of partner.</p>
         <div id="lb-pair-avgs"></div>
       </div>
       <div class="card">
-        <div class="card-title">Top 5 first places</div>
+        <div class="card-title">Top golden beard badge winners 🏆</div>
         <p class="desc">Most wins, tiebroken by 2nd places then 3rd places.</p>
         <div id="lb-first-place"></div>
       </div>
@@ -410,8 +410,8 @@ canvas{display:block;width:100%}
         <div id="lb-bat-sr"></div>
       </div>
       <div class="card">
-        <div class="card-title">Fewest wickets per match</div>
-        <p class="desc">Lowest average wickets lost per match played.</p>
+        <div class="card-title">Best balls per wicket lost</div>
+        <p class="desc">Average balls faced between each dismissal — higher is better.</p>
         <div id="lb-bat-wkts"></div>
       </div>
 
@@ -422,7 +422,7 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Best economy rates</div>
-        <p class="desc">Runs conceded per 100 balls — lower is better.</p>
+        <p class="desc">Runs conceded per over (6 balls) — lower is better.</p>
         <div id="lb-bowl-eco"></div>
       </div>
       <div class="card">
@@ -569,6 +569,11 @@ async function fetchAllData(){
         const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
         return src.map(p=>p.color||(p.cname&&p.cname.toLowerCase())||null);
       })(),
+      pairTotals:(()=>{
+        const pl=r.payload;
+        const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
+        return src.map(p=>typeof p.total==='number'?p.total:null);
+      })(),
       gsSOPairs:r.payload.game_state?.soPairs||null,
       gsSOScores:r.payload.game_state?.soScores||null,
       gsSOBounds:r.payload.game_state?.soBoundaries||null,
@@ -704,7 +709,9 @@ function matchSummaries(matches){
       if((b.run===4||b.run===6)&&b.type!=='wide')pB[pi]++;
     }
     const pairs=Object.keys(pR).map(pi=>({
-      idx:+pi,players:[...pPl[pi]],runs:pR[pi],wkts:pW[pi],bnds:pB[pi]
+      idx:+pi,players:[...pPl[pi]],
+      runs:(m.pairTotals&&m.pairTotals[+pi]!=null)?m.pairTotals[+pi]:pR[pi],
+      wkts:pW[pi],bnds:pB[pi]
     }));
     const sorted=[...pairs].sort((a,b)=>b.runs-a.runs||b.bnds-a.bnds);
     let soWinnerIdx=null;
@@ -1613,20 +1620,21 @@ function renderLeaderboards(pn,ms){
   }
   pairScores.sort((a,b)=>b.runs-a.runs);
 
-  // Pair averages: group by sorted player names, min 2 appearances
+  // Pair averages: per-individual player, regardless of partner
   const pAvgMap={};
   for(const[,s]of Object.entries(ms)){
+    const seenP=new Set();
     for(const pair of s.pairs){
-      if(pair.players.length<2)continue;
-      const sorted=[...pair.players].sort();
-      const key=sorted.join('|');
-      if(!pAvgMap[key])pAvgMap[key]={label:sorted.join(' & '),players:sorted,scores:[]};
-      pAvgMap[key].scores.push(pair.runs);
+      for(const name of pair.players){
+        if(seenP.has(name))continue;seenP.add(name);
+        if(!pAvgMap[name])pAvgMap[name]=[];
+        pAvgMap[name].push(pair.runs);
+      }
     }
   }
-  const topPairAvgs=Object.values(pAvgMap)
-    .filter(p=>p.scores.length>=MIN)
-    .map(p=>({...p,avg:p.scores.reduce((s,x)=>s+x,0)/p.scores.length,count:p.scores.length}))
+  const topPairAvgs=Object.entries(pAvgMap)
+    .filter(([,scores])=>scores.length>=MIN)
+    .map(([name,scores])=>({name,avg:scores.reduce((s,x)=>s+x,0)/scores.length,count:scores.length}))
     .sort((a,b)=>b.avg-a.avg).slice(0,5);
 
   // Finish positions per player
@@ -1672,9 +1680,11 @@ function renderLeaderboards(pn,ms){
   const topSR=Object.entries(bRuns).filter(([n])=>bM[n]>=MIN&&bBalls[n]>0)
     .map(([name,runs])=>({name,sr:(runs/bBalls[name])*100,matches:bM[name]}))
     .sort((a,b)=>b.sr-a.sr).slice(0,5);
-  const topFewWkts=Object.entries(bWkts).filter(([n])=>bM[n]>=MIN)
-    .map(([name,wkts])=>({name,wpm:wkts/bM[name],total:wkts,matches:bM[name]}))
-    .sort((a,b)=>a.wpm-b.wpm).slice(0,5);
+  // Balls per wicket lost — higher is better; players with 0 wkts rank first
+  const topBpW=Object.entries(bBalls).filter(([n])=>bM[n]>=MIN&&bBalls[n]>0)
+    .map(([name,balls])=>({name,bpw:bWkts[name]>0?balls/bWkts[name]:null,total:bWkts[name],matches:bM[name]}))
+    .sort((a,b)=>{if(a.bpw===null&&b.bpw===null)return 0;if(a.bpw===null)return -1;if(b.bpw===null)return 1;return b.bpw-a.bpw;})
+    .slice(0,5);
 
   // Individual bowling
   const blR={},blB={},blW={},blM={};
@@ -1696,7 +1706,7 @@ function renderLeaderboards(pn,ms){
   const topWkts=Object.entries(blW).sort((a,b)=>b[1]-a[1]).slice(0,5)
     .map(([name,wkts])=>({name,wkts,matches:blM[name]}));
   const topEco=Object.entries(blB).filter(([n])=>blM[n]>=MIN&&blB[n]>0)
-    .map(([name,balls])=>({name,eco:(blR[name]/balls)*100,matches:blM[name]}))
+    .map(([name,balls])=>({name,eco:(blR[name]/balls)*6,matches:blM[name]}))
     .sort((a,b)=>a.eco-b.eco).slice(0,5);
   const topWpm=Object.entries(blW).filter(([n])=>blM[n]>=MIN)
     .map(([name,wkts])=>({name,wpm:wkts/blM[name],total:wkts,matches:blM[name]}))
@@ -1712,7 +1722,7 @@ function renderLeaderboards(pn,ms){
     pairScores.slice(0,5).map((p,i)=>row(i,p.label,p.players.includes(pn),String(p.runs),fmtD(p.date)+' · '+ordinal(p.pos))).join('')||noData;
 
   document.getElementById('lb-pair-avgs').innerHTML=
-    (topPairAvgs.map((p,i)=>row(i,p.label,p.players.includes(pn),f1(p.avg),p.count+' matches')).join('')||noData)+minNote;
+    (topPairAvgs.map((p,i)=>row(i,p.name,p.name===pn,f1(p.avg),p.count+' matches')).join('')||noData)+minNote;
 
   document.getElementById('lb-first-place').innerHTML=
     (topFirst.map((p,i)=>row(i,p.name,p.name===pn,String(p.w)+' wins','2nd: '+p.p2+' · 3rd: '+p.p3+' · played: '+p.played)).join('')||noData)+minNote;
@@ -1724,7 +1734,7 @@ function renderLeaderboards(pn,ms){
     (topSR.map((p,i)=>row(i,p.name,p.name===pn,f1(p.sr),p.matches+' matches')).join('')||noData)+minNote;
 
   document.getElementById('lb-bat-wkts').innerHTML=
-    (topFewWkts.map((p,i)=>row(i,p.name,p.name===pn,f1(p.wpm),p.total+' total · '+p.matches+' matches')).join('')||noData)+minNote;
+    (topBpW.map((p,i)=>row(i,p.name,p.name===pn,p.bpw===null?'No wkts':f1(p.bpw),(p.bpw===null?'0 wkts':p.total+' wkt'+(p.total!==1?'s':''))+' · '+p.matches+' matches')).join('')||noData)+minNote;
 
   document.getElementById('lb-bowl-wkts').innerHTML=
     topWkts.map((p,i)=>row(i,p.name,p.name===pn,String(p.wkts),p.matches+' matches')).join('')||noData;
