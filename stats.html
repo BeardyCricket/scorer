@@ -160,6 +160,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .lb-sub{font-size:10px;color:var(--muted);margin-top:1px}
 .lb-min-note{font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
 
+/* Upgrade / freemium */
+.upgrade-card{background:#f5f3ff;border:1px solid #c4bfee;border-radius:12px;padding:22px 16px;text-align:center;margin-top:12px}
+.upgrade-cta{display:inline-block;background:#7F77DD;color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;font-weight:600;margin-top:2px}
+
 /* Canvas */
 canvas{display:block;width:100%}
 
@@ -455,6 +459,7 @@ let allMatches=[];
 let filteredMatches=[];
 let activePeriod='all';
 let customFrom=null,customTo=null;
+let isPremium=false;
 
 // ── Screen helpers ────────────────────────────────────────
 function show(id){
@@ -535,6 +540,8 @@ async function loadPlayer(email){
       return;
     }
     currentPlayer=data;
+    const today=new Date().toISOString().slice(0,10);
+    isPremium=data.is_premium===true&&(data.premium_until==null||data.premium_until>=today);
     document.getElementById('player-name-hdr').textContent=data.player_name;
     await fetchAllData();
     applyFilter();
@@ -758,10 +765,10 @@ function renderAll(){
   const{pl,lg_bat,lg_bowl}=computeAllStats(flat);
   const ms=matchSummaries(filteredMatches);
   renderOverview(pn,pl,ms,flat);
-  renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat);
-  renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat);
-  renderWinZones(pn,ms,flat);
-  renderLeaderboards(pn,ms);
+  renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
+  renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
+  renderWinZones(pn,ms,flat,isPremium);
+  renderLeaderboards(pn,ms,isPremium);
 }
 
 // ── Format helpers ─────────────────────────────────────────
@@ -1047,11 +1054,31 @@ function drawTrendLine(pn){
 }
 
 // ── Batting ───────────────────────────────────────────────
-function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat){
+function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   const ps=pl[pn];
   const playerFlat=flat.filter(b=>b.facing===pn);
   const wkts=playerFlat.filter(b=>b.type==='wkt').length;
   const matchesPlayed=filteredMatches.filter(m=>m.history.some(b=>b.facing===pn)).length;
+  if(!prem){
+    const totalRuns=ps?.br??0;
+    const sr=ps?.bb>0?ps.br/ps.bb*100:null;
+    document.getElementById('tab-batting').innerHTML=`
+      <div class="card">
+        <div class="card-title">Batting</div>
+        <p class="desc">Your batting stats for the selected period.</p>
+        <div class="mini-row" style="grid-template-columns:repeat(2,1fr)">
+          <div class="mini-cell"><div class="mini-val">${totalRuns}</div><div class="mini-lbl">Total runs</div></div>
+          <div class="mini-cell"><div class="mini-val">${sr!=null?f1(sr):'—'}</div><div class="mini-lbl">Strike rate</div></div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div style="font-size:26px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More batting stats available</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock per-match run charts, scoring breakdown (dots / 1s / 2s / fours / sixes), strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.</p>
+        <div class="upgrade-cta">Contact your organiser to unlock</div>
+      </div>`;
+    return;
+  }
 
   const allBatters=Object.values(pl).filter(p=>p.bb>0);
   const avgSR=allBatters.length?allBatters.reduce((s,p)=>s+p.raw_bat,0)/allBatters.length:0;
@@ -1214,8 +1241,28 @@ function renderH2HBowlers(pn,ps,pl){
 }
 
 // ── Bowling ───────────────────────────────────────────────
-function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat){
+function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   const ps=pl[pn];
+  if(!prem){
+    const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt').length;
+    const eco=ps?.lb>0?ps.raw_bowl*6/100:null;
+    document.getElementById('tab-bowling').innerHTML=`
+      <div class="card">
+        <div class="card-title">Bowling</div>
+        <p class="desc">Your bowling stats for the selected period.</p>
+        <div class="mini-row" style="grid-template-columns:repeat(2,1fr)">
+          <div class="mini-cell"><div class="mini-val">${wkts}</div><div class="mini-lbl">Wickets</div></div>
+          <div class="mini-cell"><div class="mini-val">${eco!=null?f1(eco):'—'}</div><div class="mini-lbl">Economy</div></div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div style="font-size:26px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More bowling stats available</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock economy trend charts, extras %, dot ball %, balls per wicket, head-to-head vs batters, and batter quality analysis.</p>
+        <div class="upgrade-cta">Contact your organiser to unlock</div>
+      </div>`;
+    return;
+  }
   const allBowlers=Object.values(pl).filter(p=>p.lb>0);
   const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+(p.raw_bowl*6/100),0)/allBowlers.length:0;
   const avgExtras=allBowlers.length?allBowlers.reduce((s,p)=>s+p.extras_pct,0)/allBowlers.length:0;
@@ -1304,7 +1351,17 @@ function renderH2HBatters(pn,ps,pl,flat){
 }
 
 // ── Win zones ──────────────────────────────────────────────
-function renderWinZones(pn,ms,flat){
+function renderWinZones(pn,ms,flat,prem){
+  if(!prem){
+    document.getElementById('tab-winzones').innerHTML=`
+      <div class="upgrade-card">
+        <div style="font-size:26px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">Win Zones</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Win Zones shows which type of pair innings tends to win matches — a 3×3 matrix based on wickets lost and boundaries hit. See your win rate across 9 zones, expected vs actual wins, and personalised insights about your game.</p>
+        <div class="upgrade-cta">Contact your organiser to unlock</div>
+      </div>`;
+    return;
+  }
   // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
   const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0,playerWins:0})));
   const wktRow=w=>w>=2?2:w;
@@ -1602,7 +1659,7 @@ function drawGroupedBars(canvas,groups,seriesValues,colors,seriesLabels,opts={})
 }
 
 // ── Leaderboards ──────────────────────────────────────────
-function renderLeaderboards(pn,ms){
+function renderLeaderboards(pn,ms,prem){
   const MIN=2;
   const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const fmtD=d=>d.getDate()+' '+mn[d.getMonth()];
@@ -1720,14 +1777,32 @@ function renderLeaderboards(pn,ms){
   const noData=`<div style="text-align:center;padding:12px;color:var(--muted);font-size:12px">No data yet</div>`;
   const minNote=`<div class="lb-min-note">Min ${MIN} matches required</div>`;
 
+  const gbHtml=(topFirst.map((p,i)=>row(i,p.name,p.name===pn,String(p.w)+' wins','2nd: '+p.p2+' · 3rd: '+p.p3+' · played: '+p.played)).join('')||noData)+minNote;
+
+  if(!prem){
+    document.getElementById('tab-leaderboards').innerHTML=`
+      <div class="lb-section-hdr">Pair Stats</div>
+      <div class="card">
+        <div class="card-title">Top golden beard badge winners 🏆</div>
+        <p class="desc">Most wins, tiebroken by 2nd places then 3rd places.</p>
+        ${gbHtml}
+      </div>
+      <div class="upgrade-card">
+        <div style="font-size:26px;margin-bottom:8px">🔒</div>
+        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More leaderboards available</div>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock top pair scores, pair averages, individual batting (total runs, strike rates, balls per wicket) and bowling leaderboards (economy rates, wickets taken, wickets per match).</p>
+        <div class="upgrade-cta">Contact your organiser to unlock</div>
+      </div>`;
+    return;
+  }
+
   document.getElementById('lb-pair-scores').innerHTML=
     pairScores.slice(0,5).map((p,i)=>row(i,p.label,p.players.includes(pn),String(p.runs),fmtD(p.date)+' · '+ordinal(p.pos))).join('')||noData;
 
   document.getElementById('lb-pair-avgs').innerHTML=
     (topPairAvgs.map((p,i)=>row(i,p.name,p.name===pn,f1(p.avg),p.count+' matches')).join('')||noData)+minNote;
 
-  document.getElementById('lb-first-place').innerHTML=
-    (topFirst.map((p,i)=>row(i,p.name,p.name===pn,String(p.w)+' wins','2nd: '+p.p2+' · 3rd: '+p.p3+' · played: '+p.played)).join('')||noData)+minNote;
+  document.getElementById('lb-first-place').innerHTML=gbHtml;
 
   document.getElementById('lb-bat-runs').innerHTML=
     topRuns.map((p,i)=>row(i,p.name,p.name===pn,String(p.runs),p.matches+' matches')).join('')||noData;

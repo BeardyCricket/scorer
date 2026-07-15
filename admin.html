@@ -79,6 +79,15 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .del-btn{padding:5px 10px;border-radius:20px;border:1px solid #fee2e2;background:#fff;font-size:12px;color:var(--red);cursor:pointer}
 .del-btn:hover{background:#fee2e2}
 
+/* Premium controls */
+.prem-row{display:flex;align-items:center;gap:8px;padding-top:6px;margin-top:6px;border-top:1px solid var(--border);flex-wrap:wrap}
+.prem-check{width:15px;height:15px;cursor:pointer;accent-color:#7F77DD;flex-shrink:0}
+.prem-lbl{font-size:12px;font-weight:600;color:#7F77DD;cursor:pointer}
+.prem-date{padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--navy);background:#fff;outline:none;-webkit-appearance:none}
+.prem-date:disabled{opacity:.35;cursor:not-allowed}
+.prem-badge{font-size:10px;font-weight:700;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px}
+.prem-exp{font-size:10px;color:var(--amber);font-weight:600}
+
 /* Invite note */
 .invite-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;font-size:13px;color:#1e40af;line-height:1.5;margin-top:10px}
 .invite-note a{color:#1e40af;font-weight:600}
@@ -298,16 +307,51 @@ async function refreshList(){
 function renderPlayers(players){
   const el=document.getElementById('player-list');
   if(!players.length){el.innerHTML='<div class="empty">No players yet</div>';return;}
-  el.innerHTML=players.map(p=>`
-    <div class="player-row">
-      <div style="flex:1;min-width:0">
-        <div class="player-name">${escHtml(p.player_name)}</div>
-        <div class="player-email">${escHtml(p.email)}</div>
+  const today=new Date().toISOString().slice(0,10);
+  el.innerHTML=players.map(p=>{
+    const prem=p.is_premium===true;
+    const exp=p.premium_until;
+    const live=prem&&(!exp||exp>=today);
+    const expNote=prem&&exp?(exp<today?`<span class="prem-exp">expired ${exp}</span>`:`<span class="prem-exp">until ${exp}</span>`):'';
+    return`<div class="player-row" style="flex-direction:column;align-items:stretch;gap:0">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="player-name">${escHtml(p.player_name)}</span>
+            ${live?'<span class="prem-badge">⭐ Premium</span>':''}
+          </div>
+          <div class="player-email">${escHtml(p.email)}</div>
+        </div>
+        <span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Inactive'}</span>
+        <button class="toggle-btn" onclick="toggleActive('${p.id}',${p.is_active})">${p.is_active?'Revoke':'Restore'}</button>
+        <button class="del-btn" onclick="deletePlayer('${p.id}','${escHtml(p.player_name)}')">✕</button>
       </div>
-      <span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Inactive'}</span>
-      <button class="toggle-btn" onclick="toggleActive('${p.id}',${p.is_active})">${p.is_active?'Revoke':'Restore'}</button>
-      <button class="del-btn" onclick="deletePlayer('${p.id}','${escHtml(p.player_name)}')">✕</button>
-    </div>`).join('');
+      <div class="prem-row">
+        <input type="checkbox" class="prem-check" id="prem-${p.id}" ${prem?'checked':''}
+          onchange="togglePremCheck('${p.id}',this.checked)">
+        <label class="prem-lbl" for="prem-${p.id}">Premium</label>
+        <input type="date" class="prem-date" id="date-${p.id}" value="${exp||''}" ${prem?'':'disabled'}
+          onchange="setPremium('${p.id}',true,this.value)"
+          title="Leave blank for no expiry">
+        ${expNote}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePremCheck(id,checked){
+  const dateEl=document.getElementById('date-'+id);
+  dateEl.disabled=!checked;
+  if(!checked)dateEl.value='';
+  setPremium(id,checked,checked?dateEl.value:null);
+}
+
+async function setPremium(id,isPrem,until){
+  const update={is_premium:isPrem,premium_until:isPrem&&until?until:null};
+  const{error}=await db.from('player_access').update(update).eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  toast(isPrem?'Premium activated ⭐':'Reverted to free tier');
+  await refreshList();
 }
 
 window.addEventListener('DOMContentLoaded',init);
