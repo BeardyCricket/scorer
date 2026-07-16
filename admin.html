@@ -353,9 +353,8 @@ function togglePremCheck(id,checked){
 
 async function setPremium(id,isPrem,until){
   const update={is_premium:isPrem,premium_until:isPrem&&until?until:null};
-  const{data,error}=await db.from('player_access').update(update).eq('id',id).select('id,is_premium,premium_until');
+  const{error}=await db.from('player_access').update(update).eq('id',id);
   if(error){toast('Error: '+error.message);return;}
-  if(!data||!data.length){toast('Update failed — check admin permissions');return;}
   toast(isPrem?'Premium activated ⭐':'Reverted to free tier');
   await refreshList();
 }
