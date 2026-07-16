@@ -270,18 +270,10 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Ranking score</div>
-        <div style="text-align:center;padding:8px 0 14px">
+        <div style="text-align:center;padding:8px 0 4px">
           <div class="stat-big" id="net-score">—</div>
           <div class="stat-sub">Ranking score factoring in batting and bowling performance, 100 = average</div>
         </div>
-        <div class="card-title" style="margin-top:4px">Score trajectory</div>
-        <p class="desc" style="margin-top:-2px">How your ranking score has evolved after each match.</p>
-        <canvas id="chart-trajectory" height="150"></canvas>
-      </div>
-      <div class="card" style="padding-left:8px;padding-right:8px">
-        <div class="card-title" style="padding-left:8px">Performance over time</div>
-        <p class="desc" style="padding-left:8px">Cumulative batting strike rate (purple, left axis) and bowling economy (amber dashed, right axis) as they develop across your matches.</p>
-        <canvas id="chart-trend" height="180"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Top 5 pair scores</div>
@@ -315,6 +307,11 @@ canvas{display:block;width:100%}
         <p class="desc" style="padding-left:8px">How your run rate compares across each of your pair's 4 overs.</p>
         <canvas id="chart-sr-over" height="180"></canvas>
       </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Strike rate over time</div>
+        <p class="desc" style="padding-left:8px">How your cumulative batting strike rate has developed across matches.</p>
+        <canvas id="chart-bat-sr-trend" height="150"></canvas>
+      </div>
       <div class="card">
         <div class="card-title">Head-to-head vs bowlers <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
         <p class="desc">Your strike rate and dismissals against each bowler you've faced (min 6 balls).</p>
@@ -343,6 +340,11 @@ canvas{display:block;width:100%}
         <div class="card-title">Economy by match <span style="font-size:9px;font-weight:400;color:var(--muted)">🎯 = wicket taken</span></div>
         <p class="desc">Your economy rate each match. Green = better than your average, amber = close, red = worse.</p>
         <canvas id="chart-eco" height="150"></canvas>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Economy over time</div>
+        <p class="desc" style="padding-left:8px">How your cumulative bowling economy has developed across matches.</p>
+        <canvas id="chart-bowl-eco-trend" height="150"></canvas>
       </div>
       <div class="card">
         <div class="card-title">Head-to-head vs batters <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
@@ -821,10 +823,6 @@ function renderOverview(pn,pl,ms,flat){
   document.getElementById('all-avg-score').textContent=allPairCount?f0(allPairRuns/allPairCount):'—';
   document.getElementById('win-avg-score').textContent=winPairCount?f0(winPairRuns/winPairCount):'—';
 
-  // Trajectory
-  drawTrajectory(pn);
-  drawTrendLine(pn);
-
   // Top 5 pair scores
   const allPairs=[];
   for(const m of filteredMatches){
@@ -851,206 +849,148 @@ function renderOverview(pn,pl,ms,flat){
     </div>`).join('');
 }
 
-function drawTrajectory(pn){
-  const canvas=document.getElementById('chart-trajectory');
-  const ctx=canvas.getContext('2d');
-  const W=Math.max(canvas.parentElement.clientWidth-32,window.innerWidth-48,100);
-  const H=150;
-  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
-  ctx.scale(2,2);
-
-  // Compute cumulative net score after each match player participated in
-  const points=[];
-  let cumBalls=[];
-  for(const m of allMatches){
-    const inMatch=m.history.some(b=>b.facing===pn||b.bowling===pn);
-    if(!inMatch)continue;
-    // only include up to and including current filteredMatches dates
-    cumBalls=cumBalls.concat(m.history);
-    if(!filteredMatches.find(fm=>fm.matchId===m.matchId))continue;
-    const{pl}=computeAllStats(cumBalls);
-    const nets=Object.values(pl).filter(p=>p.bb>0||p.lb>0).map(p=>p.net);
-    const avgN=nets.length?nets.reduce((s,n)=>s+n,0)/nets.length:0;
-    const ps=pl[pn];
-    points.push({score:ps?Math.round(100+(ps.net-avgN)):100,date:m.date});
-  }
-
-  if(!points.length){
-    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
-    ctx.fillText('No data for this period',W/2,H/2);return;
-  }
-
-  const vals=points.map(p=>p.score);
-  const lo=Math.min(80,...vals);
-  const hi=Math.max(120,...vals);
-  const range=Math.max(hi-lo,20);
-  const pad={t:12,r:10,b:24,l:36};
-  const cw=W-pad.l-pad.r;
-  const ch=H-pad.t-pad.b;
-
-  const xS=i=>pad.l+(points.length<2?cw/2:i/(points.length-1)*cw);
-  const yS=v=>pad.t+ch-((v-lo)/range)*ch;
-  const y100=yS(100);
-
-  // 100 dashed line
-  ctx.setLineDash([4,4]);ctx.strokeStyle='#C8CEDE';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(pad.l,y100);ctx.lineTo(pad.l+cw,y100);ctx.stroke();
-  ctx.setLineDash([]);
-
-  if(points.length===1){
-    // Single dot
-    ctx.fillStyle='#7F77DD';ctx.beginPath();ctx.arc(xS(0),yS(points[0].score),4,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#1A2744';ctx.font='bold 11px -apple-system,sans-serif';ctx.textAlign='center';
-    ctx.fillText(points[0].score,xS(0),yS(points[0].score)-8);
-  }else{
-    // Area fill
-    ctx.fillStyle='rgba(127,119,221,.12)';
-    ctx.beginPath();
-    points.forEach((p,i)=>{const x=xS(i),y=yS(p.score);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
-    ctx.lineTo(xS(points.length-1),pad.t+ch);ctx.lineTo(pad.l,pad.t+ch);ctx.closePath();ctx.fill();
-    // Line
-    ctx.strokeStyle='#7F77DD';ctx.lineWidth=2;ctx.lineJoin='round';
-    ctx.beginPath();
-    points.forEach((p,i)=>{const x=xS(i),y=yS(p.score);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
-    ctx.stroke();
-    // Dots + score labels
-    const step2=Math.max(1,Math.ceil(points.length/5));
-    points.forEach((p,i)=>{
-      const x=xS(i),y=yS(p.score);
-      ctx.fillStyle='#7F77DD';ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
-      if(i%step2===0||i===points.length-1){
-        ctx.fillStyle='#1A2744';ctx.font='bold 9px -apple-system,sans-serif';ctx.textAlign='center';
-        ctx.fillText(String(p.score),x,Math.max(pad.t+8,y-6));
-      }
-    });
-  }
-
-  // Y axis: 100 label
-  ctx.textAlign='right';ctx.font='9px -apple-system,sans-serif';ctx.fillStyle='#A0ABBE';
-  ctx.fillText('100',pad.l-3,y100+3);
-  // X axis labels
-  const mn=['J','F','M','A','M','J','J','A','S','O','N','D'];
-  const step=Math.max(1,Math.ceil(points.length/5));
-  ctx.textAlign='center';ctx.fillStyle='#6B7A99';
-  points.forEach((p,i)=>{
-    if(i%step===0||i===points.length-1){
-      ctx.fillText(mn[p.date.getMonth()]+p.date.getDate(),xS(i),H-6);
-    }
-  });
-}
-
-function drawTrendLine(pn){
-  const canvas=document.getElementById('chart-trend');
+function drawBatSRTrend(pn){
+  const canvas=document.getElementById('chart-bat-sr-trend');
   if(!canvas)return;
-  const ctx=canvas.getContext('2d');
-  const H=180;
+  const H=150;
   const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
   canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
-  ctx.scale(2,2);
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
 
-  // Cumulative batting SR + bowling eco after each match
-  let cBB=0,cBR=0,cLB=0,cLR=0;
+  let cBB=0,cBR=0;
   const pts=[];
   for(const m of filteredMatches){
     let inMatch=false;
     m.history.forEach(b=>{
-      if(b.facing===pn){
-        inMatch=true;
-        if(BAT_TYPES.has(b.type))cBB++;
-        if(RUN_TYPES.has(b.type)&&b.run>0)cBR+=b.run;
-      }
-      if(b.bowling===pn){
-        inMatch=true;
-        cLB++;
-        if(b.type!=='wkt'&&b.run>0)cLR+=b.run;
-      }
+      if(b.facing===pn){inMatch=true;if(BAT_TYPES.has(b.type))cBB++;if(RUN_TYPES.has(b.type)&&b.run>0)cBR+=b.run;}
     });
     if(!inMatch)continue;
-    pts.push({date:m.date,sr:cBB>=6?cBR/cBB*100:null,eco:cLB>=6?cLR/cLB*6:null});
+    pts.push({date:m.date,sr:cBB>=6?cBR/cBB*100:null});
   }
 
-  if(!pts.length){
+  const vals=pts.map(p=>p.sr).filter(v=>v!=null);
+  if(!vals.length){
     ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
-    ctx.fillText('No data',W/2,H/2);return;
+    ctx.fillText('Not enough data',W/2,H/2);return;
   }
 
-  const srVals=pts.map(p=>p.sr).filter(v=>v!=null);
-  const ecoVals=pts.map(p=>p.eco).filter(v=>v!=null);
-  const hasSR=srVals.length>0;
-  const hasEco=ecoVals.length>0;
-
-  const legH=16;
-  const padL=hasSR?28:6,padR=hasEco?28:6,padT=14,padB=20+legH;
+  const padL=28,padR=8,padT=12,padB=20;
   const cw=W-padL-padR,ch=H-padT-padB;
   const n=pts.length;
+  const lo=Math.floor(Math.min(50,...vals)/10)*10;
+  const hi=Math.ceil(Math.max(120,...vals)/10)*10;
+  const rng=hi-lo||1;
   const xS=i=>padL+(n<2?cw/2:i/(n-1)*cw);
+  const yS=v=>padT+ch*(1-(v-lo)/rng);
 
   // Gridlines
   ctx.strokeStyle='#E8EBF3';ctx.lineWidth=1;
   for(let t=0;t<=4;t++){const gy=padT+(t/4)*ch;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+cw,gy);ctx.stroke();}
 
-  // SR line (purple, left axis)
-  if(hasSR){
-    const lo=Math.floor(Math.min(50,...srVals)/10)*10;
-    const hi=Math.ceil(Math.max(120,...srVals)/10)*10;
-    const rng=hi-lo||1;
-    const yS=v=>padT+ch*(1-(v-lo)/rng);
-    // Area fill
-    ctx.fillStyle='rgba(127,119,221,.1)';
-    ctx.beginPath();
-    let fi=-1;
-    pts.forEach((p,i)=>{if(p.sr==null)return;const x=xS(i),y=yS(p.sr);if(fi<0){ctx.moveTo(x,y);fi=i;}else ctx.lineTo(x,y);});
-    if(fi>=0){const li=pts.length-1;ctx.lineTo(xS(li),padT+ch);ctx.lineTo(xS(fi),padT+ch);ctx.closePath();ctx.fill();}
-    // Line
-    ctx.strokeStyle='#7F77DD';ctx.lineWidth=2;ctx.lineJoin='round';ctx.setLineDash([]);
-    ctx.beginPath();fi=-1;
-    pts.forEach((p,i)=>{if(p.sr==null)return;const x=xS(i),y=yS(p.sr);if(fi<0){ctx.moveTo(x,y);fi=i;}else ctx.lineTo(x,y);});
-    ctx.stroke();
-    // Dots
-    ctx.fillStyle='#7F77DD';
-    pts.forEach((p,i)=>{if(p.sr==null)return;ctx.beginPath();ctx.arc(xS(i),yS(p.sr),2.5,0,Math.PI*2);ctx.fill();});
-    // Left y-axis labels
-    ctx.textAlign='right';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#7F77DD';
-    [lo,Math.round((lo+hi)/2),hi].forEach(v=>{ctx.fillText(String(v),padL-2,yS(v)+3);});
-  }
+  // Area fill
+  const fpts=pts.filter(p=>p.sr!=null);
+  ctx.fillStyle='rgba(127,119,221,.1)';ctx.beginPath();
+  fpts.forEach((p,i)=>{const x=xS(pts.indexOf(p)),y=yS(p.sr);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(xS(pts.indexOf(fpts[fpts.length-1])),padT+ch);ctx.lineTo(xS(pts.indexOf(fpts[0])),padT+ch);ctx.closePath();ctx.fill();
 
-  // Eco line (amber, right axis, dashed)
-  if(hasEco){
-    const lo=Math.floor(Math.min(4,...ecoVals));
-    const hi=Math.ceil(Math.max(14,...ecoVals));
-    const rng=hi-lo||1;
-    const yE=v=>padT+ch*(1-(v-lo)/rng);
-    ctx.strokeStyle='#BA7517';ctx.lineWidth=2;ctx.lineJoin='round';ctx.setLineDash([5,3]);
-    ctx.beginPath();let fi=-1;
-    pts.forEach((p,i)=>{if(p.eco==null)return;const x=xS(i),y=yE(p.eco);if(fi<0){ctx.moveTo(x,y);fi=i;}else ctx.lineTo(x,y);});
-    ctx.stroke();ctx.setLineDash([]);
-    // Dots
-    ctx.fillStyle='#BA7517';
-    pts.forEach((p,i)=>{if(p.eco==null)return;ctx.beginPath();ctx.arc(xS(i),yE(p.eco),2.5,0,Math.PI*2);ctx.fill();});
-    // Right y-axis labels
-    ctx.textAlign='left';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#BA7517';
-    [lo,Math.round((lo+hi)/2),hi].forEach(v=>{ctx.fillText(f1(v),W-padR+2,yE(v)+3);});
-  }
+  // Line
+  ctx.strokeStyle='#7F77DD';ctx.lineWidth=2;ctx.lineJoin='round';ctx.setLineDash([]);
+  ctx.beginPath();let fi=-1;
+  pts.forEach((p,i)=>{if(p.sr==null)return;const x=xS(i),y=yS(p.sr);if(fi<0){ctx.moveTo(x,y);fi=i;}else ctx.lineTo(x,y);});
+  ctx.stroke();
+
+  // Dots + labels
+  const step=Math.max(1,Math.ceil(n/5));
+  pts.forEach((p,i)=>{
+    if(p.sr==null)return;
+    const x=xS(i),y=yS(p.sr);
+    ctx.fillStyle='#7F77DD';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+    if(i%step===0||i===n-1){
+      ctx.fillStyle='#1A2744';ctx.font='bold 8px -apple-system,sans-serif';ctx.textAlign='center';
+      ctx.fillText(f1(p.sr),x,Math.max(padT+8,y-6));
+    }
+  });
+
+  // Y axis labels
+  ctx.textAlign='right';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#7F77DD';
+  [lo,Math.round((lo+hi)/2),hi].forEach(v=>{ctx.fillText(String(v),padL-2,yS(v)+3);});
 
   // X axis labels
-  const step=Math.max(1,Math.ceil(n/5));
   const mn=['J','F','M','A','M','J','J','A','S','O','N','D'];
   ctx.textAlign='center';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#6B7A99';
-  pts.forEach((p,i)=>{if(i%step===0||i===n-1)ctx.fillText(mn[p.date.getMonth()]+p.date.getDate(),xS(i),H-legH-2);});
+  pts.forEach((p,i)=>{if(i%step===0||i===n-1)ctx.fillText(mn[p.date.getMonth()]+p.date.getDate(),xS(i),H-4);});
+}
 
-  // Legend
-  const legY=H-legH+3;let legX=padL;
-  if(hasSR){
-    ctx.fillStyle='#7F77DD';ctx.fillRect(legX,legY,12,2);
-    ctx.fillStyle='#6B7A99';ctx.font='9px -apple-system,sans-serif';ctx.textAlign='left';
-    ctx.fillText('Batting SR',legX+14,legY+6);legX+=90;
+function drawBowlEcoTrend(pn){
+  const canvas=document.getElementById('chart-bowl-eco-trend');
+  if(!canvas)return;
+  const H=150;
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
+  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+
+  let cLB=0,cLR=0;
+  const pts=[];
+  for(const m of filteredMatches){
+    let inMatch=false;
+    m.history.forEach(b=>{
+      if(b.bowling===pn){inMatch=true;cLB++;if(b.type!=='wkt'&&b.run>0)cLR+=b.run;}
+    });
+    if(!inMatch)continue;
+    pts.push({date:m.date,eco:cLB>=6?cLR/cLB*6:null});
   }
-  if(hasEco){
-    ctx.setLineDash([4,3]);ctx.strokeStyle='#BA7517';ctx.lineWidth=2;
-    ctx.beginPath();ctx.moveTo(legX,legY+1);ctx.lineTo(legX+12,legY+1);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#6B7A99';ctx.font='9px -apple-system,sans-serif';ctx.textAlign='left';
-    ctx.fillText('Bowling eco',legX+14,legY+6);
+
+  const vals=pts.map(p=>p.eco).filter(v=>v!=null);
+  if(!vals.length){
+    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('Not enough data',W/2,H/2);return;
   }
+
+  const padL=24,padR=8,padT=12,padB=20;
+  const cw=W-padL-padR,ch=H-padT-padB;
+  const n=pts.length;
+  const lo=Math.floor(Math.min(4,...vals));
+  const hi=Math.ceil(Math.max(14,...vals));
+  const rng=hi-lo||1;
+  const xS=i=>padL+(n<2?cw/2:i/(n-1)*cw);
+  const yS=v=>padT+ch*(1-(v-lo)/rng);
+
+  // Gridlines
+  ctx.strokeStyle='#E8EBF3';ctx.lineWidth=1;
+  for(let t=0;t<=4;t++){const gy=padT+(t/4)*ch;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+cw,gy);ctx.stroke();}
+
+  // Line (amber)
+  ctx.strokeStyle='#BA7517';ctx.lineWidth=2;ctx.lineJoin='round';ctx.setLineDash([]);
+  ctx.beginPath();let fi=-1;
+  pts.forEach((p,i)=>{if(p.eco==null)return;const x=xS(i),y=yS(p.eco);if(fi<0){ctx.moveTo(x,y);fi=i;}else ctx.lineTo(x,y);});
+  ctx.stroke();
+
+  // Area fill
+  const fpts=pts.filter(p=>p.eco!=null);
+  ctx.fillStyle='rgba(186,117,23,.08)';ctx.beginPath();
+  fpts.forEach((p,i)=>{const x=xS(pts.indexOf(p)),y=yS(p.eco);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(xS(pts.indexOf(fpts[fpts.length-1])),padT+ch);ctx.lineTo(xS(pts.indexOf(fpts[0])),padT+ch);ctx.closePath();ctx.fill();
+
+  // Dots + labels
+  const step=Math.max(1,Math.ceil(n/5));
+  pts.forEach((p,i)=>{
+    if(p.eco==null)return;
+    const x=xS(i),y=yS(p.eco);
+    ctx.fillStyle='#BA7517';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+    if(i%step===0||i===n-1){
+      ctx.fillStyle='#1A2744';ctx.font='bold 8px -apple-system,sans-serif';ctx.textAlign='center';
+      ctx.fillText(f1(p.eco),x,Math.max(padT+8,y-6));
+    }
+  });
+
+  // Y axis labels
+  ctx.textAlign='right';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#BA7517';
+  [lo,Math.round((lo+hi)/2),hi].forEach(v=>{ctx.fillText(f1(v),padL-2,yS(v)+3);});
+
+  // X axis labels
+  const mn=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  ctx.textAlign='center';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#6B7A99';
+  pts.forEach((p,i)=>{if(i%step===0||i===n-1)ctx.fillText(mn[p.date.getMonth()]+p.date.getDate(),xS(i),H-4);});
 }
 
 // ── Batting ───────────────────────────────────────────────
@@ -1110,6 +1050,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   drawBatMatchBars(pn,flat,ms);
   drawScoringBreakdown(pn,pl,ms,flat);
   drawSRByOver(pn,pl,ms,flat);
+  drawBatSRTrend(pn);
   renderH2HBowlers(pn,ps,pl);
   const batSplit=qualityBatSplit(pn,pl,flat);
   const el=document.getElementById('bat-opp');
@@ -1288,6 +1229,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   `;
 
   drawEcoByMatch(pn,flat,avgEco);
+  drawBowlEcoTrend(pn);
   renderH2HBatters(pn,ps,pl,flat);
   const bowlSplit=qualityBowlSplit(pn,pl,flat);
   const elb=document.getElementById('bowl-opp');
