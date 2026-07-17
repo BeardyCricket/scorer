@@ -489,6 +489,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <span id="t-msg">⏱ —</span>
     <span style="display:flex;align-items:center;gap:8px;flex-shrink:0">
       <span id="push-indicator" style="font-size:11px;color:var(--green);opacity:0;transition:opacity 1s">📡 Backed up</span>
+      <span id="push-error" style="font-size:11px;color:#E24B4A;display:none">⚠️ Sync failed</span>
       <span id="t-end" style="font-size:12px;opacity:.7"></span>
     </span>
   </div>
@@ -612,6 +613,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       <div style="font-size:12px;font-weight:700;color:var(--brand);word-break:break-all;line-height:1.5;margin-bottom:10px" id="end-share-url"></div>
       <button class="btn btn-secondary" onclick="copyEndShareUrl()" id="end-share-btn">Copy link</button>
       <div style="font-size:12px;color:var(--green);margin-top:8px;display:none" id="end-share-saved">✓ Final scores saved to scoreboard</div>
+      <div style="margin-top:8px;display:none" id="end-share-error">
+        <div style="font-size:12px;color:#E24B4A;margin-bottom:6px">⚠️ Failed to save to scoreboard — check your connection</div>
+        <button class="btn btn-secondary" onclick="retryFinalPush()" style="font-size:12px;padding:6px 14px">Retry</button>
+      </div>
     </div>
     <div class="gap"></div>
     <div class="card">
@@ -3226,8 +3231,8 @@ async function endMatch(){
   }catch(e){
     console.error('[Stats] match_stats computation FAILED:',e);
   }
+  _lastMatchStats=matchStats;
   await pushLiveScore('finished',matchStats);
-  if(!testMode&&savedMsg)savedMsg.style.display='block';
   clearGameState();
   saveMatchToStorage();
   const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
@@ -4067,12 +4072,45 @@ async function pushLiveScore(status='in_progress',matchStats=null){
       .upsert(row,{onConflict:'match_id'});
     if(error){
       console.error('[Supabase] ERROR:', error.code, error.message, error.details, error.hint);
+      showPushError(status);
     }else{
       console.log('[Supabase] SUCCESS');
+      if(status!=='finished'){
+        flashPushIndicator();
+      }else{
+        const saved=document.getElementById('end-share-saved');
+        if(saved)saved.style.display='block';
+        const errEl=document.getElementById('end-share-error');
+        if(errEl)errEl.style.display='none';
+      }
     }
   }catch(e){
     console.error('[Supabase] NETWORK ERROR:', e);
+    showPushError(status);
   }
+}
+
+function showPushError(status){
+  if(status==='finished'){
+    const errEl=document.getElementById('end-share-error');
+    if(errEl)errEl.style.display='block';
+    const saved=document.getElementById('end-share-saved');
+    if(saved)saved.style.display='none';
+  }else{
+    const el=document.getElementById('push-error');
+    if(!el)return;
+    el.style.display='inline';
+    clearTimeout(el._t);
+    el._t=setTimeout(()=>{el.style.display='none';},8000);
+  }
+}
+
+let _lastMatchStats=null;
+async function retryFinalPush(){
+  const btn=document.querySelector('#end-share-error button');
+  if(btn){btn.disabled=true;btn.textContent='Retrying…';}
+  await pushLiveScore('finished',_lastMatchStats);
+  if(btn){btn.disabled=false;btn.textContent='Retry';}
 }
 
 // ══════════════════════════════════════════

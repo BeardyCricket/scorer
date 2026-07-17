@@ -52,6 +52,8 @@
   <h1>Import Match CSVs</h1>
   <p class="sub">Upload CSV files exported from the scoring app to save them to Supabase.<br>Also useful if Supabase was down mid-match and you need to backfill the data.</p>
 
+  <div id="conn-status" style="font-size:12px;padding:8px 12px;border-radius:8px;background:#f3f4f6;margin-bottom:14px;display:none"></div>
+
   <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
     <input type="file" id="file-input" accept=".csv" multiple>
     <div class="drop-label">Drop CSV files here</div>
@@ -70,6 +72,20 @@
     const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
     const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
     const client=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+    // Test write permission on load
+    (async()=>{
+      const el=document.getElementById('conn-status');
+      el.style.display='block';el.textContent='Checking Supabase connection…';
+      try{
+        const{data,error}=await client.from('live_scores').select('match_id').limit(1);
+        if(error){el.style.background='#fee2e2';el.style.color='#7f1d1d';el.textContent='⚠️ Cannot reach Supabase: '+error.message;return;}
+        // Try a dummy upsert to a test row to verify write permission
+        const{error:we}=await client.from('live_scores').upsert({match_id:'beardy-import-test',updated_at:new Date().toISOString(),payload:{status:'test'}},{onConflict:'match_id'});
+        if(we){el.style.background='#fee2e2';el.style.color='#7f1d1d';el.textContent='⚠️ Read works but write is blocked: '+we.message+'. Check live_scores RLS policies.';}
+        else{el.style.background='#dcfce7';el.style.color='#14532d';el.textContent='✓ Supabase connection OK — ready to upload';}
+      }catch(e){el.style.background='#fee2e2';el.style.color='#7f1d1d';el.textContent='⚠️ Network error: '+e.message;}
+    })();
 
     const COLOR_MAP={Blue:'blue',Red:'red',Purple:'purple',Green:'green',Grey:'grey',Orange:'orange',Teal:'teal',Yellow:'yellow'};
     const FALLBACK_COLORS=['blue','red','purple','green','grey','orange','teal','yellow'];
@@ -292,10 +308,19 @@
             updated_at:new Date(item.date+'T12:00:00').toISOString(),
             payload
           };
+          console.log('[Import] upserting',item.matchId,'balls:',item.history.length);
           const{error}=await client.from('live_scores').upsert(row,{onConflict:'match_id'});
-          if(error)errors.push(item.filename+': '+error.message);
-          else uploaded.push(item.filename);
-        }catch(e){errors.push(item.filename+': '+e.message);}
+          if(error){
+            console.error('[Import] error:',error.code,error.message,error.details,error.hint);
+            errors.push(item.filename+': '+error.message+(error.hint?' ('+error.hint+')':''));
+          }else{
+            console.log('[Import] success:',item.matchId);
+            uploaded.push(item.filename);
+          }
+        }catch(e){
+          console.error('[Import] exception:',e);
+          errors.push(item.filename+': '+e.message);
+        }
       }
 
       btn.disabled=false;
@@ -324,9 +349,12 @@
       const el=document.getElementById('notice');
       el.textContent=msg;
       el.className='notice '+type;
+      el.style.display='block';
     }
     function hideNotice(){
-      document.getElementById('notice').style.display='none';
+      const el=document.getElementById('notice');
+      el.className='notice';
+      el.style.display='none';
     }
   </script>
 </body>
