@@ -80,13 +80,16 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .del-btn:hover{background:#fee2e2}
 
 /* Premium controls */
-.prem-row{display:flex;align-items:center;gap:8px;padding-top:6px;margin-top:6px;border-top:1px solid var(--border);flex-wrap:wrap}
-.prem-check{width:15px;height:15px;cursor:pointer;accent-color:#7F77DD;flex-shrink:0}
-.prem-lbl{font-size:12px;font-weight:600;color:#7F77DD;cursor:pointer}
-.prem-date{padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--navy);background:#fff;outline:none;-webkit-appearance:none}
-.prem-date:disabled{opacity:.35;cursor:not-allowed}
+.prem-row{display:flex;align-items:center;gap:8px;padding-top:8px;margin-top:8px;border-top:1px solid var(--border);flex-wrap:wrap}
+.prem-check{width:16px;height:16px;cursor:pointer;accent-color:#7F77DD;flex-shrink:0}
+.prem-lbl{font-size:12px;font-weight:600;color:#7F77DD;cursor:pointer;flex-shrink:0}
+.prem-date{padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--navy);background:#fff;outline:none;-webkit-appearance:none;flex:1;min-width:120px}
+.prem-date:disabled{opacity:.35;cursor:not-allowed;background:#f5f5f5}
+.prem-date:focus{border-color:#7F77DD}
+.prem-save{padding:5px 12px;background:#7F77DD;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.prem-save:hover{background:#6b63c9}
 .prem-badge{font-size:10px;font-weight:700;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px}
-.prem-exp{font-size:10px;color:var(--amber);font-weight:600}
+.prem-exp{font-size:10px;color:var(--amber);font-weight:600;width:100%}
 
 /* Invite note */
 .invite-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;font-size:13px;color:#1e40af;line-height:1.5;margin-top:10px}
@@ -127,6 +130,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </div>
   </div>
 
+  <div style="font-size:11px;font-weight:700;padding:6px 16px;background:#7F77DD;color:#fff;text-align:center">LOCAL v2 — premium fix active</div>
   <div class="wrap">
 
     <!-- Instructions -->
@@ -332,30 +336,32 @@ function renderPlayers(players){
         <button class="del-btn" onclick="deletePlayer('${p.id}','${escHtml(p.player_name)}')">✕</button>
       </div>
       <div class="prem-row">
-        <input type="checkbox" class="prem-check" id="prem-${p.id}" ${prem?'checked':''}
-          onchange="togglePremCheck('${p.id}',this.checked)">
+        <input type="checkbox" class="prem-check" id="prem-${p.id}" ${prem?'checked':''}>
         <label class="prem-lbl" for="prem-${p.id}">Premium</label>
-        <input type="date" class="prem-date" id="date-${p.id}" value="${exp||''}" ${prem?'':'disabled'}
-          onchange="setPremium('${p.id}',true,this.value)"
+        <input type="date" class="prem-date" id="date-${p.id}" value="${exp||''}"
           title="Leave blank for no expiry">
+        <button class="prem-save" onclick="savePremium('${p.id}')">Save</button>
         ${expNote}
       </div>
+      <div id="prem-err-${p.id}" style="font-size:11px;color:#E24B4A;padding:2px 0 0;display:none"></div>
     </div>`;
   }).join('');
 }
 
-function togglePremCheck(id,checked){
-  const dateEl=document.getElementById('date-'+id);
-  dateEl.disabled=!checked;
-  if(!checked)dateEl.value='';
-  setPremium(id,checked,checked?dateEl.value:null);
-}
-
-async function setPremium(id,isPrem,until){
+async function savePremium(id){
+  const isPrem=document.getElementById('prem-'+id).checked;
+  const until=document.getElementById('date-'+id).value||null;
+  const errEl=document.getElementById('prem-err-'+id);
+  if(errEl)errEl.style.display='none';
   const update={is_premium:isPrem,premium_until:isPrem&&until?until:null};
   const{error}=await db.from('player_access').update(update).eq('id',id);
-  if(error){toast('Error: '+error.message);return;}
-  toast(isPrem?'Premium activated ⭐':'Reverted to free tier');
+  if(error){
+    const msg='Save failed: '+error.message;
+    if(errEl){errEl.textContent=msg;errEl.style.display='block';}
+    toast(msg,6000);
+    return;
+  }
+  toast(isPrem?'Premium saved ⭐':'Premium removed');
   await refreshList();
 }
 
