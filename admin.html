@@ -361,6 +361,16 @@ async function savePremium(id){
     toast(msg,6000);
     return;
   }
+  // Verify the change actually saved (RLS blocks silently with no error)
+  const{data:verify,error:ve}=await db.from('player_access')
+    .select('is_premium,premium_until').eq('id',id).single();
+  if(ve||!verify||!!verify.is_premium!==isPrem){
+    const msg='Blocked silently — RLS policy may not be set up. See console.';
+    console.error('savePremium verify failed',{verify,ve,isPrem});
+    if(errEl){errEl.textContent=msg;errEl.style.display='block';}
+    toast(msg,8000);
+    return;
+  }
   toast(isPrem?'Premium saved ⭐':'Premium removed');
   await refreshList();
 }
