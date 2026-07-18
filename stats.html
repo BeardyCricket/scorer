@@ -73,8 +73,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .apply-btn{padding:7px 14px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
 
 /* Tabs */
-.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:52px;z-index:99;margin-top:8px}
-.tab-btn{flex:1;padding:11px 2px;font-size:12px;font-weight:600;color:var(--muted);border:none;background:none;border-bottom:2px solid transparent;cursor:pointer}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:52px;z-index:99;margin-top:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab-btn{flex:0 0 auto;padding:11px 10px;font-size:12px;font-weight:600;color:var(--muted);border:none;background:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
 .tab-btn.active{color:var(--navy);border-bottom-color:var(--navy)}
 
 /* Cards */
@@ -161,8 +162,8 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .lb-min-note{font-size:10px;color:var(--muted);text-align:center;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
 
 /* Upgrade / freemium */
-.upgrade-card{background:#f5f3ff;border:1px solid #c4bfee;border-radius:12px;padding:22px 16px;text-align:center;margin-top:12px}
-.upgrade-cta{display:inline-block;background:#7F77DD;color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;font-weight:600;margin-top:2px}
+.upgrade-card{background:#f7f8fb;border:1.5px dashed #c4c8d8;border-radius:12px;padding:22px 16px;text-align:center;margin-top:12px}
+.upgrade-cta{display:inline-block;background:var(--navy);color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;font-weight:600;margin-top:2px}
 
 /* Canvas */
 canvas{display:block;width:100%}
@@ -241,10 +242,11 @@ canvas{display:block;width:100%}
 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="showTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showTab('leaderboards',this)">Leaderboards</button>
     <button class="tab-btn" onclick="showTab('batting',this)">Batting</button>
     <button class="tab-btn" onclick="showTab('bowling',this)">Bowling</button>
     <button class="tab-btn" onclick="showTab('winzones',this)">Win zones</button>
-    <button class="tab-btn" onclick="showTab('leaderboards',this)">Leaders</button>
+    <button class="tab-btn" onclick="showTab('spirit',this)">Spirit</button>
   </div>
 
   <div class="pad">
@@ -268,6 +270,10 @@ canvas{display:block;width:100%}
           <div class="mini-cell"><div class="mini-val" id="win-avg-score">—</div><div class="mini-lbl">Avg winner</div></div>
         </div>
       </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Pair scores per match <span style="font-size:9px;font-weight:400;color:var(--muted)">purple = you · grey = other pairs</span></div>
+        <canvas id="chart-pair-scores" height="160"></canvas>
+      </div>
       <div class="card">
         <div class="card-title">Ranking score</div>
         <div style="text-align:center;padding:8px 0 4px">
@@ -275,6 +281,7 @@ canvas{display:block;width:100%}
           <div class="stat-sub">Ranking score factoring in batting and bowling performance, 100 = average</div>
         </div>
       </div>
+      <div id="ranking-trend-card"></div>
       <div class="card">
         <div class="card-title">Top 5 pair scores</div>
         <p class="desc">Your highest-scoring pair innings, with partner, date and finishing position.</p>
@@ -437,6 +444,11 @@ canvas{display:block;width:100%}
       </div>
 
       <div class="lb-min-note" style="margin-bottom:12px">Averages and rates require a minimum of 2 matches played</div>
+    </div>
+
+    <!-- SPIRIT CRICKETER -->
+    <div id="tab-spirit" class="hidden">
+      <div id="spirit-content"><div class="empty">Loading…</div></div>
     </div>
   </div>
 </div>
@@ -645,7 +657,7 @@ function applyFilter(){
 
 // ── Tab switching ─────────────────────────────────────────
 function showTab(id,btn){
-  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards'].forEach(t=>{
+  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards','tab-spirit'].forEach(t=>{
     document.getElementById(t).classList.toggle('hidden','tab-'+id!==t);
   });
   if(btn)document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
@@ -766,11 +778,12 @@ function renderAll(){
   const flat=filteredMatches.flatMap(m=>m.history.map(b=>({...b,matchId:m.matchId,matchDate:m.date})));
   const{pl,lg_bat,lg_bowl}=computeAllStats(flat);
   const ms=matchSummaries(filteredMatches);
-  renderOverview(pn,pl,ms,flat);
+  renderOverview(pn,pl,ms,flat,isPremium);
   renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
   renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
   renderWinZones(pn,ms,flat,isPremium);
   renderLeaderboards(pn,ms,isPremium);
+  renderSpiritCricketer(pn,pl,flat,ms);
 }
 
 // ── Format helpers ─────────────────────────────────────────
@@ -784,7 +797,7 @@ const fDate=d=>{
 const ordinal=n=>{const s=['th','st','nd','rd'];const v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
 
 // ── Overview ───────────────────────────────────────────────
-function renderOverview(pn,pl,ms,flat){
+function renderOverview(pn,pl,ms,flat,prem){
   const ps=pl[pn];
   // Net contribution (100 = avg)
   const allNets=Object.values(pl).filter(p=>p.bb>0||p.lb>0).map(p=>p.net);
@@ -847,6 +860,22 @@ function renderOverview(pn,pl,ms,flat){
         <div class="tp-pos">${ordinal(p.rank+1)}</div>
       </div>
     </div>`).join('');
+
+  drawPairScoresChart(pn,ms);
+
+  const rtEl=document.getElementById('ranking-trend-card');
+  if(rtEl){
+    if(prem){
+      rtEl.innerHTML=`<div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Ranking score over time</div>
+        <p class="desc" style="padding-left:8px">How your cumulative ranking score (100 = average) has developed across matches.</p>
+        <canvas id="chart-ranking-trend" height="150"></canvas>
+      </div>`;
+      drawRankingTrend(pn);
+    }else{
+      rtEl.innerHTML='';
+    }
+  }
 }
 
 function drawBatSRTrend(pn){
@@ -1011,12 +1040,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${sr!=null?f1(sr):'—'}</div><div class="mini-lbl">Strike rate</div></div>
         </div>
       </div>
-      <div class="upgrade-card">
-        <div style="font-size:26px;margin-bottom:8px">🔒</div>
-        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More batting stats available</div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock per-match run charts, scoring breakdown (dots / 1s / 2s / fours / sixes), strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.</p>
-        <div class="upgrade-cta">Contact your organiser to unlock</div>
-      </div>`;
+      ${upgradeCard('Deeper batting stats are available to regular club members — per-match run charts, scoring breakdown, strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
     return;
   }
 
@@ -1196,12 +1220,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${eco!=null?f1(eco):'—'}</div><div class="mini-lbl">Economy</div></div>
         </div>
       </div>
-      <div class="upgrade-card">
-        <div style="font-size:26px;margin-bottom:8px">🔒</div>
-        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More bowling stats available</div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock economy trend charts, extras %, dot ball %, balls per wicket, head-to-head vs batters, and batter quality analysis.</p>
-        <div class="upgrade-cta">Contact your organiser to unlock</div>
-      </div>`;
+      ${upgradeCard('Deeper bowling stats are available to regular club members — economy trend charts, extras %, dot ball %, head-to-head vs batters, and batter quality analysis.')}</div>`;
     return;
   }
   const allBowlers=Object.values(pl).filter(p=>p.lb>0);
@@ -1296,12 +1315,7 @@ function renderH2HBatters(pn,ps,pl,flat){
 function renderWinZones(pn,ms,flat,prem){
   if(!prem){
     document.getElementById('tab-winzones').innerHTML=`
-      <div class="upgrade-card">
-        <div style="font-size:26px;margin-bottom:8px">🔒</div>
-        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">Win Zones</div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Win Zones shows which type of pair innings tends to win matches — a 3×3 matrix based on wickets lost and boundaries hit. See your win rate across 9 zones, expected vs actual wins, and personalised insights about your game.</p>
-        <div class="upgrade-cta">Contact your organiser to unlock</div>
-      </div>`;
+      ${upgradeCard('Win Zones is available to regular club members — a 3×3 matrix showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
     return;
   }
   // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
@@ -1729,12 +1743,7 @@ function renderLeaderboards(pn,ms,prem){
         <p class="desc">Most wins, tiebroken by 2nd places then 3rd places.</p>
         ${gbHtml}
       </div>
-      <div class="upgrade-card">
-        <div style="font-size:26px;margin-bottom:8px">🔒</div>
-        <div style="font-size:15px;font-weight:700;color:#5b54c8;margin-bottom:8px">More leaderboards available</div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px">Upgrade to unlock top pair scores, pair averages, individual batting (total runs, strike rates, balls per wicket) and bowling leaderboards (economy rates, wickets taken, wickets per match).</p>
-        <div class="upgrade-cta">Contact your organiser to unlock</div>
-      </div>`;
+      ${upgradeCard('More leaderboards are available to regular club members — top pair scores, pair averages, individual batting (runs, strike rates, balls per wicket) and bowling leaderboards.')}</div>`;
     return;
   }
 
@@ -1763,6 +1772,233 @@ function renderLeaderboards(pn,ms,prem){
 
   document.getElementById('lb-bowl-wpm').innerHTML=
     (topWpm.map((p,i)=>row(i,p.name,p.name===pn,p.wpm.toFixed(2),p.total+' total · '+p.matches+' matches')).join('')||noData)+minNote;
+}
+
+// ── Upgrade card helper ───────────────────────────────────
+function upgradeCard(desc){
+  return`<div class="upgrade-card">
+    <div style="font-size:28px;margin-bottom:10px">🏏</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">Club members area</div>
+    <p style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:14px">${desc}</p>
+    <div class="upgrade-cta">Chat to your captain to unlock</div>
+  </div>`;
+}
+
+// ── Pair scores chart ─────────────────────────────────────
+function drawPairScoresChart(pn,ms){
+  const canvas=document.getElementById('chart-pair-scores');
+  if(!canvas)return;
+  const H=160;
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
+  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+
+  const matchData=[];
+  for(const m of filteredMatches){
+    const s=ms[m.matchId];if(!s||!s.pairs.length)continue;
+    matchData.push({date:m.date,pairs:[...s.sorted].map(p=>({score:p.runs,isPlayer:p.players.includes(pn)}))});
+  }
+  if(!matchData.length){
+    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('No match data',W/2,H/2);return;
+  }
+
+  const maxScore=Math.max(...matchData.flatMap(m=>m.pairs.map(p=>p.score)),1);
+  const nM=matchData.length;
+  const maxP=Math.max(...matchData.map(m=>m.pairs.length));
+  const pad={t:18,r:6,b:20,l:6};
+  const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+  const gW=cw/nM;
+  const bGap=1;
+  const bW=Math.max(3,Math.min(14,(gW-(maxP+1)*bGap)/maxP));
+
+  matchData.forEach((m,mi)=>{
+    const gx=pad.l+mi*gW;
+    const clW=m.pairs.length*bW+(m.pairs.length-1)*bGap;
+    const clX=gx+(gW-clW)/2;
+    m.pairs.forEach((p,pi)=>{
+      const x=clX+pi*(bW+bGap);
+      const bH=ch*(p.score/maxScore);
+      const y=pad.t+ch-bH;
+      ctx.fillStyle=p.isPlayer?'#7F77DD':'#D5D8E8';
+      const r2=Math.min(2,bW/2);
+      if(bH>0){
+        ctx.beginPath();
+        ctx.moveTo(x+r2,y);ctx.lineTo(x+bW-r2,y);
+        ctx.arcTo(x+bW,y,x+bW,y+r2,r2);
+        ctx.lineTo(x+bW,y+bH);ctx.lineTo(x,y+bH);
+        ctx.arcTo(x,y,x+r2,y,r2);
+        ctx.closePath();ctx.fill();
+      }
+      if(p.isPlayer&&p.score>0){
+        ctx.fillStyle='#5b54c8';ctx.font='bold 7px -apple-system,sans-serif';ctx.textAlign='center';
+        ctx.fillText(String(p.score),x+bW/2,Math.max(pad.t+7,y-2));
+      }
+    });
+    ctx.fillStyle='#6B7A99';ctx.font='8px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText(shortDate(m.date),gx+gW/2,H-2);
+  });
+}
+
+// ── Ranking score trend (premium) ─────────────────────────
+function drawRankingTrend(pn){
+  const canvas=document.getElementById('chart-ranking-trend');
+  if(!canvas)return;
+  const H=150;
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
+  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+
+  const pts=[];
+  let cumHist=[];
+  for(const m of filteredMatches){
+    if(!m.history.some(b=>b.facing===pn||b.bowling===pn))continue;
+    cumHist=cumHist.concat(m.history);
+    const{pl}=computeAllStats(cumHist);
+    const ps=pl[pn];
+    if(!ps||(ps.bb<6&&ps.lb<6))continue;
+    const allNets=Object.values(pl).filter(p=>p.bb>0||p.lb>0).map(p=>p.net);
+    const avgNet=allNets.length?allNets.reduce((s,n)=>s+n,0)/allNets.length:0;
+    pts.push({date:m.date,score:Math.round(100+(ps.net-avgNet))});
+  }
+  if(pts.length<2){
+    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('Not enough matches yet',W/2,H/2);return;
+  }
+
+  const vals=pts.map(p=>p.score);
+  const padL=32,padR=8,padT=14,padB=20;
+  const cw=W-padL-padR,ch=H-padT-padB;
+  const n=pts.length;
+  const lo=Math.floor(Math.min(80,...vals)/10)*10;
+  const hi=Math.ceil(Math.max(120,...vals)/10)*10;
+  const rng=hi-lo||1;
+  const xS=i=>padL+(n<2?cw/2:i/(n-1)*cw);
+  const yS=v=>padT+ch*(1-(v-lo)/rng);
+
+  // Avg line at 100
+  const ay=yS(100);
+  ctx.setLineDash([3,3]);ctx.strokeStyle='#A0ABBE';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(padL,ay);ctx.lineTo(padL+cw,ay);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#A0ABBE';ctx.font='7px -apple-system,sans-serif';ctx.textAlign='left';
+  ctx.fillText('avg 100',padL+2,ay-2);
+
+  // Gridlines
+  ctx.strokeStyle='#E8EBF3';ctx.lineWidth=1;
+  for(let t=0;t<=4;t++){const gy=padT+(t/4)*ch;ctx.beginPath();ctx.moveTo(padL,gy);ctx.lineTo(padL+cw,gy);ctx.stroke();}
+
+  // Area
+  ctx.fillStyle='rgba(127,119,221,.1)';ctx.beginPath();
+  pts.forEach((p,i)=>{const x=xS(i),y=yS(p.score);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.lineTo(xS(n-1),padT+ch);ctx.lineTo(xS(0),padT+ch);ctx.closePath();ctx.fill();
+
+  // Line
+  ctx.strokeStyle='#7F77DD';ctx.lineWidth=2;ctx.lineJoin='round';
+  ctx.beginPath();pts.forEach((p,i)=>{const x=xS(i),y=yS(p.score);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();
+
+  // Dots + labels
+  const step=Math.max(1,Math.ceil(n/5));
+  pts.forEach((p,i)=>{
+    const x=xS(i),y=yS(p.score);
+    ctx.fillStyle=p.score>=100?'#1D9E75':'#E24B4A';
+    ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();
+    if(i%step===0||i===n-1){
+      ctx.fillStyle='#1A2744';ctx.font='bold 8px -apple-system,sans-serif';ctx.textAlign='center';
+      ctx.fillText(String(p.score),x,Math.max(padT+8,y-5));
+    }
+  });
+
+  // Y labels
+  ctx.textAlign='right';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#7F77DD';
+  [lo,Math.round((lo+hi)/2),hi].forEach(v=>{ctx.fillText(String(v),padL-2,yS(v)+3);});
+
+  // X labels
+  const mn=['J','F','M','A','M','J','J','A','S','O','N','D'];
+  ctx.textAlign='center';ctx.font='8px -apple-system,sans-serif';ctx.fillStyle='#6B7A99';
+  pts.forEach((p,i)=>{if(i%step===0||i===n-1)ctx.fillText(mn[p.date.getMonth()]+p.date.getDate(),xS(i),H-4);});
+}
+
+// ── Spirit cricketer ───────────────────────────────────────
+const SPIRITS={
+  stokes:{name:'Ben Stokes',role:'The All-Round Hero',
+    desc:"You do it all — scoring runs and taking wickets. With above-average batting and bowling, plus regular wickets, you're a genuine match-winner in both departments. Classic Stokes.",
+    emoji:'⭐',color:'#1A2744',bg:'#E8EAFF',traits:['Above-average batting','Match-winning bowling','Regular wicket-taker']},
+  pietersen:{name:'Kevin Pietersen',role:'The Big Hitter',
+    desc:"You play attacking cricket with a high strike rate and plenty of boundaries. Opposition bowlers feel the heat the moment you walk to the crease. Pure KP energy.",
+    emoji:'💥',color:'#E24B4A',bg:'#FEF2F2',traits:['High strike rate','Boundary machine','Attacking style']},
+  cook:{name:'Alastair Cook',role:'The Solid Accumulator',
+    desc:"Reliable, consistent, and hard to dismiss. You score runs steadily without unnecessary risk — the backbone of any batting lineup. Calm under pressure and always there at the end.",
+    emoji:'🛡️',color:'#1D9E75',bg:'#F0FDF4',traits:['Consistent scorer','Hard to dismiss','Reliable under pressure']},
+  swann:{name:'Graeme Swann',role:'The Wicket-Taker',
+    desc:"You keep things tight AND take wickets — the captain's go-to when a breakthrough is needed. Batters are never comfortable facing you.",
+    emoji:'🎯',color:'#7F77DD',bg:'#F5F3FF',traits:['Tight economy','Regular wickets',"Captain's first choice"]},
+  anderson:{name:'James Anderson',role:'The Economy Master',
+    desc:"Runs dry up the moment you have the ball. Your economy is among the best in the group — metronomic, miserly, and relentless. Batters can never get you away.",
+    emoji:'🧱',color:'#BA7517',bg:'#FFFBEB',traits:['Best economy in the group','Pressure bowler','Metronomic accuracy']},
+  woakes:{name:'Chris Woakes',role:'The Reliable Contributor',
+    desc:"You quietly get the job done — every team's unsung hero. Steady with bat and ball and consistent across conditions. Every side needs a Woakes and you're ours.",
+    emoji:'👊',color:'#6B7A99',bg:'#F0F2F7',traits:['Consistent contributor','Balanced all-round','Always dependable']}
+};
+
+function getSpiritKey(pn,pl,flat){
+  const ps=pl[pn];if(!ps)return'woakes';
+  const allBatters=Object.values(pl).filter(p=>p.bb>=12);
+  const allBowlers=Object.values(pl).filter(p=>p.lb>=12);
+  const avgSR=allBatters.length?allBatters.reduce((s,p)=>s+p.raw_bat,0)/allBatters.length:50;
+  const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+p.raw_bowl*6/100,0)/allBowlers.length:8;
+  const hasBat=ps.bb>=12,hasBowl=ps.lb>=12;
+  const mySR=hasBat?ps.raw_bat:null;
+  const myEco=hasBowl?ps.raw_bowl*6/100:null;
+  const bnds=flat.filter(b=>b.facing===pn&&(b.run===4||b.run===6)&&b.type!=='wide').length;
+  const bndPct=hasBat&&ps.bb>0?bnds/ps.bb:0;
+  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
+  const myBowlM=filteredMatches.filter(m=>m.history.some(b=>b.bowling===pn)).length;
+  const wpm=myBowlM>0?myWkts/myBowlM:0;
+  const goodBat=hasBat&&mySR>avgSR*1.05;
+  const bigHit=bndPct>=0.15;
+  const goodBowl=hasBowl&&myEco<avgEco*0.95;
+  const wicketer=wpm>=0.4;
+  if(goodBat&&goodBowl&&wicketer)return'stokes';
+  if(goodBat&&bigHit)return'pietersen';
+  if(goodBat)return'cook';
+  if(hasBowl&&goodBowl&&!wicketer)return'anderson';
+  if(hasBowl&&wicketer)return'swann';
+  return'woakes';
+}
+
+function renderSpiritCricketer(pn,pl,flat,ms){
+  const el=document.getElementById('spirit-content');if(!el)return;
+  const key=getSpiritKey(pn,pl,flat);
+  const sp=SPIRITS[key];
+  const ps=pl[pn];
+  const allBatters=Object.values(pl).filter(p=>p.bb>=12);
+  const allBowlers=Object.values(pl).filter(p=>p.lb>=12);
+  const avgSR=allBatters.length?allBatters.reduce((s,p)=>s+p.raw_bat,0)/allBatters.length:50;
+  const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+p.raw_bowl*6/100,0)/allBowlers.length:8;
+  const mySR=ps&&ps.bb>=12?ps.raw_bat:null;
+  const myEco=ps&&ps.lb>=12?ps.raw_bowl*6/100:null;
+  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
+  const sparse=!ps||(ps.bb<12&&ps.lb<12);
+  el.innerHTML=`
+    <div class="card" style="text-align:center;padding:28px 20px">
+      <div style="width:88px;height:88px;border-radius:50%;background:${sp.bg};border:3px solid ${sp.color};display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:40px">${sp.emoji}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Your spirit cricketer</div>
+      <div style="font-size:23px;font-weight:800;color:${sp.color};margin-bottom:2px">${escHtml(sp.name)}</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:16px">${escHtml(sp.role)}</div>
+      <p style="font-size:13px;color:var(--navy);line-height:1.75;margin-bottom:18px;text-align:left">${escHtml(sp.desc)}</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+        ${sp.traits.map(t=>`<span style="background:${sp.bg};color:${sp.color};border:1px solid ${sp.color}44;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700">${escHtml(t)}</span>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Why ${escHtml(sp.name.split(' ').pop())}?</div>
+      <p class="desc" style="margin-bottom:10px">Based on your stats in the selected period${sparse?' — play a few more matches for a more accurate result':''}.</p>
+      ${mySR!=null?`<div class="cmp-row"><span class="cmp-lbl">Batting strike rate</span><span class="cmp-me ${mySR>=avgSR?'flag-green':'flag-red'}">${f1(mySR)}</span><span class="cmp-avg">group avg: ${f1(avgSR)}</span></div>`:''}
+      ${myEco!=null?`<div class="cmp-row"><span class="cmp-lbl">Bowling economy</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">group avg: ${f1(avgEco)}</span></div>`:''}
+      <div class="cmp-row"><span class="cmp-lbl">Wickets taken</span><span class="cmp-me">${myWkts}</span></div>
+    </div>`;
 }
 
 // ── Boot ──────────────────────────────────────────────────

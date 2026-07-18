@@ -400,6 +400,7 @@ async function bulkImport(){
     const[name,email,password]=parts;
     const lcEmail=email.toLowerCase();
     const{error:signUpErr}=await signupClient.auth.signUp({email:lcEmail,password});
+    await new Promise(r=>setTimeout(r,600));
     if(signUpErr&&!signUpErr.message.toLowerCase().includes('already registered')){
       results.push({name,status:'error',msg:'Auth: '+signUpErr.message});continue;
     }
