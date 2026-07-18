@@ -353,6 +353,7 @@ async function savePremium(id){
   const until=document.getElementById('date-'+id).value||null;
   const errEl=document.getElementById('prem-err-'+id);
   if(errEl)errEl.style.display='none';
+  const{data:{user:_u}}=await db.auth.getUser();console.log('ADMIN UID:',_u?.id,'EMAIL:',_u?.email);
   const{error}=await db.rpc('admin_set_premium',{
     player_id:id,
     is_prem:isPrem,
