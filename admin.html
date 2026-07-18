@@ -395,7 +395,7 @@ async function bulkImport(){
   resEl.style.display='none';resEl.innerHTML='';
   const results=[];
   for(const line of lines){
-    const parts=line.split(',').map(p=>p.trim());
+    const parts=line.split(/\t|,/).map(p=>p.trim());
     if(parts.length<3){results.push({name:line,status:'error',msg:'Need 3 fields: name, email, password'});continue;}
     const[name,email,password]=parts;
     const lcEmail=email.toLowerCase();
