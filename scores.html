@@ -324,6 +324,29 @@ function render(payload){
   const pairs=payload.pairs||[];
   const figures=payload.bowling_figures||[];
   const ms=payload.match_stats||null;
+
+  // Pre-compute players_bowl from history for any pair that lacks it
+  // (older imports have history but no players_bowl)
+  const hist=payload.history||[];
+  if(hist.length){
+    const pairList=ms?.pairs||pairs;
+    pairList.forEach((p,i)=>{
+      if(p.players_bowl&&p.players_bowl.length)return;
+      const pNames=p.players||(p.players_bat||[]).map(x=>x.name);
+      if(!pNames.length)return;
+      const balls={},runs={},wkts={};
+      pNames.forEach(n=>{balls[n]=0;runs[n]=0;wkts[n]=0;});
+      hist.filter(b=>b.bowlPair===i&&b.bowling&&balls[b.bowling]!==undefined).forEach(b=>{
+        balls[b.bowling]++;
+        if(b.type!=='wkt'&&b.run>0)runs[b.bowling]+=b.run;
+        if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))wkts[b.bowling]++;
+      });
+      p.players_bowl=pNames.map(n=>{
+        const bl=balls[n]||0,r=runs[n]||0,w=wkts[n]||0;
+        return{name:n,overs:Math.floor(bl/6)+'.'+bl%6,runs:r,wickets:w,net:r-(5*w)};
+      });
+    });
+  }
   const superoverWinner=payload.superover_winner||null;
   function sortPairs(arr){
     return [...arr].sort((a,b)=>{
@@ -461,11 +484,15 @@ function render(payload){
           </tr>`;
         }).join('');
 
-        // Header summary lines
-        const batSummary=perfPairs
-          ?`🏏 Batting — ${p.bat_gross} runs, ${p.bat_wickets} wkt${p.bat_wickets!==1?'s':''} (−${p.bat_wickets*5}), ${p.bat_fours} fours, ${p.bat_sixes} sixes`
+        // Header summary lines — bat_gross/bowl_overs only in live payloads; fall back for imports
+        const bRuns=p.bat_gross??p.bat??p.total;
+        const bWkts=p.bat_wickets??p.wickets??0;
+        const bFours=p.bat_fours??p.fours??0;
+        const bSixes=p.bat_sixes??p.sixes??0;
+        const batSummary=perfPairs&&bRuns!=null
+          ?`🏏 Batting — ${bRuns} runs, ${bWkts} wkt${bWkts!==1?'s':''} (−${bWkts*5}), ${bFours} fours, ${bSixes} sixes`
           :`🏏 Batting — ${p.bat||p.total} runs`;
-        const bowlSummary=perfPairs
+        const bowlSummary=perfPairs&&p.bowl_overs!=null
           ?`🔴 Bowling — ${p.bowl_overs} overs, ${p.bowl_runs} runs, ${p.bowl_wickets} wkt${p.bowl_wickets!==1?'s':''}, net ${p.bowl_net>0?'+':''}${p.bowl_net}, +${p.bowl_bonus} bonus`
           :`🔴 Bowling — +${p.bowl} bonus`;
 
@@ -505,8 +532,14 @@ function render(payload){
         const rank=sortedByTotal.findIndex(sp=>sp.color===p.color)+1;
         const c=cc(p.color);
         const batMap={};(p.players_bat||[]).forEach(x=>{batMap[x.name]=x;});
-        const bowlMap={};(p.players_bowl||[]).forEach(x=>{bowlMap[x.name]=x;});
-        const names=[...new Set([...(p.players_bat||[]).map(x=>x.name),...(p.players_bowl||[]).map(x=>x.name)])];
+        const pairNames=p.players||(p.players_bat||[]).map(x=>x.name);
+        // Fall back to bowling_figures when players_bowl is missing (older imports)
+        const bowlSrc=p.players_bowl||(()=>{
+          const pf=figures.filter(f=>pairNames.includes(f.player));
+          return pf.length?pf.map(f=>({name:f.player,overs:f.overs,runs:f.runs??null,wickets:f.wickets,net:f.net??null})):[];
+        })();
+        const bowlMap={};bowlSrc.forEach(x=>{bowlMap[x.name]=x;});
+        const names=[...new Set([...pairNames,...bowlSrc.map(x=>x.name)])];
         names.forEach(name=>{
           allPlayers.push({name,color:c,cname:p.cname,bat:batMap[name]||null,bowl:bowlMap[name]||null,rank});
         });

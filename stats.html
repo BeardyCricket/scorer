@@ -1160,7 +1160,7 @@ function renderH2HBowlers(pn,ps,pl){
   const el=document.getElementById('h2h-bowlers');
   if(!ps||!Object.keys(ps.fb||{}).length){el.innerHTML='<div class="empty">No data</div>';return;}
   const wkts={};
-  filteredMatches.flatMap(m=>m.history).filter(b=>b.facing===pn&&b.type==='wkt'&&b.bowling)
+  filteredMatches.flatMap(m=>m.history).filter(b=>b.facing===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')&&b.bowling)
     .forEach(b=>{wkts[b.bowling]=(wkts[b.bowling]||0)+1;});
   const rows=Object.entries(ps.fb)
     .filter(([,cnt])=>cnt>=6)
@@ -1185,7 +1185,7 @@ function renderH2HBowlers(pn,ps,pl){
 function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   const ps=pl[pn];
   if(!prem){
-    const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt').length;
+    const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
     const eco=ps?.lb>0?ps.raw_bowl*6/100:null;
     document.getElementById('tab-bowling').innerHTML=`
       <div class="card">
@@ -1208,7 +1208,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+(p.raw_bowl*6/100),0)/allBowlers.length:0;
   const avgExtras=allBowlers.length?allBowlers.reduce((s,p)=>s+p.extras_pct,0)/allBowlers.length:0;
   const avgDot=allBowlers.length?allBowlers.reduce((s,p)=>s+p.dot_pct,0)/allBowlers.length:0;
-  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt').length;
+  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
   const myEco=ps?(ps.raw_bowl*6/100):0;
   const myBpW=ps&&myWkts>0?ps.lb/myWkts:null;
   const myRpW=ps&&myWkts>0?ps.lr/myWkts:null;
@@ -1251,7 +1251,7 @@ function drawEcoByMatch(pn,flat,avgEco){
     if(!byMatch[b.matchId])byMatch[b.matchId]={lb:0,lr:0,wkts:0,date:b.matchDate};
     byMatch[b.matchId].lb++;
     if(b.type!=='wkt'&&b.run>0)byMatch[b.matchId].lr+=b.run;
-    if(b.type==='wkt')byMatch[b.matchId].wkts++;
+    if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))byMatch[b.matchId].wkts++;
   });
   const dArr=Object.values(byMatch).sort((a,b)=>a.date-b.date);
   if(!dArr.length){
@@ -1272,7 +1272,7 @@ function renderH2HBatters(pn,ps,pl,flat){
   const el=document.getElementById('h2h-batters');
   if(!ps||!Object.keys(ps.bt||{}).length){el.innerHTML='<div class="empty">No data</div>';return;}
   const wkts={};
-  flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&b.facing).forEach(b=>{wkts[b.facing]=(wkts[b.facing]||0)+1;});
+  flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')&&b.facing).forEach(b=>{wkts[b.facing]=(wkts[b.facing]||0)+1;});
   const rows=Object.entries(ps.bt)
     .filter(([,cnt])=>cnt>=6)
     .map(([batter,cnt])=>{
@@ -1466,7 +1466,7 @@ function qualityBowlSplit(pn,pl,flat){
     const t=tierOf(b.facing);if(t==null)return;
     stats[t].balls++;
     if(b.type!=='wkt'&&b.run>0)stats[t].runs+=b.run;
-    if(b.type==='wkt')stats[t].wkts++;
+    if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))stats[t].wkts++;
   });
   return stats;
 }
@@ -1696,7 +1696,7 @@ function renderLeaderboards(pn,ms,prem){
       if(!(n in mr)){mr[n]=0;mb[n]=0;mw[n]=0;}
       mb[n]++;
       if(b.type!=='wkt'&&b.run>0)mr[n]+=b.run;
-      if(b.type==='wkt')mw[n]++;
+      if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))mw[n]++;
     }
     for(const n of Object.keys(mb)){
       if(!(n in blR)){blR[n]=0;blB[n]=0;blW[n]=0;blM[n]=0;}

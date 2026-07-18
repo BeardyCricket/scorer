@@ -4023,9 +4023,9 @@ async function pushLiveScore(status='in_progress',matchStats=null){
   G.history.forEach(b=>{
     if(!b.bowling)return;
     if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={player:b.bowling,balls:0,wickets:0,runs:0};
-    if(b.legal)bowlerMap[b.bowling].balls++;
-    if(b.type==='wkt')bowlerMap[b.bowling].wickets++;
-    if(b.run>0)bowlerMap[b.bowling].runs+=b.run;
+    bowlerMap[b.bowling].balls++;
+    if(b.type==='wkt'&&!b.isRunout)bowlerMap[b.bowling].wickets++;
+    if(b.type!=='wkt'&&b.run>0)bowlerMap[b.bowling].runs+=b.run;
   });
   const bowling_figures=Object.values(bowlerMap)
     .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets,runs:f.runs,net:f.runs-(5*f.wickets)}))
@@ -4052,11 +4052,22 @@ async function pushLiveScore(status='in_progress',matchStats=null){
         .forEach(b=>{pFours[b.facing]++;});
       G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal'&&b.facing&&pSixes[b.facing]!==undefined)
         .forEach(b=>{pSixes[b.facing]++;});
+      const pBowlBalls={},pBowlRuns={},pBowlWkts={};
+      p.players.forEach(pl=>{pBowlBalls[pl]=0;pBowlRuns[pl]=0;pBowlWkts[pl]=0;});
+      G.history.filter(b=>b.bowlPair===i&&b.bowling&&pBowlBalls[b.bowling]!==undefined).forEach(b=>{
+        pBowlBalls[b.bowling]++;
+        if(b.type!=='wkt'&&b.run>0)pBowlRuns[b.bowling]+=b.run;
+        if(b.type==='wkt'&&!b.isRunout)pBowlWkts[b.bowling]++;
+      });
       return{cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0,
         wickets:G.history.filter(b=>b.batPair===i&&b.type==='wkt').length,
         fours:G.history.filter(b=>b.batPair===i&&b.code==='4b').length,
         sixes:G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length,
-        players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0}))};
+        players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0})),
+        players_bowl:p.players.map(pl=>{
+          const balls=pBowlBalls[pl]||0,runs=pBowlRuns[pl]||0,wkts=pBowlWkts[pl]||0;
+          return{name:pl,overs:Math.floor(balls/6)+'.'+balls%6,runs,wickets:wkts,net:runs-(5*wkts)};
+        })};
     }),
     bowling_figures,
     history:G.history,

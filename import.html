@@ -52,6 +52,7 @@
   <h1>Import Match CSVs</h1>
   <p class="sub">Upload CSV files exported from the scoring app to save them to Supabase.<br>Also useful if Supabase was down mid-match and you need to backfill the data.</p>
 
+  <div style="font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;background:#7c3aed;color:#fff;margin-bottom:10px">✓ LOCAL VERSION — bowling fix active</div>
   <div id="conn-status" style="font-size:12px;padding:8px 12px;border-radius:8px;background:#f3f4f6;margin-bottom:14px;display:none"></div>
 
   <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
@@ -197,7 +198,7 @@
         if(!b.bowling)return;
         if(!bowlerMap[b.bowling])bowlerMap[b.bowling]={balls:0,wickets:0,runs:0};
         bowlerMap[b.bowling].balls++;
-        if(b.type==='wkt')bowlerMap[b.bowling].wickets++;
+        if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))bowlerMap[b.bowling].wickets++;
         if(b.type!=='wkt'&&b.run>0)bowlerMap[b.bowling].runs+=b.run;
       });
       const bowling_figures=Object.entries(bowlerMap).map(([player,f])=>({
@@ -221,7 +222,7 @@
         history.filter(b=>b.bowlPair===i&&b.bowling&&pBowlBalls[b.bowling]!==undefined).forEach(b=>{
           pBowlBalls[b.bowling]++;
           if(b.type!=='wkt'&&b.run>0)pBowlRuns[b.bowling]+=b.run;
-          if(b.type==='wkt')pBowlWkts[b.bowling]++;
+          if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))pBowlWkts[b.bowling]++;
         });
         return{
           cname:p.cname,players:p.players,color,
