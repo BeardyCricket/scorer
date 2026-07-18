@@ -101,6 +101,12 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 
 /* Empty */
 .empty{text-align:center;padding:24px 0;color:var(--muted);font-size:13px}
+
+/* Bulk import */
+.bulk-ta{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace;color:var(--navy);background:#fff;outline:none;resize:vertical;min-height:110px;-webkit-appearance:none}
+.bulk-ta:focus{border-color:var(--navy)}
+.btn-import{padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+.btn-import:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -175,6 +181,15 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       </div>
     </div>
 
+    <!-- Bulk import -->
+    <div class="card">
+      <div class="card-title">Bulk import players</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">One player per line: <code style="background:#f0f2f7;padding:1px 5px;border-radius:4px;font-size:11px">Name, email@address.com, password</code></p>
+      <textarea class="bulk-ta" id="bulk-input" placeholder="Tom Smith, tom@email.com, Cricket2024&#10;Dave Jones, dave@email.com, Cricket2024&#10;Ali Khan, ali@email.com, Cricket2024"></textarea>
+      <button class="btn-import" id="bulk-btn" onclick="bulkImport()">Import players</button>
+      <div id="bulk-results" style="margin-top:10px;display:none"></div>
+    </div>
+
     <!-- Player list -->
     <div class="card">
       <div class="card-title">Current players</div>
@@ -191,6 +206,8 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
 const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+// Separate client for signUp so bulk import doesn't overwrite the admin session
+const signupClient=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
 
 function show(id){
   ['screen-loading','screen-login','screen-admin'].forEach(s=>{
@@ -353,7 +370,6 @@ async function savePremium(id){
   const until=document.getElementById('date-'+id).value||null;
   const errEl=document.getElementById('prem-err-'+id);
   if(errEl)errEl.style.display='none';
-  const{data:{user:_u}}=await db.auth.getUser();console.log('ADMIN UID:',_u?.id,'EMAIL:',_u?.email);
   const{error}=await db.rpc('admin_set_premium',{
     player_id:id,
     is_prem:isPrem,
@@ -367,6 +383,44 @@ async function savePremium(id){
   }
   toast(isPrem?'Premium saved ⭐':'Premium removed');
   await refreshList();
+}
+
+async function bulkImport(){
+  const raw=document.getElementById('bulk-input').value.trim();
+  if(!raw){toast('Paste some players first.');return;}
+  const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const btn=document.getElementById('bulk-btn');
+  const resEl=document.getElementById('bulk-results');
+  btn.disabled=true;btn.textContent='Importing…';
+  resEl.style.display='none';resEl.innerHTML='';
+  const results=[];
+  for(const line of lines){
+    const parts=line.split(',').map(p=>p.trim());
+    if(parts.length<3){results.push({name:line,status:'error',msg:'Need 3 fields: name, email, password'});continue;}
+    const[name,email,password]=parts;
+    const lcEmail=email.toLowerCase();
+    const{error:signUpErr}=await signupClient.auth.signUp({email:lcEmail,password});
+    if(signUpErr&&!signUpErr.message.toLowerCase().includes('already registered')){
+      results.push({name,status:'error',msg:'Auth: '+signUpErr.message});continue;
+    }
+    const{error:insertErr}=await db.from('player_access').insert({player_name:name,email:lcEmail,is_active:true});
+    if(insertErr){
+      if(insertErr.code==='23505')results.push({name,status:'warn',msg:'Already in player list (login created)'});
+      else results.push({name,status:'error',msg:'DB: '+insertErr.message});
+      continue;
+    }
+    results.push({name,status:'ok'});
+  }
+  resEl.innerHTML=results.map(r=>{
+    const col=r.status==='ok'?'var(--green)':r.status==='warn'?'var(--amber)':'var(--red)';
+    const icon=r.status==='ok'?'✓':r.status==='warn'?'⚠':'✗';
+    return`<div style="font-size:12px;color:${col};padding:2px 0">${icon} ${escHtml(r.name)}${r.msg?' — '+escHtml(r.msg):''}</div>`;
+  }).join('');
+  resEl.style.display='block';
+  btn.disabled=false;btn.textContent='Import players';
+  const ok=results.filter(r=>r.status==='ok').length;
+  toast(`${ok} of ${results.length} imported`);
+  if(ok)await refreshList();
 }
 
 window.addEventListener('DOMContentLoaded',init);
