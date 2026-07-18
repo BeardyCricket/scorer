@@ -325,13 +325,12 @@ function render(payload){
   const figures=payload.bowling_figures||[];
   const ms=payload.match_stats||null;
 
-  // Pre-compute players_bowl from history for any pair that lacks it
-  // (older imports have history but no players_bowl)
+  // Always recompute players_bowl from history — ensures extras and run out
+  // exclusion are always correct regardless of what's stored in the payload
   const hist=payload.history||[];
   if(hist.length){
     const pairList=ms?.pairs||pairs;
     pairList.forEach((p,i)=>{
-      if(p.players_bowl&&p.players_bowl.length)return;
       const pNames=p.players||(p.players_bat||[]).map(x=>x.name);
       if(!pNames.length)return;
       const balls={},runs={},wkts={};
