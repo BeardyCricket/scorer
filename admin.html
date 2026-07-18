@@ -353,22 +353,15 @@ async function savePremium(id){
   const until=document.getElementById('date-'+id).value||null;
   const errEl=document.getElementById('prem-err-'+id);
   if(errEl)errEl.style.display='none';
-  const update={is_premium:isPrem,premium_until:isPrem&&until?until:null};
-  const{error}=await db.from('player_access').update(update).eq('id',id);
+  const{error}=await db.rpc('admin_set_premium',{
+    player_id:id,
+    is_prem:isPrem,
+    until_date:isPrem&&until?until:null
+  });
   if(error){
     const msg='Save failed: '+error.message;
     if(errEl){errEl.textContent=msg;errEl.style.display='block';}
     toast(msg,6000);
-    return;
-  }
-  // Verify the change actually saved (RLS blocks silently with no error)
-  const{data:verify,error:ve}=await db.from('player_access')
-    .select('is_premium,premium_until').eq('id',id).single();
-  if(ve||!verify||!!verify.is_premium!==isPrem){
-    const msg='Blocked silently — RLS policy may not be set up. See console.';
-    console.error('savePremium verify failed',{verify,ve,isPrem});
-    if(errEl){errEl.textContent=msg;errEl.style.display='block';}
-    toast(msg,8000);
     return;
   }
   toast(isPrem?'Premium saved ⭐':'Premium removed');
