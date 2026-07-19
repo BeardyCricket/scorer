@@ -246,7 +246,7 @@ canvas{display:block;width:100%}
     <button class="tab-btn" onclick="showTab('batting',this)">Batting</button>
     <button class="tab-btn" onclick="showTab('bowling',this)">Bowling</button>
     <button class="tab-btn" onclick="showTab('winzones',this)">Win zones</button>
-    <button class="tab-btn" onclick="showTab('spirit',this)">Spirit</button>
+    <button class="tab-btn" onclick="showTab('spirit',this)">Who is your spirit cricketer?</button>
   </div>
 
   <div class="pad">
@@ -1040,7 +1040,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${sr!=null?f1(sr):'—'}</div><div class="mini-lbl">Strike rate</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper batting stats are available to regular club members — per-match run charts, scoring breakdown, strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
+      ${upgradeCard('Deeper batting stats are available to Beardy Stats Club members — per-match run charts, scoring breakdown, strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
     return;
   }
 
@@ -1220,7 +1220,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${eco!=null?f1(eco):'—'}</div><div class="mini-lbl">Economy</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper bowling stats are available to regular club members — economy trend charts, extras %, dot ball %, head-to-head vs batters, and batter quality analysis.')}</div>`;
+      ${upgradeCard('Deeper bowling stats are available to Beardy Stats Club members — economy trend charts, extras %, dot ball %, head-to-head vs batters, and batter quality analysis.')}</div>`;
     return;
   }
   const allBowlers=Object.values(pl).filter(p=>p.lb>0);
@@ -1315,7 +1315,7 @@ function renderH2HBatters(pn,ps,pl,flat){
 function renderWinZones(pn,ms,flat,prem){
   if(!prem){
     document.getElementById('tab-winzones').innerHTML=`
-      ${upgradeCard('Win Zones is available to regular club members — a 3×3 matrix showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
+      ${upgradeCard('Win Zones is available to Beardy Stats Club members — a 3×3 matrix showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
     return;
   }
   // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
@@ -1743,7 +1743,7 @@ function renderLeaderboards(pn,ms,prem){
         <p class="desc">Most wins, tiebroken by 2nd places then 3rd places.</p>
         ${gbHtml}
       </div>
-      ${upgradeCard('More leaderboards are available to regular club members — top pair scores, pair averages, individual batting (runs, strike rates, balls per wicket) and bowling leaderboards.')}</div>`;
+      ${upgradeCard('More leaderboards are available to Beardy Stats Club members — top pair scores, pair averages, individual batting (runs, strike rates, balls per wicket) and bowling leaderboards.')}</div>`;
     return;
   }
 
@@ -1778,9 +1778,9 @@ function renderLeaderboards(pn,ms,prem){
 function upgradeCard(desc){
   return`<div class="upgrade-card">
     <div style="font-size:28px;margin-bottom:10px">🏏</div>
-    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">Club members area</div>
+    <div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:6px">Beardy Stats Club</div>
     <p style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:14px">${desc}</p>
-    <div class="upgrade-cta">Chat to your captain to unlock</div>
+    <a class="upgrade-cta" href="https://www.beardycricket.com/statsclub.html" target="_blank" rel="noopener">Click for more details</a>
   </div>`;
 }
 
@@ -1796,6 +1796,7 @@ function drawPairScoresChart(pn,ms){
   const matchData=[];
   for(const m of filteredMatches){
     const s=ms[m.matchId];if(!s||!s.pairs.length)continue;
+    if(!s.pairs.some(p=>p.players.includes(pn)))continue;
     matchData.push({date:m.date,pairs:[...s.sorted].map(p=>({score:p.runs,isPlayer:p.players.includes(pn)}))});
   }
   if(!matchData.length){
