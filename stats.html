@@ -1922,50 +1922,94 @@ function drawRankingTrend(pn){
 
 // ── Spirit cricketer ───────────────────────────────────────
 const SPIRITS={
-  stokes:{name:'Ben Stokes',role:'The All-Round Hero',
-    desc:"You do it all — scoring runs and taking wickets. With above-average batting and bowling, plus regular wickets, you're a genuine match-winner in both departments. Classic Stokes.",
-    emoji:'⭐',color:'#1A2744',bg:'#E8EAFF',traits:['Above-average batting','Match-winning bowling','Regular wicket-taker']},
-  pietersen:{name:'Kevin Pietersen',role:'The Big Hitter',
-    desc:"You play attacking cricket with a high strike rate and plenty of boundaries. Opposition bowlers feel the heat the moment you walk to the crease. Pure KP energy.",
-    emoji:'💥',color:'#E24B4A',bg:'#FEF2F2',traits:['High strike rate','Boundary machine','Attacking style']},
-  cook:{name:'Alastair Cook',role:'The Solid Accumulator',
-    desc:"Reliable, consistent, and hard to dismiss. You score runs steadily without unnecessary risk — the backbone of any batting lineup. Calm under pressure and always there at the end.",
-    emoji:'🛡️',color:'#1D9E75',bg:'#F0FDF4',traits:['Consistent scorer','Hard to dismiss','Reliable under pressure']},
-  swann:{name:'Graeme Swann',role:'The Wicket-Taker',
-    desc:"You keep things tight AND take wickets — the captain's go-to when a breakthrough is needed. Batters are never comfortable facing you.",
-    emoji:'🎯',color:'#7F77DD',bg:'#F5F3FF',traits:['Tight economy','Regular wickets',"Captain's first choice"]},
-  anderson:{name:'James Anderson',role:'The Economy Master',
-    desc:"Runs dry up the moment you have the ball. Your economy is among the best in the group — metronomic, miserly, and relentless. Batters can never get you away.",
-    emoji:'🧱',color:'#BA7517',bg:'#FFFBEB',traits:['Best economy in the group','Pressure bowler','Metronomic accuracy']},
-  woakes:{name:'Chris Woakes',role:'The Reliable Contributor',
-    desc:"You quietly get the job done — every team's unsung hero. Steady with bat and ball and consistent across conditions. Every side needs a Woakes and you're ours.",
-    emoji:'👊',color:'#6B7A99',bg:'#F0F2F7',traits:['Consistent contributor','Balanced all-round','Always dependable']}
+  botham:{name:'Ian Botham',role:'The Attacking All-rounder',
+    headline:"You're channelling Beefy",
+    desc:"The complete cricketer. You go after the bowling from ball one, you hit boundaries when others play it safe, and you're a genuine threat with the ball too. Botham never knew when he was beaten — and neither do you. Matches remember you.",
+    emoji:'🏏',color:'#1A2744',bg:'#E8EAFF',
+    traits:['Attacking from ball one','Hits sixes','Takes wickets too']},
+  pietersen:{name:'Kevin Pietersen',role:'The Attacking Batter',
+    headline:"You're channelling KP",
+    desc:"Nobody watched KP and thought about the opposition. They watched KP. You bat the same way — bold, confident, and with shots that make people put their drinks down. Your batting is the reason people remember the match.",
+    emoji:'💥',color:'#E24B4A',bg:'#FEF2F2',
+    traits:['High strike rate','Hits boundaries','Entertaining and memorable']},
+  hadlee:{name:'Richard Hadlee',role:'The Solid Wicket-taker',
+    headline:"You're channelling Hadlee",
+    desc:"Measured, disciplined, relentlessly effective. Hadlee never wasted a ball — he had a plan for every batter and stuck to it. You bat with purpose and your bowling is your real weapon. Opponents know they can never relax when you have the ball in hand.",
+    emoji:'🎯',color:'#7F77DD',bg:'#F5F3FF',
+    traits:['Solid batting','Highest wicket rate','Opponents can never relax']},
+  kumble:{name:'Anil Kumble',role:'The Bowling Powerhouse',
+    headline:"You're channelling Jumbo",
+    desc:"Kumble took 619 Test wickets — not because he was the flashiest, but because he turned up every single time and was always dangerous. Your bowling is your superpower — tight, controlled, and threatening. Teams underestimate you at their peril.",
+    emoji:'💫',color:'#BA7517',bg:'#FFFBEB',
+    traits:['Bowling is the superpower','Tight and threatening','Always dangerous']},
+  grace:{name:'WG Grace',role:'The Solid Batter',
+    headline:"You're channelling The Doctor",
+    desc:"WG Grace invented modern batsmanship. He stood at the crease like he owned it, scored runs methodically and refused to give his wicket away cheaply. You bat with the same solidity — you make the opposition work hard for every wicket and you put runs on the board. Every team needs a Grace.",
+    emoji:'🛡️',color:'#1D9E75',bg:'#F0FDF4',
+    traits:['Consistent scorer','Hard to dismiss','The anchor others build around']},
+  monty:{name:'Monty Panesar',role:'The Fan Favourite',
+    headline:"You're channelling Monty",
+    desc:"Monty Panesar took a 5-for in India and the whole country fell in love with him — not just for the wickets, but for the way he played, the passion, the whole thing. You bring the same energy. Every match is better for having you in it, and when you click — and you do click — it's brilliant.",
+    emoji:'🌟',color:'#7F77DD',bg:'#F5F3FF',
+    traits:['Brings the energy','Moments of real quality','Every team loves a Monty']}
 };
 
 function getSpiritKey(pn,pl,flat){
-  const ps=pl[pn];if(!ps)return'woakes';
-  const allBatters=Object.values(pl).filter(p=>p.bb>=12);
-  const allBowlers=Object.values(pl).filter(p=>p.lb>=12);
-  const avgSR=allBatters.length?allBatters.reduce((s,p)=>s+p.raw_bat,0)/allBatters.length:50;
-  const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+p.raw_bowl*6/100,0)/allBowlers.length:8;
-  const hasBat=ps.bb>=12,hasBowl=ps.lb>=12;
-  const mySR=hasBat?ps.raw_bat:null;
-  const myEco=hasBowl?ps.raw_bowl*6/100:null;
-  const bnds=flat.filter(b=>b.facing===pn&&(b.run===4||b.run===6)&&b.type!=='wide').length;
-  const bndPct=hasBat&&ps.bb>0?bnds/ps.bb:0;
-  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
-  const myBowlM=filteredMatches.filter(m=>m.history.some(b=>b.bowling===pn)).length;
-  const wpm=myBowlM>0?myWkts/myBowlM:0;
-  const goodBat=hasBat&&mySR>avgSR*1.05;
-  const bigHit=bndPct>=0.15;
-  const goodBowl=hasBowl&&myEco<avgEco*0.95;
-  const wicketer=wpm>=0.4;
-  if(goodBat&&goodBowl&&wicketer)return'stokes';
-  if(goodBat&&bigHit)return'pietersen';
-  if(goodBat)return'cook';
-  if(hasBowl&&goodBowl&&!wicketer)return'anderson';
-  if(hasBowl&&wicketer)return'swann';
-  return'woakes';
+  const ps=pl[pn];
+  // Minimum threshold: 18 balls batted, 18 balls bowled, 2+ matches
+  const myMatchCount=filteredMatches.filter(m=>m.history.some(b=>b.facing===pn||b.bowling===pn)).length;
+  if(!ps||ps.bb<18||ps.lb<18||myMatchCount<2)return'monty';
+
+  // Per-player metrics for z-scoring — include all with at least 6 balls each way
+  const playerNames=Object.keys(pl).filter(n=>pl[n].bb>=6&&pl[n].lb>=6);
+  const metrics=playerNames.map(n=>{
+    const p=pl[n];
+    const pBat=flat.filter(b=>b.facing===n);
+    const pBowl=flat.filter(b=>b.bowling===n);
+    const batSR=p.bb>0?(p.br/p.bb)*100:0;
+    const dismsPerHundred=p.bb>0?(pBat.filter(b=>b.type==='wkt').length/p.bb)*100:0;
+    const legalBat=pBat.filter(b=>b.type==='normal'||b.type==='wkt').length;
+    const sixPct=legalBat>0?pBat.filter(b=>b.run===6&&(b.type==='normal'||b.type==='wkt')).length/legalBat*100:0;
+    const wkts=pBowl.filter(b=>b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
+    const wktRate=p.lb>0?(wkts/p.lb)*100:0;
+    const eco=p.lb>0?(p.lr/p.lb)*100:0;
+    const extrasPct=p.lb>0?((p.wi+p.nbb)/p.lb)*100:0;
+    return{batSR,dismsPerHundred,sixPct,wktRate,eco,extrasPct};
+  });
+
+  const zOf=(val,vals)=>{
+    const avg=vals.reduce((s,v)=>s+v,0)/vals.length;
+    const std=Math.sqrt(vals.reduce((s,v)=>s+(v-avg)**2,0)/vals.length)||1;
+    return(val-avg)/std;
+  };
+
+  const myFlat=flat.filter(b=>b.facing===pn);
+  const myBowlFlat=flat.filter(b=>b.bowling===pn);
+  const myBatSR=ps.bb>0?(ps.br/ps.bb)*100:0;
+  const myDismsPerHundred=ps.bb>0?(myFlat.filter(b=>b.type==='wkt').length/ps.bb)*100:0;
+  const myLegal=myFlat.filter(b=>b.type==='normal'||b.type==='wkt').length;
+  const mySixPct=myLegal>0?myFlat.filter(b=>b.run===6&&(b.type==='normal'||b.type==='wkt')).length/myLegal*100:0;
+  const myWkts=myBowlFlat.filter(b=>b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
+  const myWktRate=ps.lb>0?(myWkts/ps.lb)*100:0;
+  const myEco=ps.lb>0?(ps.lr/ps.lb)*100:0;
+  const myExtrasPct=ps.lb>0?((ps.wi+ps.nbb)/ps.lb)*100:0;
+
+  const batScore=1.5*zOf(myBatSR,metrics.map(m=>m.batSR))
+    -1.0*zOf(myDismsPerHundred,metrics.map(m=>m.dismsPerHundred))
+    +0.5*zOf(mySixPct,metrics.map(m=>m.sixPct));
+  const bowlScore=1.5*zOf(myWktRate,metrics.map(m=>m.wktRate))
+    -1.0*zOf(myEco,metrics.map(m=>m.eco))
+    -0.5*zOf(myExtrasPct,metrics.map(m=>m.extrasPct));
+
+  const batBand=batScore>0.75?'attacker':batScore<-0.75?'blocker':'solid';
+  const bowlBand=bowlScore>0.75?'wicket_taker':bowlScore>0.25?'bowling_first':bowlScore>-0.25?'solid_bowl':'expensive';
+
+  if(batBand==='attacker'&&(bowlBand==='wicket_taker'||bowlBand==='bowling_first'))return'botham';
+  if(batBand==='attacker')return'pietersen';
+  if(batBand==='solid'&&bowlBand==='wicket_taker')return'hadlee';
+  if(batBand==='solid'&&bowlBand==='bowling_first')return'kumble';
+  if(batBand==='blocker'&&(bowlBand==='wicket_taker'||bowlBand==='bowling_first'))return'kumble';
+  return'grace';
 }
 
 function renderSpiritCricketer(pn,pl,flat,ms){
@@ -1973,31 +2017,36 @@ function renderSpiritCricketer(pn,pl,flat,ms){
   const key=getSpiritKey(pn,pl,flat);
   const sp=SPIRITS[key];
   const ps=pl[pn];
+  const myFlat=flat.filter(b=>b.facing===pn);
+  const myBowlFlat=flat.filter(b=>b.bowling===pn);
   const allBatters=Object.values(pl).filter(p=>p.bb>=12);
   const allBowlers=Object.values(pl).filter(p=>p.lb>=12);
   const avgSR=allBatters.length?allBatters.reduce((s,p)=>s+p.raw_bat,0)/allBatters.length:50;
   const avgEco=allBowlers.length?allBowlers.reduce((s,p)=>s+p.raw_bowl*6/100,0)/allBowlers.length:8;
   const mySR=ps&&ps.bb>=12?ps.raw_bat:null;
   const myEco=ps&&ps.lb>=12?ps.raw_bowl*6/100:null;
-  const myWkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
-  const sparse=!ps||(ps.bb<12&&ps.lb<12);
+  const myWkts=myBowlFlat.filter(b=>b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
+  const myLegal=myFlat.filter(b=>b.type==='normal'||b.type==='wkt').length;
+  const mySixes=myFlat.filter(b=>b.run===6&&(b.type==='normal'||b.type==='wkt')).length;
   el.innerHTML=`
     <div class="card" style="text-align:center;padding:28px 20px">
       <div style="width:88px;height:88px;border-radius:50%;background:${sp.bg};border:3px solid ${sp.color};display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:40px">${sp.emoji}</div>
-      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">Your spirit cricketer</div>
-      <div style="font-size:23px;font-weight:800;color:${sp.color};margin-bottom:2px">${escHtml(sp.name)}</div>
-      <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:16px">${escHtml(sp.role)}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Your spirit cricketer</div>
+      <div style="font-size:22px;font-weight:800;color:${sp.color};margin-bottom:2px">${escHtml(sp.name)}</div>
+      <div style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:14px">${escHtml(sp.role)}</div>
+      <div style="font-size:15px;font-weight:700;color:${sp.color};margin-bottom:14px;font-style:italic">${escHtml(sp.headline)}</div>
       <p style="font-size:13px;color:var(--navy);line-height:1.75;margin-bottom:18px;text-align:left">${escHtml(sp.desc)}</p>
       <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
         ${sp.traits.map(t=>`<span style="background:${sp.bg};color:${sp.color};border:1px solid ${sp.color}44;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700">${escHtml(t)}</span>`).join('')}
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Why ${escHtml(sp.name.split(' ').pop())}?</div>
-      <p class="desc" style="margin-bottom:10px">Based on your stats in the selected period${sparse?' — play a few more matches for a more accurate result':''}.</p>
-      ${mySR!=null?`<div class="cmp-row"><span class="cmp-lbl">Batting strike rate</span><span class="cmp-me ${mySR>=avgSR?'flag-green':'flag-red'}">${f1(mySR)}</span><span class="cmp-avg">group avg: ${f1(avgSR)}</span></div>`:''}
-      ${myEco!=null?`<div class="cmp-row"><span class="cmp-lbl">Bowling economy</span><span class="cmp-me ${myEco<=avgEco?'flag-green':'flag-red'}">${f1(myEco)}</span><span class="cmp-avg">group avg: ${f1(avgEco)}</span></div>`:''}
+      <div class="card-title">What defines your style</div>
+      <p class="desc" style="margin-bottom:10px">Your stats in the selected period${key==='monty'?' — play a few more matches for your full spirit cricketer result':' that shaped this result'}.</p>
+      ${mySR!=null?`<div class="cmp-row"><span class="cmp-lbl">Batting strike rate</span><span class="cmp-me">${f1(mySR)}</span><span class="cmp-avg">group avg: ${f1(avgSR)}</span></div>`:''}
+      ${myEco!=null?`<div class="cmp-row"><span class="cmp-lbl">Bowling economy</span><span class="cmp-me">${f1(myEco)}</span><span class="cmp-avg">group avg: ${f1(avgEco)}</span></div>`:''}
       <div class="cmp-row"><span class="cmp-lbl">Wickets taken</span><span class="cmp-me">${myWkts}</span></div>
+      ${myLegal>0?`<div class="cmp-row"><span class="cmp-lbl">Sixes hit</span><span class="cmp-me">${mySixes}</span></div>`:''}
     </div>`;
 }
 
