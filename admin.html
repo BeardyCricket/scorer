@@ -90,6 +90,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .prem-save:hover{background:#6b63c9}
 .prem-badge{font-size:10px;font-weight:700;background:#ede9fe;color:#5b21b6;padding:2px 7px;border-radius:8px}
 .prem-exp{font-size:10px;color:var(--amber);font-weight:600;width:100%}
+.edit-name-btn{padding:2px 5px;border:none;background:none;cursor:pointer;font-size:11px;color:var(--muted);border-radius:4px;opacity:.6}
+.edit-name-btn:hover{opacity:1;background:var(--bg)}
+.name-edit-inp{padding:3px 7px;border:1px solid var(--navy);border-radius:6px;font-size:13px;font-weight:600;color:var(--navy);background:#fff;outline:none;width:130px}
+.name-edit-save{padding:3px 8px;background:var(--green);color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-left:4px}
+.name-edit-cancel{padding:3px 8px;background:none;border:1px solid var(--border);border-radius:6px;font-size:11px;cursor:pointer;color:var(--muted);margin-left:2px}
 
 /* Invite note */
 .invite-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;font-size:13px;color:#1e40af;line-height:1.5;margin-top:10px}
@@ -343,7 +348,7 @@ function renderPlayers(players){
       <div style="display:flex;align-items:center;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-            <span class="player-name">${escHtml(p.player_name)}</span>
+            <span id="pname-wrap-${p.id}" style="display:flex;align-items:center;gap:3px"><span class="player-name">${escHtml(p.player_name)}</span><button class="edit-name-btn" onclick="startEditName('${p.id}')" title="Edit name">✏️</button></span>
             ${live?'<span class="prem-badge">⭐ Premium</span>':''}
           </div>
           <div class="player-email">${escHtml(p.email)}</div>
@@ -383,6 +388,34 @@ async function savePremium(id){
   }
   toast(isPrem?'Premium saved ⭐':'Premium removed');
   await refreshList();
+}
+
+function startEditName(id){
+  const wrap=document.getElementById('pname-wrap-'+id);
+  if(!wrap)return;
+  const current=wrap.querySelector('.player-name')?.textContent||'';
+  wrap.dataset.original=current;
+  wrap.innerHTML=`<input class="name-edit-inp" id="pname-inp-${id}" value="${escHtml(current)}" onkeydown="if(event.key==='Enter')saveNameEdit('${id}');if(event.key==='Escape')cancelNameEdit('${id}')"><button class="name-edit-save" onclick="saveNameEdit('${id}')">Save</button><button class="name-edit-cancel" onclick="cancelNameEdit('${id}')">Cancel</button>`;
+  const inp=document.getElementById('pname-inp-'+id);
+  if(inp){inp.focus();inp.select();}
+}
+
+async function saveNameEdit(id){
+  const inp=document.getElementById('pname-inp-'+id);
+  if(!inp)return;
+  const newName=inp.value.trim();
+  if(!newName){toast('Name cannot be empty.');return;}
+  const{error}=await db.rpc('admin_set_player_name',{player_id:id,new_name:newName});
+  if(error){toast('Save failed: '+error.message,5000);return;}
+  toast('Name updated');
+  await refreshList();
+}
+
+async function cancelNameEdit(id){
+  const wrap=document.getElementById('pname-wrap-'+id);
+  if(!wrap)return;
+  const original=wrap.dataset.original||'';
+  wrap.innerHTML=`<span class="player-name">${escHtml(original)}</span><button class="edit-name-btn" onclick="startEditName('${id}')" title="Edit name">✏️</button>`;
 }
 
 async function bulkImport(){
