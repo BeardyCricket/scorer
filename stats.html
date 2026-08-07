@@ -180,6 +180,16 @@ canvas{display:block;width:100%}
 .pred-cell{flex:1;text-align:center;background:var(--bg);border-radius:8px;padding:10px 4px}
 .pred-val{font-size:20px;font-weight:700}
 .pred-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
+
+/* Match stats */
+.ms-select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--navy);background:#fff;-webkit-appearance:none;appearance:none;cursor:pointer}
+.ms-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.ms-tbl th{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
+.ms-tbl td{padding:7px 4px;text-align:center;border-bottom:1px solid var(--border)}
+.ms-tbl tr:last-child td{border-bottom:none}
+.ms-tbl .ms-name{text-align:left;font-weight:600;color:var(--navy);padding-left:6px}
+.ms-pair-hdr{background:var(--bg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.ms-you{background:#F5F3FF}
 </style>
 </head>
 <body>
@@ -247,6 +257,7 @@ canvas{display:block;width:100%}
     <button class="tab-btn" onclick="showTab('bowling',this)">Bowling</button>
     <button class="tab-btn" onclick="showTab('winzones',this)">Win zones</button>
     <button class="tab-btn" onclick="showTab('spirit',this)">Who is your spirit cricketer?</button>
+    <button class="tab-btn" onclick="showTab('matchstats',this)">Match stats</button>
   </div>
 
   <div class="pad">
@@ -329,6 +340,11 @@ canvas{display:block;width:100%}
         <p class="desc">Bowlers split into thirds by economy rate (min 2 overs bowled). Top third = most economical (toughest to score off), bottom third = most expensive.</p>
         <div id="bat-opp"></div>
       </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Form of dismissal <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
+        <p class="desc" style="padding-left:8px">How you have been dismissed across the selected period.</p>
+        <canvas id="chart-dismissal-pie"></canvas>
+      </div>
     </div>
 
     <!-- BOWLING -->
@@ -362,6 +378,11 @@ canvas{display:block;width:100%}
         <div class="card-title">Bowling vs batter quality</div>
         <p class="desc">Batters split into thirds by strike rate (min 12 balls faced). Top third = highest strike rates (hardest to bowl to), bottom third = lowest.</p>
         <div id="bowl-opp"></div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">How you take wickets <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
+        <p class="desc" style="padding-left:8px">Breakdown of how you take wickets. Run outs are shown as 'Other'.</p>
+        <canvas id="chart-wicket-pie"></canvas>
       </div>
     </div>
 
@@ -449,6 +470,18 @@ canvas{display:block;width:100%}
     <!-- SPIRIT CRICKETER -->
     <div id="tab-spirit" class="hidden">
       <div id="spirit-content"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- MATCH STATS -->
+    <div id="tab-matchstats" class="hidden">
+      <div class="card">
+        <div class="card-title">Select match</div>
+        <p class="desc">Choose a match to view a detailed scorecard and over-by-over breakdown.</p>
+        <select class="ms-select" id="match-select" onchange="onMatchSelect()">
+          <option value="">— Choose a match —</option>
+        </select>
+      </div>
+      <div id="matchstats-detail"></div>
     </div>
   </div>
 </div>
@@ -657,7 +690,7 @@ function applyFilter(){
 
 // ── Tab switching ─────────────────────────────────────────
 function showTab(id,btn){
-  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards','tab-spirit'].forEach(t=>{
+  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards','tab-spirit','tab-matchstats'].forEach(t=>{
     document.getElementById(t).classList.toggle('hidden','tab-'+id!==t);
   });
   if(btn)document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
@@ -784,6 +817,7 @@ function renderAll(){
   renderWinZones(pn,ms,flat,isPremium);
   renderLeaderboards(pn,ms,isPremium);
   renderSpiritCricketer(pn,pl,flat,ms);
+  renderMatchStats(pn,ms,flat);
 }
 
 // ── Format helpers ─────────────────────────────────────────
@@ -1040,7 +1074,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${sr!=null?f1(sr):'—'}</div><div class="mini-lbl">Strike rate</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper batting stats are available to Beardy Stats Club members — per-match run charts, scoring breakdown, strike rate by over, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
+      ${upgradeCard('Deeper batting stats are available to Beardy Stats Club members — per-match run charts, scoring breakdown, strike rate by over, form of dismissal, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
     return;
   }
 
@@ -1086,6 +1120,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
       {label:'Balls faced',vals:[batSplit[0].balls,batSplit[1].balls,batSplit[2].balls],fmt:v=>String(v),good:null},
     ],['Top bowlers','Mid bowlers','Bottom bowlers'],['Tightest eco','','Most expensive']);
   }else if(el){el.innerHTML='<div class="empty">Not enough data yet</div>';}
+  drawDismissalPie(pn,flat);
 }
 
 function drawBatMatchBars(pn,flat,ms){
@@ -1220,7 +1255,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${eco!=null?f1(eco):'—'}</div><div class="mini-lbl">Economy</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper bowling stats are available to Beardy Stats Club members — economy trend charts, extras %, dot ball %, head-to-head vs batters, and batter quality analysis.')}</div>`;
+      ${upgradeCard('Deeper bowling stats are available to Beardy Stats Club members — economy trend charts, extras %, dot ball %, wicket type breakdown, head-to-head vs batters, and batter quality analysis.')}</div>`;
     return;
   }
   const allBowlers=Object.values(pl).filter(p=>p.lb>0);
@@ -1260,6 +1295,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
       {label:'Balls bowled',vals:[bowlSplit[0].balls,bowlSplit[1].balls,bowlSplit[2].balls],fmt:v=>String(v),good:null},
     ],['Best third','Mid third','Bottom third'],['Highest SR','','Lowest SR']);
   }else if(elb){elb.innerHTML='<div class="empty">Not enough data yet</div>';}
+  drawWicketTypePie(pn,flat);
 }
 
 function drawEcoByMatch(pn,flat,avgEco){
@@ -2049,6 +2085,249 @@ function renderSpiritCricketer(pn,pl,flat,ms){
       <div class="cmp-row"><span class="cmp-lbl">Wickets taken</span><span class="cmp-me">${myWkts}</span></div>
       ${myLegal>0?`<div class="cmp-row"><span class="cmp-lbl">Sixes hit</span><span class="cmp-me">${mySixes}</span></div>`:''}
     </div>`;
+}
+
+// ── Dismissal classifier ──────────────────────────────────
+function classifyDismissal(b){
+  if(b.isRunout||(b.dismissal||'').toLowerCase().includes('run out'))return'Other';
+  const d=(b.dismissal||'').toLowerCase();
+  if(d.includes('bowled'))return'Bowled';
+  if(d.includes('caught'))return'Caught';
+  if(d.includes('lbw')||d.includes('leg before'))return'LBW';
+  if(d.includes('stump'))return'Stumped';
+  if(d.includes('hit wicket'))return'Hit wicket';
+  return'Bowled';
+}
+
+// ── Pie chart ─────────────────────────────────────────────
+function drawPieChart(canvas,segments,emptyMsg){
+  if(!canvas)return;
+  const size=150;
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
+  const legRows=Math.ceil(segments.length/2);
+  const H=size+28+legRows*18;
+  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+  const total=segments.reduce((s,seg)=>s+seg.value,0);
+  if(!total){
+    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText(emptyMsg||'No data',W/2,H/2);return;
+  }
+  const cx=W/2,cy=size/2+14,r=size/2-12;
+  let angle=-Math.PI/2;
+  segments.forEach(seg=>{
+    const slice=(seg.value/total)*Math.PI*2;
+    ctx.fillStyle=seg.color;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,angle,angle+slice);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    const pct=Math.round(seg.value/total*100);
+    if(pct>=8){
+      const midA=angle+slice/2;
+      const lx=cx+r*0.62*Math.cos(midA),ly=cy+r*0.62*Math.sin(midA);
+      ctx.fillStyle='#fff';ctx.font='bold 9px -apple-system,sans-serif';ctx.textAlign='center';
+      ctx.fillText(pct+'%',lx,ly+3);
+    }
+    angle+=slice;
+  });
+  segments.forEach((seg,i)=>{
+    const col=i%2,row=Math.floor(i/2);
+    const x=col===0?10:W/2+4,y=size+20+row*18;
+    ctx.fillStyle=seg.color;ctx.fillRect(x,y,8,8);
+    ctx.fillStyle='#1A2744';ctx.font='9px -apple-system,sans-serif';ctx.textAlign='left';
+    const pct=Math.round(seg.value/total*100);
+    ctx.fillText(seg.label+': '+seg.value+' ('+pct+'%)',x+11,y+8);
+  });
+}
+
+// ── Batting: form of dismissal ────────────────────────────
+function drawDismissalPie(pn,flat){
+  const canvas=document.getElementById('chart-dismissal-pie');
+  if(!canvas)return;
+  const wkts=flat.filter(b=>b.facing===pn&&b.type==='wkt');
+  const counts={};
+  wkts.forEach(b=>{const t=classifyDismissal(b);counts[t]=(counts[t]||0)+1;});
+  const colorMap={'Caught':'#7F77DD','Bowled':'#E24B4A','LBW':'#BA7517','Stumped':'#1D9E75','Hit wicket':'#1A2744','Other':'#9CA3AF'};
+  const order=['Caught','Bowled','LBW','Stumped','Hit wicket','Other'];
+  const segments=order.filter(t=>counts[t]).map(t=>({label:t,value:counts[t],color:colorMap[t]}));
+  drawPieChart(canvas,segments,'No dismissals yet');
+}
+
+// ── Bowling: wicket types ─────────────────────────────────
+function drawWicketTypePie(pn,flat){
+  const canvas=document.getElementById('chart-wicket-pie');
+  if(!canvas)return;
+  const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt');
+  const counts={};
+  wkts.forEach(b=>{const t=classifyDismissal(b);counts[t]=(counts[t]||0)+1;});
+  const colorMap={'Caught':'#7F77DD','Bowled':'#E24B4A','LBW':'#BA7517','Stumped':'#1D9E75','Hit wicket':'#1A2744','Other':'#9CA3AF'};
+  const order=['Caught','Bowled','LBW','Stumped','Hit wicket','Other'];
+  const segments=order.filter(t=>counts[t]).map(t=>({label:t,value:counts[t],color:colorMap[t]}));
+  drawPieChart(canvas,segments,'No wickets taken yet');
+}
+
+// ── Match stats ───────────────────────────────────────────
+let _msPn=null,_msFlatRef=null,_msMetaRef=null;
+
+function renderMatchStats(pn,ms,flat){
+  _msPn=pn;_msFlatRef=flat;_msMetaRef=ms;
+  const sel=document.getElementById('match-select');
+  if(!sel)return;
+  const playerMatches=filteredMatches.filter(m=>{
+    const s=ms[m.matchId];
+    return s&&s.pairs.some(p=>p.players.includes(pn));
+  }).sort((a,b)=>b.date-a.date);
+  sel.innerHTML='<option value="">— Choose a match —</option>'+
+    playerMatches.map(m=>`<option value="${escHtml(m.matchId)}">${fDate(m.date)}</option>`).join('');
+  const detail=document.getElementById('matchstats-detail');
+  if(playerMatches.length){
+    sel.value=playerMatches[0].matchId;
+    renderMatchDetail(playerMatches[0].matchId);
+  }else if(detail){
+    detail.innerHTML='<div class="empty">No matches in this period</div>';
+  }
+}
+
+function onMatchSelect(){
+  const sel=document.getElementById('match-select');
+  if(sel&&sel.value)renderMatchDetail(sel.value);
+  else{const d=document.getElementById('matchstats-detail');if(d)d.innerHTML='';}
+}
+
+function renderMatchDetail(matchId){
+  const detail=document.getElementById('matchstats-detail');
+  if(!detail||!_msFlatRef||!_msMetaRef||!_msPn)return;
+  const m=filteredMatches.find(m=>m.matchId===matchId);
+  if(!m){detail.innerHTML='<div class="empty">Match not found</div>';return;}
+  const s=_msMetaRef[matchId];
+  if(!s){detail.innerHTML='<div class="empty">No data for this match</div>';return;}
+  const pn=_msPn;
+  const balls=m.history;
+  const batSt={};
+  balls.forEach(b=>{
+    if(!b.facing)return;
+    const n=b.facing;
+    if(!batSt[n])batSt[n]={runs:0,wkts:0,balls:0};
+    if(BAT_TYPES.has(b.type))batSt[n].balls++;
+    if(RUN_TYPES.has(b.type)&&b.run>0)batSt[n].runs+=b.run;
+    if(b.type==='wkt')batSt[n].wkts++;
+  });
+  const bowlSt={};
+  balls.forEach(b=>{
+    if(!b.bowling)return;
+    const n=b.bowling;
+    if(!bowlSt[n])bowlSt[n]={balls:0,runs:0,wkts:0};
+    bowlSt[n].balls++;
+    if(b.type!=='wkt'&&b.run>0)bowlSt[n].runs+=b.run;
+    if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))bowlSt[n].wkts++;
+  });
+  const pairBatOrder=[];const seenPi=new Set();
+  balls.forEach(b=>{if(b.batPair!=null&&!seenPi.has(b.batPair)){seenPi.add(b.batPair);pairBatOrder.push(b.batPair);}});
+  const orderedPairs=pairBatOrder.map(idx=>s.pairs.find(p=>p.idx===idx)).filter(Boolean);
+  if(!orderedPairs.length)orderedPairs.push(...s.sorted);
+  const winner=matchWinner(s);
+  const myPair=s.pairs.find(p=>p.players.includes(pn));
+  const myPairIdx=myPair?.idx??null;
+  let bHtml='<div class="card"><div class="card-title">Batting scorecard</div>';
+  bHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Runs</th><th>Out</th><th>Balls</th></tr>';
+  orderedPairs.forEach((pair,pi)=>{
+    const isMyPair=pair.idx===myPairIdx;
+    const isWin=winner&&pair.idx===winner.idx;
+    const bg=isMyPair?'#EEF0FF':'var(--bg)';
+    const fc=isMyPair?'var(--purple)':'var(--muted)';
+    bHtml+=`<tr class="ms-pair-hdr"><td colspan="4" style="background:${bg};color:${fc};padding:6px 6px;text-align:left">Pair ${pi+1}${isWin?' 🏆':''}: <b style="color:${isMyPair?'var(--purple)':'var(--navy)'}">${pair.runs}</b> runs · ${pair.wkts} wkt${pair.wkts!==1?'s':''}</td></tr>`;
+    pair.players.forEach(name=>{
+      const bs=batSt[name]||{runs:0,wkts:0,balls:0};
+      const isYou=name===pn;
+      bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td></tr>`;
+    });
+  });
+  bHtml+='</table></div>';
+  let wHtml='<div class="card"><div class="card-title">Bowling — your pair</div>';
+  if(myPair&&myPair.players.length){
+    wHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Overs</th><th>Runs</th><th>Wkts</th><th>Econ</th></tr>';
+    myPair.players.forEach(name=>{
+      const bs=bowlSt[name]||{balls:0,runs:0,wkts:0};
+      const fullOvs=Math.floor(bs.balls/6);const rem=bs.balls%6;
+      const ovStr=bs.balls>0?(rem?fullOvs+'.'+rem:String(fullOvs)):'—';
+      const eco=bs.balls>0?f1(bs.runs/bs.balls*6):'—';
+      const isYou=name===pn;
+      wHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${ovStr}</td><td>${bs.balls>0?bs.runs:'—'}</td><td>${bs.balls>0?bs.wkts:'—'}</td><td>${eco}</td></tr>`;
+    });
+    wHtml+='</table>';
+  }else{wHtml+='<div class="empty">No pair data</div>';}
+  wHtml+='</div>';
+  const oHtml=`<div class="card" style="padding-left:8px;padding-right:8px"><div class="card-title" style="padding-left:8px">Over-by-over <span style="font-size:9px;font-weight:400;color:var(--muted)">■ purple = your pair batting · ■ green = you bowling · ■ grey = other</span></div><canvas id="chart-over-detail"></canvas></div>`;
+  detail.innerHTML=bHtml+wHtml+oHtml;
+  drawOverChart(pn,m,s,myPairIdx);
+}
+
+function drawOverChart(pn,match,matchSummary,myPairIdx){
+  const canvas=document.getElementById('chart-over-detail');
+  if(!canvas)return;
+  const balls=match.history;
+  const overMap={};
+  balls.forEach(b=>{
+    const ov=b.over;if(ov==null)return;
+    if(!overMap[ov])overMap[ov]={runs:0,wkts:0,batPair:b.batPair,bowlers:new Set()};
+    if(b.type!=='wkt'&&b.run>0)overMap[ov].runs+=b.run;
+    if(b.type==='wkt')overMap[ov].wkts++;
+    if(b.bowling)overMap[ov].bowlers.add(b.bowling);
+  });
+  const allOvers=Object.keys(overMap).map(Number).sort((a,b)=>a-b);
+  const H=220;
+  const W=Math.max(canvas.parentElement.clientWidth-16,window.innerWidth-48,100);
+  canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');ctx.scale(2,2);
+  if(!allOvers.length){
+    ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText('No over data',W/2,H/2);return;
+  }
+  const inningsBlocks=[];
+  let curBp=null,curBlock=null;
+  allOvers.forEach(ov=>{
+    const bp=overMap[ov].batPair;
+    if(bp!==curBp){curBlock={batPair:bp,overs:[],runs:0,wkts:0};inningsBlocks.push(curBlock);curBp=bp;}
+    curBlock.overs.push(ov);curBlock.runs+=overMap[ov].runs;curBlock.wkts+=overMap[ov].wkts;
+  });
+  inningsBlocks.forEach(block=>{
+    const pair=matchSummary.pairs.find(p=>p.idx===block.batPair);
+    block.pairTotal=pair?pair.runs:block.runs;block.pairWkts=pair?pair.wkts:block.wkts;
+  });
+  const nOvers=allOvers.length;
+  const maxRuns=Math.max(...allOvers.map(ov=>overMap[ov].runs),1);
+  const padL=6,padR=6,padT=44,padB=22;
+  const cw=W-padL-padR,ch=H-padT-padB;
+  const slot=cw/nOvers;
+  const bW=Math.max(5,Math.min(26,slot*0.72));
+  allOvers.forEach((ov,i)=>{
+    const od=overMap[ov];
+    const x=padL+i*slot+(slot-bW)/2;
+    const runs=od.runs;
+    const bH=runs>0?Math.max(4,ch*(runs/maxRuns)):2;
+    const y=padT+ch-bH;
+    let color;
+    if(od.batPair===myPairIdx)color='#7F77DD';
+    else if(od.bowlers.has(pn))color='#1D9E75';
+    else color='#C0C5D8';
+    ctx.fillStyle=color;
+    const r2=Math.min(2,bW/2);
+    ctx.beginPath();ctx.moveTo(x+r2,y);ctx.lineTo(x+bW-r2,y);ctx.arcTo(x+bW,y,x+bW,y+r2,r2);ctx.lineTo(x+bW,y+bH);ctx.lineTo(x,y+bH);ctx.arcTo(x,y,x+r2,y,r2);ctx.closePath();ctx.fill();
+    if(od.wkts>0){ctx.fillStyle='#E24B4A';ctx.font='bold 8px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(od.wkts===1?'W':'W\xd7'+od.wkts,x+bW/2,y-3);}
+    ctx.fillStyle='#6B7A99';ctx.font='8px -apple-system,sans-serif';ctx.textAlign='center';
+    ctx.fillText(String(ov+1),x+bW/2,H-4);
+  });
+  inningsBlocks.forEach((block,bi)=>{
+    const startI=allOvers.indexOf(block.overs[0]);
+    const endI=allOvers.indexOf(block.overs[block.overs.length-1]);
+    const bx0=padL+startI*slot,bx1=padL+(endI+1)*slot,midX=(bx0+bx1)/2;
+    const isMyBlock=block.batPair===myPairIdx;
+    if(bi>0){ctx.strokeStyle='#C0C5D8';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(bx0,padT-2);ctx.lineTo(bx0,padT+ch);ctx.stroke();ctx.setLineDash([]);}
+    ctx.textAlign='center';
+    ctx.fillStyle=isMyBlock?'#7F77DD':'#9CA3AF';ctx.font='7px -apple-system,sans-serif';
+    ctx.fillText('Pair '+(block.batPair!=null?block.batPair+1:'?'),midX,padT-28);
+    ctx.fillStyle=isMyBlock?'#7F77DD':'#1A2744';ctx.font=(isMyBlock?'bold ':'')+'10px -apple-system,sans-serif';
+    ctx.fillText(block.pairTotal+(block.pairWkts>0?' ('+block.pairWkts+'w)':''),midX,padT-15);
+  });
 }
 
 // ── Boot ──────────────────────────────────────────────────
