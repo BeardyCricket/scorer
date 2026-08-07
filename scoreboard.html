@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Beardy Cricket — Scoreboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#1a4a2e;color:#fff;
+  display:flex;flex-direction:column;min-height:100vh;
+  transition:background .8s ease;
+  user-select:none;
+}
+
+/* ── Waiting state ── */
+#screen-wait{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:1.5vh;text-align:center;padding:5vw;
+}
+.wait-icon{font-size:8vw}
+.wait-title{font-size:4vw;font-weight:800;opacity:.9}
+.wait-sub{font-size:2vw;opacity:.5;max-width:40vw;line-height:1.6}
+
+/* ── Live scoreboard ── */
+#screen-live{
+  flex:1;display:none;flex-direction:column;
+  padding:3.5vh 5vw 3.5vh;
+}
+
+/* Top row */
+.top-row{display:flex;align-items:flex-start;justify-content:space-between}
+.pair-label{font-size:2.4vw;font-weight:800;text-transform:uppercase;letter-spacing:.14em;opacity:.65}
+.pair-players{font-size:1.7vw;font-weight:600;opacity:.42;margin-top:.4vw;letter-spacing:.04em}
+.match-status{font-size:1.5vw;font-weight:700;opacity:.38;text-align:right;letter-spacing:.02em;margin-top:.2vw}
+
+/* Centre score */
+.score-area{
+  flex:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+}
+.score-number{
+  font-weight:900;line-height:.88;
+  letter-spacing:-.04em;
+  color:rgba(255,255,255,.96);
+  transition:font-size .25s ease;
+}
+.score-subtitle{
+  font-size:2.6vw;font-weight:700;
+  opacity:.58;margin-top:2.2vw;
+  letter-spacing:.02em;
+}
+
+/* Bottom bar */
+.bottom-bar{display:flex;align-items:flex-end;justify-content:space-between}
+.bc-brand{
+  display:flex;align-items:center;gap:.6vw;
+  font-size:1.3vw;font-weight:700;
+  opacity:.32;text-transform:uppercase;letter-spacing:.1em;
+}
+.live-dot{
+  width:.85vw;height:.85vw;border-radius:50%;
+  background:#4ade80;flex-shrink:0;
+  animation:pulse 1.6s ease-in-out infinite;
+}
+.live-dot.offline{background:#f87171;animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.28}}
+
+/* Leader box */
+.leader-box{
+  border-radius:1.6vw;
+  padding:1.6vw 2.8vw;
+  text-align:center;
+  min-width:15vw;
+  border:2px solid rgba(255,255,255,.22);
+  backdrop-filter:brightness(1.15);
+  transition:background .8s ease;
+}
+.leader-box-label{
+  font-size:1vw;font-weight:800;
+  text-transform:uppercase;letter-spacing:.12em;
+  opacity:.62;margin-bottom:.5vw;
+}
+.leader-box-score{
+  font-size:6vw;font-weight:900;
+  line-height:1;letter-spacing:-.03em;
+}
+.leader-box-name{
+  font-size:1.2vw;font-weight:700;
+  opacity:.55;margin-top:.4vw;
+}
+</style>
+</head>
+<body>
+
+<div id="screen-wait">
+  <div class="wait-icon">🏏</div>
+  <div class="wait-title">Waiting for match…</div>
+  <div class="wait-sub">The scoreboard updates live when a match starts. No need to refresh.</div>
+</div>
+
+<div id="screen-live">
+  <div class="top-row">
+    <div>
+      <div class="pair-label"  id="pair-label">—</div>
+      <div class="pair-players" id="pair-players">—</div>
+    </div>
+    <div class="match-status" id="match-status"></div>
+  </div>
+
+  <div class="score-area">
+    <div class="score-number" id="score-number">—</div>
+    <div class="score-subtitle" id="score-subtitle"></div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="bc-brand">
+      <div class="live-dot" id="live-dot"></div>
+      Beardy Cricket
+    </div>
+    <div class="leader-box" id="leader-box" style="display:none">
+      <div class="leader-box-label" id="leader-label">Leading</div>
+      <div class="leader-box-score" id="leader-score">—</div>
+      <div class="leader-box-name"  id="leader-name"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+'use strict';
+
+const SUPABASE_URL = 'https://gdhqqcqzshvomnyfhsya.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
+const { createClient } = supabase;
+const client = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const params  = new URLSearchParams(window.location.search);
+let matchId   = params.get('match') || null;
+let channel   = null;
+
+// Full-saturation background colours per pair colour name
+const BG = {
+  purple:'#6d28d9', blue:'#1d4ed8', grey:'#374151',
+  red:'#b91c1c',   green:'#166534', orange:'#c2410c', pink:'#9d174d'
+};
+function bg(c){ return BG[c] || '#1a4a2e'; }
+
+function isFinished(p){
+  return p.status === 'finished' ||
+    (p.over >= p.total_overs && p.total_overs > 0 && p.ball >= 6);
+}
+
+function setConnected(ok){
+  document.getElementById('live-dot').classList.toggle('offline', !ok);
+}
+
+// ── Render ────────────────────────────────────────────────
+function render(payload){
+  if(!payload) return;
+
+  const bi    = payload.batting;   // current batting pair object
+  const pairs = payload.pairs || [];
+  const done  = isFinished(payload);
+
+  // ── Finished match ────────────────────────────────────
+  if(done){
+    const sorted = [...pairs].sort((a,b)=> b.total - a.total);
+    const winner = sorted[0];
+    if(!winner){ showWait(); return; }
+
+    showLive(winner.color);
+    set('pair-label',   (winner.cname||'').toUpperCase() + ' PAIR WINS 🏆');
+    set('pair-players', (winner.players||[]).join(' & '));
+    setScore(winner.total);
+    set('score-subtitle', 'Final score · ' + payload.total_overs + ' overs');
+    set('match-status', 'Match complete');
+
+    if(sorted.length > 1){
+      const second = sorted[1];
+      showLeaderBox(second.color, second.total, second.cname + ' pair', '2nd place');
+    } else {
+      hide('leader-box');
+    }
+    return;
+  }
+
+  // ── No live batting pair yet ───────────────────────────
+  if(!bi){ showWait(); return; }
+
+  showLive(bi.color);
+
+  // Pair info
+  set('pair-label',   (bi.cname||'').toUpperCase() + ' PAIR');
+  set('pair-players', (bi.players||[]).join(' & '));
+
+  // Score
+  setScore(bi.total);
+
+  // Match status (top-right)
+  const ov = payload.over, ball = payload.ball;
+  set('match-status',
+    ball >= 6 ? `End of over ${ov}` : `Over ${ov} · Ball ${ball}`
+  );
+
+  // ── Subtitle: overs bowled OR runs needed ─────────────
+  const ovsBatted  = Math.floor(bi.balls_faced / 6);
+  const ballsExtra = bi.balls_faced % 6;
+
+  // Non-batting pairs that have already scored
+  const rivals = pairs.filter(p => p.color !== bi.color && p.total > 0);
+
+  if(!rivals.length){
+    // First pair up — no target yet
+    set('score-subtitle', `${ovsBatted}.${ballsExtra} overs bowled`);
+  } else {
+    const target     = Math.max(...rivals.map(p => p.total));
+    const runsNeeded = target + 1 - bi.total;
+    const ballsPerPair = pairs.length > 0
+      ? Math.round((payload.total_overs / pairs.length) * 6)
+      : 24;
+    const ballsLeft = Math.max(0, ballsPerPair - bi.balls_faced);
+
+    if(runsNeeded > 0){
+      set('score-subtitle',
+        `Need ${runsNeeded} off ${ballsLeft} ball${ballsLeft !== 1 ? 's' : ''} to lead`
+      );
+    } else {
+      const ahead = bi.total - target;
+      set('score-subtitle',
+        `Leading by ${ahead} · ${ballsLeft} ball${ballsLeft !== 1 ? 's' : ''} remaining`
+      );
+    }
+  }
+
+  // ── Leader box ────────────────────────────────────────
+  // Sort all pairs descending
+  const ranked = [...pairs].sort((a,b) => b.total - a.total);
+  const top = ranked[0];
+
+  if(!top || top.total === 0){
+    // Nothing meaningful to show yet
+    hide('leader-box');
+  } else if(top.color !== bi.color){
+    // Another pair is leading — show them
+    showLeaderBox(top.color, top.total, top.cname + ' pair', 'Leading');
+  } else {
+    // Batting pair is the leader — show nearest rival if they've scored
+    const rival = ranked.find(p => p.color !== bi.color && p.total > 0);
+    if(rival){
+      showLeaderBox(rival.color, rival.total, rival.cname + ' pair', '2nd');
+    } else {
+      hide('leader-box');
+    }
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────
+function set(id, text){ const el = document.getElementById(id); if(el) el.textContent = text; }
+function hide(id){ const el = document.getElementById(id); if(el) el.style.display = 'none'; }
+
+function showWait(){
+  document.getElementById('screen-wait').style.display = 'flex';
+  document.getElementById('screen-live').style.display = 'none';
+  document.body.style.background = '#1a4a2e';
+}
+
+function showLive(color){
+  document.getElementById('screen-wait').style.display = 'none';
+  document.getElementById('screen-live').style.display = 'flex';
+  document.body.style.background = bg(color);
+}
+
+function setScore(val){
+  const el = document.getElementById('score-number');
+  if(!el) return;
+  el.textContent = val;
+  const digits = String(val).length;
+  el.style.fontSize = digits <= 2 ? '34vw' : digits === 3 ? '26vw' : '20vw';
+}
+
+function showLeaderBox(color, score, name, label){
+  const box = document.getElementById('leader-box');
+  if(!box) return;
+  box.style.display  = 'block';
+  box.style.background = bg(color);
+  set('leader-label', label);
+  set('leader-score', score);
+  set('leader-name',  name);
+}
+
+// ── Supabase connection ───────────────────────────────────
+function subscribeToMatch(id){
+  if(channel) client.removeChannel(channel);
+  channel = client
+    .channel('scoreboard-' + id)
+    .on('postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'live_scores', filter: `match_id=eq.${id}` },
+      msg => { if(msg.new?.payload) render(msg.new.payload); }
+    )
+    .subscribe(s => setConnected(s === 'SUBSCRIBED'));
+}
+
+function subscribeForAny(){
+  if(channel) client.removeChannel(channel);
+  channel = client
+    .channel('scoreboard-any')
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'live_scores' },
+      msg => {
+        const p = msg.new?.payload;
+        if(!p || isFinished(p)) return;
+        if(!matchId){
+          matchId = msg.new.match_id;
+          render(p);
+          subscribeToMatch(matchId);
+        }
+      }
+    )
+    .subscribe(s => setConnected(s === 'SUBSCRIBED'));
+}
+
+async function init(){
+  // Keep screen awake on supported browsers
+  try {
+    if('wakeLock' in navigator) await navigator.wakeLock.request('screen');
+  } catch(e){}
+
+  if(matchId){
+    const { data } = await client
+      .from('live_scores').select('payload')
+      .eq('match_id', matchId).maybeSingle();
+    if(data?.payload) render(data.payload);
+    subscribeToMatch(matchId);
+  } else {
+    // Find most recent active match
+    const { data } = await client
+      .from('live_scores').select('match_id,updated_at,payload')
+      .order('updated_at', { ascending: false }).limit(10);
+    const live = (data || []).filter(r =>
+      r.payload && !isFinished(r.payload) &&
+      !r.match_id.startsWith('beardy-test-')
+    );
+    if(live.length){
+      matchId = live[0].match_id;
+      render(live[0].payload);
+      subscribeToMatch(matchId);
+    } else {
+      subscribeForAny();
+    }
+  }
+}
+
+// Re-request wake lock if released when tab regains focus
+document.addEventListener('visibilitychange', async () => {
+  if(document.visibilityState === 'visible'){
+    try {
+      if('wakeLock' in navigator) await navigator.wakeLock.request('screen');
+    } catch(e){}
+  }
+});
+
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
