@@ -2156,11 +2156,11 @@ function drawDismissalPie(pn,flat){
 function drawWicketTypePie(pn,flat){
   const canvas=document.getElementById('chart-wicket-pie');
   if(!canvas)return;
-  const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt');
+  const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||(b.dismissal||'').toLowerCase().includes('run out')));
   const counts={};
   wkts.forEach(b=>{const t=classifyDismissal(b);counts[t]=(counts[t]||0)+1;});
-  const colorMap={'Caught':'#7F77DD','Bowled':'#E24B4A','LBW':'#BA7517','Stumped':'#1D9E75','Hit wicket':'#1A2744','Other':'#9CA3AF'};
-  const order=['Caught','Bowled','LBW','Stumped','Hit wicket','Other'];
+  const colorMap={'Caught':'#7F77DD','Bowled':'#E24B4A','LBW':'#BA7517','Stumped':'#1D9E75','Hit wicket':'#1A2744'};
+  const order=['Caught','Bowled','LBW','Stumped','Hit wicket'];
   const segments=order.filter(t=>counts[t]).map(t=>({label:t,value:counts[t],color:colorMap[t]}));
   drawPieChart(canvas,segments,'No wickets taken yet');
 }
@@ -2292,6 +2292,7 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
   inningsBlocks.forEach(block=>{
     const pair=matchSummary.pairs.find(p=>p.idx===block.batPair);
     block.pairTotal=pair?pair.runs:block.runs;block.pairWkts=pair?pair.wkts:block.wkts;
+    block.players=pair?pair.players:[];
   });
   const nOvers=allOvers.length;
   const maxRuns=Math.max(...allOvers.map(ov=>overMap[ov].runs),1);
@@ -2323,8 +2324,15 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
     const isMyBlock=block.batPair===myPairIdx;
     if(bi>0){ctx.strokeStyle='#C0C5D8';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(bx0,padT-2);ctx.lineTo(bx0,padT+ch);ctx.stroke();ctx.setLineDash([]);}
     ctx.textAlign='center';
+    let pairLabel;
+    if(isMyBlock){
+      const partner=block.players.find(n=>n!==pn)||block.players[0];
+      pairLabel=partner&&partner!==pn?'You & '+partner:'Your pair';
+    }else{
+      pairLabel=block.players.length?block.players.join(' & '):'?';
+    }
     ctx.fillStyle=isMyBlock?'#7F77DD':'#9CA3AF';ctx.font='7px -apple-system,sans-serif';
-    ctx.fillText('Pair '+(block.batPair!=null?block.batPair+1:'?'),midX,padT-28);
+    ctx.fillText(pairLabel,midX,padT-28);
     ctx.fillStyle=isMyBlock?'#7F77DD':'#1A2744';ctx.font=(isMyBlock?'bold ':'')+'10px -apple-system,sans-serif';
     ctx.fillText(block.pairTotal+(block.pairWkts>0?' ('+block.pairWkts+'w)':''),midX,padT-15);
   });
