@@ -517,16 +517,42 @@ function show(id){
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Auth ─────────────────────────────────────────────────
+let inRecoveryMode=false;
+
 async function init(){
   try{
-    // Supabase puts the session tokens in the URL hash after an invite/reset link
-    const{data,error}=await db.auth.getSession();
+    // onAuthStateChange must be wired up BEFORE getSession() so we don't miss
+    // the PASSWORD_RECOVERY event that Supabase fires while processing the hash.
+    db.auth.onAuthStateChange((event,session)=>{
+      if(event==='PASSWORD_RECOVERY'){
+        inRecoveryMode=true;
+        document.getElementById('setpw-btn').dataset.mode='recovery';
+        document.querySelector('#screen-setpw .login-sub').textContent=
+          'Enter a new password for your account.';
+        document.getElementById('setpw-btn').textContent='Set new password';
+        show('screen-setpw');
+      }
+    });
+
+    const{data}=await db.auth.getSession();
     const session=data?.session;
+
+    // If onAuthStateChange already handled recovery, stop here
+    if(inRecoveryMode) return;
+
+    // Detect expired/invalid recovery link: hash has type=recovery but no session
     const hash=new URLSearchParams(window.location.hash.slice(1));
     const tokenType=hash.get('type');
+    const hashError=hash.get('error_description')||hash.get('error');
+    if(tokenType==='recovery'){
+      history.replaceState(null,'',window.location.pathname);
+      show('screen-login');
+      const errEl=document.getElementById('login-err');
+      if(errEl) errEl.textContent='Your password reset link has expired. Please request a new one.';
+      return;
+    }
 
-    if((tokenType==='invite'||tokenType==='recovery')&&session){
-      // User arrived via invite or password-reset link — make them set a password
+    if(tokenType==='invite'&&session){
       show('screen-setpw');
       return;
     }
@@ -547,13 +573,22 @@ async function doSetPassword(){
   try{
     const{error}=await db.auth.updateUser({password:pw});
     if(error)throw error;
-    // Clean the hash from the URL so refresh doesn't re-trigger this screen
     history.replaceState(null,'',window.location.pathname);
-    const{data:{user}}=await db.auth.getUser();
-    await loadPlayer(user.email);
+    if(btn.dataset.mode==='recovery'){
+      // Recovery flow: sign out so the user logs in fresh with their new password
+      await db.auth.signOut();
+      inRecoveryMode=false;
+      show('screen-login');
+      const errEl2=document.getElementById('login-err');
+      if(errEl2){errEl2.style.color='#166534';errEl2.textContent='Password updated — please sign in with your new password.';}
+    }else{
+      // Invite flow: auto-login as before
+      const{data:{user}}=await db.auth.getUser();
+      await loadPlayer(user.email);
+    }
   }catch(e){
     errEl.textContent=e.message||'Could not set password. Try again.';
-    btn.disabled=false;btn.textContent='Set password & continue';
+    btn.disabled=false;btn.textContent=btn.dataset.mode==='recovery'?'Set new password':'Set password & continue';
   }
 }
 
