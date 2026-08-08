@@ -4233,6 +4233,7 @@ async function checkForCloudResume(){
 }
 
 async function resumeFromCloud(matchId){
+  if(document.querySelector('.screen.active')?.id==='s-passcode')return;
   document.getElementById('cloud-resume-modal').classList.add('hidden');
   try{
     const {data,error}=await supabaseClient
@@ -4352,8 +4353,7 @@ function showSnapModal(){
   document.getElementById('snap-modal').classList.remove('hidden');
 }
 
-// Saved-game check is deferred until after the passcode is entered (see pcKey)
-checkForCloudResume(); // async — shows cloud resume modal if a different device left a match in progress
+// Both resume checks are deferred until after the passcode is entered (see pcKey)
 getPlayerStats(); // pre-load stats in background so auto-seeding is ready when roster opens
 updateTestModeUI();
 
@@ -4571,7 +4571,8 @@ function _rebuildRemainingSchedule(){
         show('s-splash');
         entered='';
         render();
-        checkForSavedGame(); // only check for saved games after passcode is verified
+        checkForSavedGame();    // only check for saved games after passcode is verified
+        checkForCloudResume(); // likewise for cloud resume
       } else {
         const dots=document.getElementById('pc-dots');
         const err=document.getElementById('pc-err');
