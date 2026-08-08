@@ -2348,17 +2348,18 @@ function renderMatchDetail(matchId){
   const myPair=s.pairs.find(p=>p.players.includes(pn));
   const myPairIdx=myPair?.idx??null;
   let bHtml='<div class="card"><div class="card-title">Batting scorecard</div>';
-  bHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Runs</th><th>Out</th><th>Balls</th></tr>';
+  bHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Runs</th><th>Out</th><th>Balls</th><th>SR</th></tr>';
   orderedPairs.forEach((pair,pi)=>{
     const isMyPair=pair.idx===myPairIdx;
     const isWin=winner&&pair.idx===winner.idx;
     const bg=isMyPair?'#EEF0FF':'var(--bg)';
     const fc=isMyPair?'var(--purple)':'var(--muted)';
-    bHtml+=`<tr class="ms-pair-hdr"><td colspan="4" style="background:${bg};color:${fc};padding:6px 6px;text-align:left">Pair ${pi+1}${isWin?' 🏆':''}: <b style="color:${isMyPair?'var(--purple)':'var(--navy)'}">${pair.runs}</b> runs · ${pair.wkts} wkt${pair.wkts!==1?'s':''}</td></tr>`;
+    bHtml+=`<tr class="ms-pair-hdr"><td colspan="5" style="background:${bg};color:${fc};padding:6px 6px;text-align:left">Pair ${pi+1}${isWin?' 🏆':''}: <b style="color:${isMyPair?'var(--purple)':'var(--navy)'}">${pair.runs}</b> runs · ${pair.wkts} wkt${pair.wkts!==1?'s':''}</td></tr>`;
     pair.players.forEach(name=>{
       const bs=batSt[name]||{runs:0,wkts:0,balls:0};
+      const sr=bs.balls>0?f1(bs.runs/bs.balls*100):'—';
       const isYou=name===pn;
-      bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td></tr>`;
+      bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td><td>${sr}</td></tr>`;
     });
   });
   bHtml+='</table></div>';
