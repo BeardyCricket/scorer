@@ -546,6 +546,11 @@ function _enterRecovery(){
 
 async function init(){
   try{
+    // Always await getSession first — this resolves Supabase's internal initializePromise
+    // so that any subsequent signInWithPassword call never hangs waiting for it.
+    const{data}=await db.auth.getSession();
+    await Promise.resolve(); // flush any queued PASSWORD_RECOVERY callbacks
+
     const urlParams=new URLSearchParams(window.location.search);
 
     // Fresh load after a successful password reset — show login with success message.
@@ -560,9 +565,6 @@ async function init(){
     // Check URL params BEFORE any async work — this is set by our own redirectTo
     // and survives the Supabase redirect regardless of PKCE/implicit flow or event timing.
     const isRecoveryUrl=urlParams.get('mode')==='recovery';
-
-    const{data}=await db.auth.getSession();
-    await Promise.resolve(); // flush any queued PASSWORD_RECOVERY callbacks
 
     const session=data?.session;
 
@@ -642,8 +644,10 @@ async function doLogin(){
   try{
     const{error}=await db.auth.signInWithPassword({email,password:pw});
     if(error)throw error;
+    btn.textContent='Loading…';
     await loadPlayer(email);
   }catch(e){
+    errEl.style.color='var(--red)';
     errEl.textContent=e.message||'Sign in failed. Check your credentials.';
     btn.disabled=false;btn.textContent='Sign in';
   }
