@@ -623,6 +623,7 @@ async function doSetPassword(){
 }
 
 async function doLogin(){
+  inRecoveryMode=false; // clear any stale recovery state
   const email=document.getElementById('login-email').value.trim();
   const pw=document.getElementById('login-pw').value;
   const errEl=document.getElementById('login-err');
@@ -679,7 +680,6 @@ async function doForgotPassword(){
 }
 
 async function loadPlayer(email){
-  if(inRecoveryMode) return; // recovery session — don't load stats
   show('screen-loading');
   try{
     const{data,error}=await db.from('player_access').select('*').eq('email',email).single();
