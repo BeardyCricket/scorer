@@ -642,10 +642,10 @@ async function doLogin(){
   if(!email||!pw){errEl.textContent='Please enter email and password.';return;}
   btn.disabled=true;btn.textContent='Signing in…';
   try{
-    const{error}=await db.auth.signInWithPassword({email,password:pw});
+    const{data:authData,error}=await db.auth.signInWithPassword({email,password:pw});
     if(error)throw error;
     btn.textContent='Loading…';
-    await loadPlayer(email);
+    await loadPlayer(authData.user.email);
   }catch(e){
     errEl.style.color='var(--red)';
     errEl.textContent=e.message||'Sign in failed. Check your credentials.';
@@ -695,7 +695,11 @@ async function loadPlayer(email){
   show('screen-loading');
   try{
     const{data,error}=await db.from('player_access').select('*').eq('email',email).single();
-    if(error||!data){show('screen-login');return;}
+    if(error||!data){
+      show('screen-login');
+      document.getElementById('login-err').textContent='Account not found. Contact Beardy Cricket to check your access.';
+      return;
+    }
     if(!data.is_active){
       await db.auth.signOut();
       show('screen-login');
