@@ -214,6 +214,7 @@
         const pRuns={},pBalls={},pFours={},pSixes={};
         p.players.forEach(pl=>{pRuns[pl]=0;pBalls[pl]=0;pFours[pl]=0;pSixes[pl]=0;});
         history.filter(b=>b.batPair===i&&b.type==='normal'&&pRuns[b.facing]!==undefined).forEach(b=>{pRuns[b.facing]+=b.run;});
+        history.filter(b=>b.batPair===i&&b.type==='nb'&&pRuns[b.facing]!==undefined).forEach(b=>{pRuns[b.facing]+=Math.max(0,b.run-2);});
         history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&pBalls[b.facing]!==undefined).forEach(b=>{pBalls[b.facing]++;});
         history.filter(b=>b.batPair===i&&b.code==='4b'&&pFours[b.facing]!==undefined).forEach(b=>{pFours[b.facing]++;});
         history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal'&&pSixes[b.facing]!==undefined).forEach(b=>{pSixes[b.facing]++;});

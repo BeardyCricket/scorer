@@ -1347,7 +1347,7 @@ function renderH2HBowlers(pn,ps,pl){
     .filter(([,cnt])=>cnt>=6)
     .map(([bowler,cnt])=>{
       const bowlerBalls=filteredMatches.flatMap(m=>m.history).filter(b=>b.facing===pn&&b.bowling===bowler&&BAT_TYPES.has(b.type));
-      const runs=bowlerBalls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+b.run,0);
+      const runs=bowlerBalls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+batRun(b),0);
       const sr=bowlerBalls.length?runs/bowlerBalls.length*100:0;
       return{bowler,cnt,sr,wkts:wkts[bowler]||0};
     })
