@@ -54,6 +54,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .login-btn{width:100%;padding:13px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px}
 .login-btn:disabled{opacity:.5;cursor:default}
 .login-err{font-size:13px;color:var(--red);margin-top:10px;min-height:18px}
+.forgot-link{font-size:12px;color:var(--muted);display:block;margin-top:14px;text-decoration:none}
 
 /* Stats header */
 .stats-hdr{background:var(--navy);padding:14px 16px 12px;position:sticky;top:0;z-index:100}
@@ -212,12 +213,21 @@ canvas{display:block;width:100%}
 <div id="screen-login" class="hidden">
   <div class="login-card">
     <div class="login-logo">BC</div>
-    <div class="login-title">Player Login</div>
-    <div class="login-sub">Sign in to see your personal stats</div>
-    <input class="login-inp" id="login-email" type="email" placeholder="your@email.com" autocomplete="email">
-    <input class="login-inp" id="login-pw" type="password" placeholder="Password" autocomplete="current-password">
-    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign in</button>
-    <div class="login-err" id="login-err"></div>
+    <div class="login-title" id="login-title">Player Login</div>
+    <div class="login-sub" id="login-sub-text">Sign in to see your personal stats</div>
+    <div id="login-form">
+      <input class="login-inp" id="login-email" type="email" placeholder="your@email.com" autocomplete="email">
+      <input class="login-inp" id="login-pw" type="password" placeholder="Password" autocomplete="current-password">
+      <button class="login-btn" id="login-btn" onclick="doLogin()">Sign in</button>
+      <div class="login-err" id="login-err"></div>
+      <a href="#" class="forgot-link" onclick="showForgot(event)">Forgot password?</a>
+    </div>
+    <div id="forgot-form" style="display:none">
+      <input class="login-inp" id="forgot-email" type="email" placeholder="your@email.com" autocomplete="email">
+      <button class="login-btn" id="forgot-btn" onclick="doForgotPassword()">Send reset link</button>
+      <div class="login-err" id="forgot-err"></div>
+      <a href="#" class="forgot-link" onclick="showLoginForm(event)">Back to sign in</a>
+    </div>
   </div>
 </div>
 
@@ -507,6 +517,13 @@ let filteredMatches=[];
 let activePeriod='all';
 let customFrom=null,customTo=null;
 let isPremium=false;
+let inRecoveryMode=false;
+
+// Register IMMEDIATELY after createClient — before any async initialisation can fire
+// the PASSWORD_RECOVERY event, which otherwise races against DOMContentLoaded.
+db.auth.onAuthStateChange((event)=>{
+  if(event==='PASSWORD_RECOVERY') inRecoveryMode=true;
+});
 
 // ── Screen helpers ────────────────────────────────────────
 function show(id){
@@ -517,10 +534,7 @@ function show(id){
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // ── Auth ─────────────────────────────────────────────────
-let inRecoveryMode=false;
-
 function _enterRecovery(){
-  if(inRecoveryMode) return;
   inRecoveryMode=true;
   const btn=document.getElementById('setpw-btn');
   btn.dataset.mode='recovery';
@@ -532,30 +546,24 @@ function _enterRecovery(){
 
 async function init(){
   try{
-    // onAuthStateChange BEFORE getSession so PASSWORD_RECOVERY is caught during token exchange
-    db.auth.onAuthStateChange((event)=>{
-      if(event==='PASSWORD_RECOVERY') _enterRecovery();
-    });
-
     const{data}=await db.auth.getSession();
-    // Yield to the microtask queue so any onAuthStateChange callbacks can settle
+    // Yield so any PASSWORD_RECOVERY callback queued during getSession can settle
     await Promise.resolve();
 
-    if(inRecoveryMode) return;
+    if(inRecoveryMode){ _enterRecovery(); return; }
 
     const session=data?.session;
     const hash=new URLSearchParams(window.location.hash.slice(1));
     const tokenType=hash.get('type');
 
-    // Implicit-flow recovery: hash still carries type=recovery after getSession
+    // Implicit-flow fallback: hash still carries type=recovery
     if(tokenType==='recovery'){
-      if(session){
-        _enterRecovery(); // valid session — show recovery form
-      } else {
+      if(session){ _enterRecovery(); }
+      else{
         history.replaceState(null,'',window.location.pathname);
         show('screen-login');
         const errEl=document.getElementById('login-err');
-        if(errEl) errEl.textContent='Your password reset link has expired. Please request a new one.';
+        if(errEl) errEl.textContent='Your password reset link has expired. Request a new one below.';
       }
       return;
     }
@@ -613,6 +621,44 @@ async function doLogin(){
     errEl.textContent=e.message||'Sign in failed. Check your credentials.';
     btn.disabled=false;btn.textContent='Sign in';
   }
+}
+
+function showForgot(e){
+  e.preventDefault();
+  document.getElementById('login-form').style.display='none';
+  document.getElementById('forgot-form').style.display='block';
+  document.getElementById('login-title').textContent='Reset password';
+  document.getElementById('login-sub-text').textContent='Enter your email and we\'ll send a reset link.';
+  document.getElementById('forgot-email').value=document.getElementById('login-email').value||'';
+  document.getElementById('forgot-err').textContent='';
+}
+
+function showLoginForm(e){
+  e.preventDefault();
+  document.getElementById('forgot-form').style.display='none';
+  document.getElementById('login-form').style.display='block';
+  document.getElementById('login-title').textContent='Player Login';
+  document.getElementById('login-sub-text').textContent='Sign in to see your personal stats';
+}
+
+async function doForgotPassword(){
+  const email=document.getElementById('forgot-email').value.trim();
+  const errEl=document.getElementById('forgot-err');
+  const btn=document.getElementById('forgot-btn');
+  errEl.style.color='var(--red)';errEl.textContent='';
+  if(!email){errEl.textContent='Please enter your email address.';return;}
+  btn.disabled=true;btn.textContent='Sending…';
+  try{
+    const redirectTo=window.location.href.split('?')[0].split('#')[0];
+    const{error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
+    if(error)throw error;
+    errEl.style.color='#166534';
+    errEl.textContent='Check your email for a reset link. It may take a minute to arrive.';
+  }catch(e){
+    errEl.style.color='var(--red)';
+    errEl.textContent=e.message||'Could not send reset email. Try again.';
+  }
+  btn.disabled=false;btn.textContent='Send reset link';
 }
 
 async function loadPlayer(email){
