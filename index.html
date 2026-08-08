@@ -4178,6 +4178,8 @@ function checkForSavedGame(){
 function resumeGame(){
   const saved=loadSavedGame();
   if(!saved)return;
+  const currentScreen=document.querySelector('.screen.active')?.id;
+  if(currentScreen==='s-passcode')return; // passcode not yet entered
   G=saved;
   document.getElementById('resume-modal').classList.add('hidden');
   show('s-score');
@@ -4350,8 +4352,7 @@ function showSnapModal(){
   document.getElementById('snap-modal').classList.remove('hidden');
 }
 
-// Check for a saved game when page first loads
-checkForSavedGame();
+// Saved-game check is deferred until after the passcode is entered (see pcKey)
 checkForCloudResume(); // async — shows cloud resume modal if a different device left a match in progress
 getPlayerStats(); // pre-load stats in background so auto-seeding is ready when roster opens
 updateTestModeUI();
@@ -4570,6 +4571,7 @@ function _rebuildRemainingSchedule(){
         show('s-splash');
         entered='';
         render();
+        checkForSavedGame(); // only check for saved games after passcode is verified
       } else {
         const dots=document.getElementById('pc-dots');
         const err=document.getElementById('pc-err');
