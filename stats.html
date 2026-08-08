@@ -2331,6 +2331,14 @@ function renderMatchDetail(matchId){
     if(RUN_TYPES.has(b.type)&&b.run>0)batSt[n].runs+=b.run;
     if(b.type==='wkt')batSt[n].wkts++;
   });
+  // Extras per pair: wides, byes, leg byes (runs not attributed to any batter)
+  const extrasByPair={};
+  balls.forEach(b=>{
+    if(b.batPair==null)return;
+    if((b.type==='wide'||b.type==='bye'||b.type==='lb')&&b.run>0){
+      extrasByPair[b.batPair]=(extrasByPair[b.batPair]||0)+b.run;
+    }
+  });
   const bowlSt={};
   balls.forEach(b=>{
     if(!b.bowling)return;
@@ -2361,6 +2369,10 @@ function renderMatchDetail(matchId){
       const isYou=name===pn;
       bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td><td>${sr}</td></tr>`;
     });
+    const extras=extrasByPair[pair.idx]||0;
+    if(extras>0){
+      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Extras</td><td style="color:var(--muted)">${extras}</td><td>—</td><td>—</td><td>—</td></tr>`;
+    }
   });
   bHtml+='</table></div>';
   let wHtml='<div class="card"><div class="card-title">Bowling — your pair</div>';
