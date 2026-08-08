@@ -546,9 +546,19 @@ function _enterRecovery(){
 
 async function init(){
   try{
+    const urlParams=new URLSearchParams(window.location.search);
+
+    // Fresh load after a successful password reset — show login with success message.
+    if(urlParams.get('pw')==='updated'){
+      history.replaceState(null,'',window.location.pathname);
+      show('screen-login');
+      const m=document.getElementById('login-err');
+      if(m){m.style.color='#166534';m.textContent='Password updated — please sign in with your new password.';}
+      return;
+    }
+
     // Check URL params BEFORE any async work — this is set by our own redirectTo
     // and survives the Supabase redirect regardless of PKCE/implicit flow or event timing.
-    const urlParams=new URLSearchParams(window.location.search);
     const isRecoveryUrl=urlParams.get('mode')==='recovery';
 
     const{data}=await db.auth.getSession();
@@ -605,12 +615,10 @@ async function doSetPassword(){
     if(error)throw error;
     history.replaceState(null,'',window.location.pathname);
     if(btn.dataset.mode==='recovery'){
-      // Recovery flow: sign out so the user logs in fresh with their new password
+      // Sign out then do a full page reload so the Supabase client starts clean.
+      // Trying to sign in on the same page load after a recovery session is unreliable.
       await db.auth.signOut();
-      inRecoveryMode=false;
-      show('screen-login');
-      const errEl2=document.getElementById('login-err');
-      if(errEl2){errEl2.style.color='#166534';errEl2.textContent='Password updated — please sign in with your new password.';}
+      window.location.href=window.location.pathname+'?pw=updated';
     }else{
       // Invite flow: auto-login as before
       const{data:{user}}=await db.auth.getUser();
@@ -628,7 +636,7 @@ async function doLogin(){
   const pw=document.getElementById('login-pw').value;
   const errEl=document.getElementById('login-err');
   const btn=document.getElementById('login-btn');
-  errEl.textContent='';
+  errEl.style.color='';errEl.textContent='';
   if(!email||!pw){errEl.textContent='Please enter email and password.';return;}
   btn.disabled=true;btn.textContent='Signing in…';
   try{
