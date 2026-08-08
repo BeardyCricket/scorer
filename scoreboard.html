@@ -26,6 +26,39 @@ body{
 .wait-icon{font-size:8vw}
 .wait-title{font-size:4vw;font-weight:800;opacity:.9}
 .wait-sub{font-size:2vw;opacity:.5;max-width:40vw;line-height:1.6}
+.preview-btn{
+  margin-top:2vh;font-size:1.4vw;font-weight:700;
+  color:rgba(255,255,255,.35);background:none;border:none;
+  cursor:pointer;letter-spacing:.06em;text-decoration:underline;
+  text-underline-offset:.3em;padding:.5vh 1vw;
+}
+.preview-btn:hover{color:rgba(255,255,255,.65);}
+
+/* ── Demo navigation bar ── */
+#demo-bar{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:99;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(6px);
+  padding:.8vh 2vw;
+  align-items:center;gap:1.2vw;
+}
+.demo-badge{
+  font-size:1vw;font-weight:900;letter-spacing:.12em;
+  color:#fbbf24;text-transform:uppercase;flex-shrink:0;
+}
+#demo-scene-label{font-size:1vw;opacity:.7;flex:1;text-align:left;}
+.demo-nav-btn{
+  background:rgba(255,255,255,.18);border:none;color:#fff;
+  font-size:1.2vw;font-weight:800;cursor:pointer;
+  border-radius:.5vw;padding:.3vh .9vw;flex-shrink:0;
+}
+.demo-nav-btn:hover{background:rgba(255,255,255,.32);}
+#demo-counter{font-size:1vw;opacity:.6;flex-shrink:0;}
+.demo-exit-btn{
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);
+  color:rgba(255,255,255,.7);font-size:.9vw;font-weight:700;cursor:pointer;
+  border-radius:.5vw;padding:.3vh 1vw;flex-shrink:0;letter-spacing:.04em;
+}
+.demo-exit-btn:hover{background:rgba(255,255,255,.22);color:#fff;}
 
 /* ── Live scoreboard ── */
 #screen-live{
@@ -98,10 +131,20 @@ body{
 </head>
 <body>
 
+<div id="demo-bar">
+  <span class="demo-badge">Preview</span>
+  <span id="demo-scene-label"></span>
+  <button class="demo-nav-btn" onclick="demoNav(-1)">&#8592;</button>
+  <span id="demo-counter"></span>
+  <button class="demo-nav-btn" onclick="demoNav(1)">&#8594;</button>
+  <button class="demo-exit-btn" onclick="exitDemo()">&#x2715; Exit preview</button>
+</div>
+
 <div id="screen-wait">
   <div class="wait-icon">🏏</div>
   <div class="wait-title">Waiting for match…</div>
   <div class="wait-sub">The scoreboard updates live when a match starts. No need to refresh.</div>
+  <button class="preview-btn" onclick="startDemo()">Preview scoreboard</button>
 </div>
 
 <div id="screen-live">
@@ -141,8 +184,9 @@ const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const params  = new URLSearchParams(window.location.search);
-let matchId   = params.get('match') || null;
-let channel   = null;
+let matchId    = params.get('match') || null;
+let channel    = null;
+let resetTimer = null;
 
 // Full-saturation background colours per pair colour name
 const BG = {
@@ -187,8 +231,20 @@ function render(payload){
     } else {
       hide('leader-box');
     }
+
+    // After 60 seconds, return to waiting and listen for the next match
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => {
+      matchId = null;
+      showWait();
+      subscribeForAny();
+    }, 60000);
     return;
   }
+
+  // Match is live — cancel any pending reset
+  clearTimeout(resetTimer);
+  resetTimer = null;
 
   // ── No live batting pair yet ───────────────────────────
   if(!bi){ showWait(); return; }
@@ -365,7 +421,100 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
-window.addEventListener('DOMContentLoaded', init);
+// ── Demo / Preview mode ───────────────────────────────────
+const DEMO_SCENARIOS = [
+  {
+    _label: 'First pair batting — no target yet',
+    batting:{color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,balls_faced:15},
+    pairs:[
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:0, idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+    ],
+    over:3,ball:2,total_overs:16
+  },
+  {
+    _label: 'Second pair batting — chasing a target',
+    batting:{color:'blue',cname:'Blue',players:['Sam','Chris'],total:23,balls_faced:9},
+    pairs:[
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:23,idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+    ],
+    over:5,ball:4,total_overs:16
+  },
+  {
+    _label: 'Second pair batting — leading',
+    batting:{color:'blue',cname:'Blue',players:['Sam','Chris'],total:54,balls_faced:18},
+    pairs:[
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:54,idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+    ],
+    over:6,ball:1,total_overs:16
+  },
+  {
+    _label: 'Large score (3 digits)',
+    batting:{color:'orange',cname:'Orange',players:['Jake','Liam'],total:112,balls_faced:22},
+    pairs:[
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:87, idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:72, idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'], total:65, idx:2},
+      {color:'orange',cname:'Orange',players:['Jake','Liam'], total:112,idx:3},
+    ],
+    over:7,ball:3,total_overs:16
+  },
+  {
+    _label: 'Match finished — winner display',
+    status:'finished',
+    batting:null,
+    pairs:[
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:89,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:76,idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'], total:61,idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],   total:54,idx:3},
+    ],
+    over:16,ball:6,total_overs:16
+  },
+];
+
+let demoActive = false;
+let demoIdx    = 0;
+
+function startDemo(idx){
+  demoActive = true;
+  demoIdx = idx || 0;
+  clearTimeout(resetTimer);
+  resetTimer = null;
+  document.getElementById('demo-bar').style.display = 'flex';
+  renderDemo();
+}
+
+function renderDemo(){
+  const s = DEMO_SCENARIOS[demoIdx];
+  document.getElementById('demo-scene-label').textContent = s._label;
+  document.getElementById('demo-counter').textContent = `${demoIdx+1} / ${DEMO_SCENARIOS.length}`;
+  render(s);
+}
+
+function demoNav(dir){
+  demoIdx = (demoIdx + dir + DEMO_SCENARIOS.length) % DEMO_SCENARIOS.length;
+  renderDemo();
+}
+
+function exitDemo(){
+  demoActive = false;
+  document.getElementById('demo-bar').style.display = 'none';
+  showWait();
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(params.get('demo')==='1') startDemo();
+  else init();
+});
 </script>
 </body>
 </html>
