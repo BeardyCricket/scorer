@@ -548,25 +548,26 @@ function _enterRecovery(){
 
 async function init(){
   try{
-    // Always await getSession first — this resolves Supabase's internal initializePromise
-    // so that any subsequent signInWithPassword call never hangs waiting for it.
+    // Read URL params synchronously FIRST — Supabase's PKCE code exchange (inside
+    // getSession) calls history.replaceState which strips all query params including
+    // ?mode=recovery before we can read them if we wait until after the await.
+    const urlParams=new URLSearchParams(window.location.search);
+    const isRecoveryUrl=urlParams.get('mode')==='recovery';
+    const isPwUpdated=urlParams.get('pw')==='updated';
+
+    // Always await getSession — resolves Supabase's internal initializePromise so
+    // subsequent signInWithPassword never hangs. This may strip the URL of query params.
     const{data}=await db.auth.getSession();
     await Promise.resolve(); // flush any queued PASSWORD_RECOVERY callbacks
 
-    const urlParams=new URLSearchParams(window.location.search);
-
     // Fresh load after a successful password reset — show login with success message.
-    if(urlParams.get('pw')==='updated'){
+    if(isPwUpdated){
       history.replaceState(null,'',window.location.pathname);
       show('screen-login');
       const m=document.getElementById('login-err');
       if(m){m.style.color='#166534';m.textContent='Password updated — please sign in with your new password.';}
       return;
     }
-
-    // Check URL params BEFORE any async work — this is set by our own redirectTo
-    // and survives the Supabase redirect regardless of PKCE/implicit flow or event timing.
-    const isRecoveryUrl=urlParams.get('mode')==='recovery';
 
     const session=data?.session;
 
@@ -2342,6 +2343,14 @@ function renderMatchDetail(matchId){
     if(b.type!=='wkt'&&b.run>0)bowlSt[n].runs+=b.run;
     if(b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out'))bowlSt[n].wkts++;
   });
+  // Direct extras per pair: 2 for every no-ball (penalty only), full b.run for wides/byes/lb
+  const extrasByPair={};
+  balls.forEach(b=>{
+    if(b.batPair==null)return;
+    if(!extrasByPair[b.batPair])extrasByPair[b.batPair]=0;
+    if(b.type==='nb')extrasByPair[b.batPair]+=2;
+    else if((b.type==='wide'||b.type==='bye'||b.type==='lb')&&b.run>0)extrasByPair[b.batPair]+=b.run;
+  });
   const pairBatOrder=[];const seenPi=new Set();
   balls.forEach(b=>{if(b.batPair!=null&&!seenPi.has(b.batPair)){seenPi.add(b.batPair);pairBatOrder.push(b.batPair);}});
   const orderedPairs=pairBatOrder.map(idx=>s.pairs.find(p=>p.idx===idx)).filter(Boolean);
@@ -2363,9 +2372,7 @@ function renderMatchDetail(matchId){
       const isYou=name===pn;
       bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td><td>${sr}</td></tr>`;
     });
-    const pairBatterRuns=pair.players.reduce((s,n)=>s+(batSt[n]?.runs||0),0);
-    const grossRuns=pair.runs+(pair.wkts*5);
-    const extras=grossRuns-pairBatterRuns;
+    const extras=extrasByPair[pair.idx]||0;
     if(extras>0){
       bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Extras</td><td style="color:var(--muted)">${extras}</td><td>—</td><td>—</td><td>—</td></tr>`;
     }
