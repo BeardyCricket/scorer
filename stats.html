@@ -519,43 +519,48 @@ function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').
 // ── Auth ─────────────────────────────────────────────────
 let inRecoveryMode=false;
 
+function _enterRecovery(){
+  if(inRecoveryMode) return;
+  inRecoveryMode=true;
+  const btn=document.getElementById('setpw-btn');
+  btn.dataset.mode='recovery';
+  btn.textContent='Set new password';
+  document.querySelector('#screen-setpw .login-sub').textContent='Enter a new password for your account.';
+  history.replaceState(null,'',window.location.pathname);
+  show('screen-setpw');
+}
+
 async function init(){
   try{
-    // onAuthStateChange must be wired up BEFORE getSession() so we don't miss
-    // the PASSWORD_RECOVERY event that Supabase fires while processing the hash.
-    db.auth.onAuthStateChange((event,session)=>{
-      if(event==='PASSWORD_RECOVERY'){
-        inRecoveryMode=true;
-        document.getElementById('setpw-btn').dataset.mode='recovery';
-        document.querySelector('#screen-setpw .login-sub').textContent=
-          'Enter a new password for your account.';
-        document.getElementById('setpw-btn').textContent='Set new password';
-        show('screen-setpw');
-      }
+    // onAuthStateChange BEFORE getSession so PASSWORD_RECOVERY is caught during token exchange
+    db.auth.onAuthStateChange((event)=>{
+      if(event==='PASSWORD_RECOVERY') _enterRecovery();
     });
 
     const{data}=await db.auth.getSession();
-    const session=data?.session;
+    // Yield to the microtask queue so any onAuthStateChange callbacks can settle
+    await Promise.resolve();
 
-    // If onAuthStateChange already handled recovery, stop here
     if(inRecoveryMode) return;
 
-    // Detect expired/invalid recovery link: hash has type=recovery but no session
+    const session=data?.session;
     const hash=new URLSearchParams(window.location.hash.slice(1));
     const tokenType=hash.get('type');
-    const hashError=hash.get('error_description')||hash.get('error');
+
+    // Implicit-flow recovery: hash still carries type=recovery after getSession
     if(tokenType==='recovery'){
-      history.replaceState(null,'',window.location.pathname);
-      show('screen-login');
-      const errEl=document.getElementById('login-err');
-      if(errEl) errEl.textContent='Your password reset link has expired. Please request a new one.';
+      if(session){
+        _enterRecovery(); // valid session — show recovery form
+      } else {
+        history.replaceState(null,'',window.location.pathname);
+        show('screen-login');
+        const errEl=document.getElementById('login-err');
+        if(errEl) errEl.textContent='Your password reset link has expired. Please request a new one.';
+      }
       return;
     }
 
-    if(tokenType==='invite'&&session){
-      show('screen-setpw');
-      return;
-    }
+    if(tokenType==='invite'&&session){ show('screen-setpw'); return; }
     if(session) await loadPlayer(session.user.email);
     else show('screen-login');
   }catch(e){show('screen-login');}
@@ -611,6 +616,7 @@ async function doLogin(){
 }
 
 async function loadPlayer(email){
+  if(inRecoveryMode) return; // recovery session — don't load stats
   show('screen-loading');
   try{
     const{data,error}=await db.from('player_access').select('*').eq('email',email).single();
