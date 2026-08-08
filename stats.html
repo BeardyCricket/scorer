@@ -546,17 +546,34 @@ function _enterRecovery(){
 
 async function init(){
   try{
-    const{data}=await db.auth.getSession();
-    // Yield so any PASSWORD_RECOVERY callback queued during getSession can settle
-    await Promise.resolve();
+    // Check URL params BEFORE any async work — this is set by our own redirectTo
+    // and survives the Supabase redirect regardless of PKCE/implicit flow or event timing.
+    const urlParams=new URLSearchParams(window.location.search);
+    const isRecoveryUrl=urlParams.get('mode')==='recovery';
 
-    if(inRecoveryMode){ _enterRecovery(); return; }
+    const{data}=await db.auth.getSession();
+    await Promise.resolve(); // flush any queued PASSWORD_RECOVERY callbacks
 
     const session=data?.session;
+
+    // Primary: our redirectTo stamped mode=recovery in the URL
+    if(isRecoveryUrl){
+      history.replaceState(null,'',window.location.pathname);
+      if(session){ _enterRecovery(); }
+      else{
+        show('screen-login');
+        const errEl=document.getElementById('login-err');
+        if(errEl) errEl.textContent='Your password reset link has expired. Request a new one below.';
+      }
+      return;
+    }
+
+    // Secondary: onAuthStateChange caught PASSWORD_RECOVERY (e.g. invite flow via PKCE)
+    if(inRecoveryMode){ _enterRecovery(); return; }
+
+    // Tertiary: implicit flow where hash carries type=recovery
     const hash=new URLSearchParams(window.location.hash.slice(1));
     const tokenType=hash.get('type');
-
-    // Implicit-flow fallback: hash still carries type=recovery
     if(tokenType==='recovery'){
       if(session){ _enterRecovery(); }
       else{
@@ -649,7 +666,7 @@ async function doForgotPassword(){
   if(!email){errEl.textContent='Please enter your email address.';return;}
   btn.disabled=true;btn.textContent='Sending…';
   try{
-    const redirectTo=window.location.href.split('?')[0].split('#')[0];
+    const redirectTo=window.location.href.split('?')[0].split('#')[0]+'?mode=recovery';
     const{error}=await db.auth.resetPasswordForEmail(email,{redirectTo});
     if(error)throw error;
     errEl.style.color='#166534';
