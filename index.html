@@ -932,7 +932,7 @@ function _computePlayerStats(history){
   const ens=n=>{if(!raw[n])raw[n]={bb:0,br:0,lb:0,lr:0,wi:0,nbb:0,fb:{},bt:{}};};
   history.forEach(b=>{
     const btr=b.facing,bwr=b.bowling;
-    if(btr){ens(btr);if(BAT_TYPES.has(b.type)){raw[btr].bb++;if(bwr)raw[btr].fb[bwr]=(raw[btr].fb[bwr]||0)+1;}if(RUN_TYPES.has(b.type)&&b.run>0)raw[btr].br+=b.run;}
+    if(btr){ens(btr);if(BAT_TYPES.has(b.type)){raw[btr].bb++;if(bwr)raw[btr].fb[bwr]=(raw[btr].fb[bwr]||0)+1;}const br=b.type==='nb'?Math.max(0,b.run-2):b.run;if(RUN_TYPES.has(b.type)&&br>0)raw[btr].br+=br;}
     if(bwr){ens(bwr);raw[bwr].lb++;if(b.type!=='wkt'&&b.run>0)raw[bwr].lr+=b.run;if(b.type==='wide')raw[bwr].wi++;if(b.type==='nb')raw[bwr].nbb++;if(btr)raw[bwr].bt[btr]=(raw[bwr].bt[btr]||0)+1;}
   });
   const pl={};
@@ -2471,10 +2471,13 @@ function computeStats(){
     const fours=batBalls.filter(b=>b.run===4).length;
     const sixes=batBalls.filter(b=>b.run===6).length;
     const dotBalls=batBalls.filter(b=>b.run===0).length;
-    // Individual runs per player (normal deliveries only, by facing player)
+    // Individual runs per player: normal deliveries + nb runs minus 2-run penalty
     const playerRuns={};
     pair.players.forEach(p=>playerRuns[p]=0);
     batBalls.forEach(b=>{if(b.facing&&playerRuns[b.facing]!==undefined)playerRuns[b.facing]+=b.run;});
+    G.history.filter(b=>b.batPair===pi&&b.type==='nb'&&b.facing).forEach(b=>{
+      if(playerRuns[b.facing]!==undefined)playerRuns[b.facing]+=Math.max(0,b.run-2);
+    });
 
     // Bowling stats (when this pair was bowling)
     const bowlBalls=G.history.filter(b=>b.bowlPair===pi&&b.over<G.totalOvers);
@@ -4046,6 +4049,8 @@ async function pushLiveScore(status='in_progress',matchStats=null){
       const pSixes={};p.players.forEach(pl=>{pSixes[pl]=0;});
       G.history.filter(b=>b.batPair===i&&b.type==='normal'&&b.facing&&pRuns[b.facing]!==undefined)
         .forEach(b=>{pRuns[b.facing]+=b.run;});
+      G.history.filter(b=>b.batPair===i&&b.type==='nb'&&b.facing&&pRuns[b.facing]!==undefined)
+        .forEach(b=>{pRuns[b.facing]+=Math.max(0,b.run-2);});
       G.history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&b.facing&&pBalls[b.facing]!==undefined)
         .forEach(b=>{pBalls[b.facing]++;});
       G.history.filter(b=>b.batPair===i&&b.code==='4b'&&b.facing&&pFours[b.facing]!==undefined)

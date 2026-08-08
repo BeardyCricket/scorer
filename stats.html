@@ -509,6 +509,8 @@ const cn=n=>(n&&NAME_CORRECTIONS[n])||n;
 
 const BAT_TYPES=new Set(['normal','wkt','bye','lb','nb']);
 const RUN_TYPES=new Set(['normal','wkt','nb']);
+// For nb balls, the batter only scores b.run minus the 2-run no-ball penalty
+function batRun(b){return b.type==='nb'?Math.max(0,b.run-2):b.run;}
 
 // ── State ────────────────────────────────────────────────
 let currentPlayer=null;
@@ -825,7 +827,7 @@ function computeAllStats(history){
     if(f){
       ens(f);
       if(BAT_TYPES.has(b.type)){raw[f].bb++;if(bw)raw[f].fb[bw]=(raw[f].fb[bw]||0)+1;}
-      if(RUN_TYPES.has(b.type)&&b.run>0)raw[f].br+=b.run;
+      if(RUN_TYPES.has(b.type)&&batRun(b)>0)raw[f].br+=batRun(b);
     }
     if(bw){
       ens(bw);
@@ -878,7 +880,7 @@ function matchSummaries(matches){
       if(b.facing)pPl[pi].add(b.facing);
       // Also identify pair members via bowling (catches players with no facing records)
       if(b.bowling&&b.bowlPair!=null){if(!pPl[b.bowlPair])pPl[b.bowlPair]=new Set();pPl[b.bowlPair].add(b.bowling);}
-      if(RUN_TYPES.has(b.type)&&b.run>0)pR[pi]+=b.run;
+      if(RUN_TYPES.has(b.type)&&batRun(b)>0)pR[pi]+=batRun(b);
       if(b.type==='wkt')pW[pi]++;
       if((b.run===4||b.run===6)&&b.type!=='wide')pB[pi]++;
     }
@@ -1045,7 +1047,7 @@ function drawBatSRTrend(pn){
   for(const m of filteredMatches){
     let inMatch=false;
     m.history.forEach(b=>{
-      if(b.facing===pn){inMatch=true;if(BAT_TYPES.has(b.type))cBB++;if(RUN_TYPES.has(b.type)&&b.run>0)cBR+=b.run;}
+      if(b.facing===pn){inMatch=true;if(BAT_TYPES.has(b.type))cBB++;if(RUN_TYPES.has(b.type)&&batRun(b)>0)cBR+=batRun(b);}
     });
     if(!inMatch)continue;
     pts.push({date:m.date,sr:cBB>=6?cBR/cBB*100:null});
@@ -1249,7 +1251,7 @@ function drawBatMatchBars(pn,flat,ms){
   flat.forEach(b=>{
     if(!byMatch[b.matchId])byMatch[b.matchId]={runs:0,wkts:0,date:b.matchDate};
     if(b.facing===pn){
-      if(RUN_TYPES.has(b.type)&&b.run>0)byMatch[b.matchId].runs+=b.run;
+      if(RUN_TYPES.has(b.type)&&batRun(b)>0)byMatch[b.matchId].runs+=batRun(b);
       if(b.type==='wkt')byMatch[b.matchId].wkts++;
     }
   });
@@ -1314,7 +1316,7 @@ function drawSRByOver(pn,pl,ms,flat){
 
   const ovSR=(filterFn,getRelOv)=>[0,1,2,3].map(ro=>{
     const balls=flat.filter(b=>BAT_TYPES.has(b.type)&&filterFn(b)&&getRelOv(b)===ro);
-    const runs=balls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+b.run,0);
+    const runs=balls.filter(b=>RUN_TYPES.has(b.type)).reduce((s,b)=>s+batRun(b),0);
     return balls.length?runs/balls.length*100:null;
   });
 
@@ -1620,7 +1622,7 @@ function qualityBatSplit(pn,pl,flat){
   flat.filter(b=>b.facing===pn&&b.bowling).forEach(b=>{
     const t=tierOf(b.bowling);if(t==null)return;
     if(BAT_TYPES.has(b.type))stats[t].balls++;
-    if(RUN_TYPES.has(b.type)&&b.run>0)stats[t].runs+=b.run;
+    if(RUN_TYPES.has(b.type)&&batRun(b)>0)stats[t].runs+=batRun(b);
     if(b.type==='wkt')stats[t].wkts++;
   });
   return stats;
@@ -1836,7 +1838,7 @@ function renderLeaderboards(pn,ms,prem){
       const n=b.facing;
       if(!(n in mr)){mr[n]=0;mb[n]=0;mw[n]=0;}
       if(BAT_TYPES.has(b.type))mb[n]++;
-      if(RUN_TYPES.has(b.type)&&b.run>0)mr[n]+=b.run;
+      if(RUN_TYPES.has(b.type)&&batRun(b)>0)mr[n]+=batRun(b);
       if(b.type==='wkt')mw[n]++;
     }
     for(const n of Object.keys(mr)){
@@ -2328,7 +2330,7 @@ function renderMatchDetail(matchId){
     const n=b.facing;
     if(!batSt[n])batSt[n]={runs:0,wkts:0,balls:0};
     if(BAT_TYPES.has(b.type))batSt[n].balls++;
-    if(RUN_TYPES.has(b.type)&&b.run>0)batSt[n].runs+=b.run;
+    if(RUN_TYPES.has(b.type)&&batRun(b)>0)batSt[n].runs+=batRun(b);
     if(b.type==='wkt')batSt[n].wkts++;
   });
   const bowlSt={};
