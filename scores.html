@@ -325,14 +325,29 @@ function render(payload){
   const figures=payload.bowling_figures||[];
   const ms=payload.match_stats||null;
 
-  // Always recompute players_bowl from history — ensures extras and run out
-  // exclusion are always correct regardless of what's stored in the payload
+  // Always recompute players_bat and players_bowl from history so the correct
+  // rules (nb batter runs = b.run minus 2-run penalty; no byes/lb/wides to batter)
+  // are applied regardless of what was stored in the payload.
   const hist=payload.history||[];
   if(hist.length){
     const pairList=ms?.pairs||pairs;
     pairList.forEach((p,i)=>{
       const pNames=p.players||(p.players_bat||[]).map(x=>x.name);
       if(!pNames.length)return;
+      // Batting recompute: normal runs + nb batter runs (total minus 2-run penalty)
+      const bRuns={},bBalls={},bFours={},bSixes={};
+      pNames.forEach(n=>{bRuns[n]=0;bBalls[n]=0;bFours[n]=0;bSixes[n]=0;});
+      hist.filter(b=>b.batPair===i&&b.type==='normal'&&b.facing&&bRuns[b.facing]!==undefined)
+        .forEach(b=>{bRuns[b.facing]+=b.run;if(b.code==='4b')bFours[b.facing]++;if(b.run===6)bSixes[b.facing]++;});
+      hist.filter(b=>b.batPair===i&&b.type==='nb'&&b.facing&&bRuns[b.facing]!==undefined)
+        .forEach(b=>{bRuns[b.facing]+=Math.max(0,b.run-2);});
+      hist.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&b.facing&&bBalls[b.facing]!==undefined)
+        .forEach(b=>{bBalls[b.facing]++;});
+      p.players_bat=pNames.map(n=>{
+        const r=bRuns[n]||0,bl=bBalls[n]||0;
+        return{name:n,runs:r,balls:bl,sr:bl>0?Math.round(r/bl*100):'—',fours:bFours[n]||0,sixes:bSixes[n]||0};
+      });
+      // Bowling recompute
       const balls={},runs={},wkts={};
       pNames.forEach(n=>{balls[n]=0;runs[n]=0;wkts[n]=0;});
       hist.filter(b=>b.bowlPair===i&&b.bowling&&balls[b.bowling]!==undefined).forEach(b=>{
