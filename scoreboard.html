@@ -12,7 +12,7 @@ html,body{width:100%;height:100%;overflow:hidden}
 body{
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   background:#1a4a2e;color:#fff;
-  display:flex;flex-direction:column;min-height:100vh;
+  display:flex;flex-direction:column;
   transition:background .8s ease;
   user-select:none;
 }
@@ -21,7 +21,7 @@ body{
 #screen-wait{
   flex:1;display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  gap:1.5vh;text-align:center;padding:5vw;
+  gap:2vh;text-align:center;padding:5vw;
 }
 .wait-icon{font-size:8vw}
 .wait-title{font-size:4vw;font-weight:800;opacity:.9}
@@ -60,73 +60,127 @@ body{
 }
 .demo-exit-btn:hover{background:rgba(255,255,255,.22);color:#fff;}
 
-/* ── Live scoreboard ── */
+/* ── Live scoreboard — landscape two-panel ── */
 #screen-live{
-  flex:1;display:none;flex-direction:column;
-  padding:3.5vh 5vw 3.5vh;
+  flex:1;display:none;flex-direction:row;
 }
 
-/* Top row */
-.top-row{display:flex;align-items:flex-start;justify-content:space-between}
-.pair-label{font-size:2.4vw;font-weight:800;text-transform:uppercase;letter-spacing:.14em;opacity:.65}
-.pair-players{font-size:1.7vw;font-weight:600;opacity:.42;margin-top:.4vw;letter-spacing:.04em}
-.match-status{font-size:1.5vw;font-weight:700;opacity:.38;text-align:right;letter-spacing:.02em;margin-top:.2vw}
-
-/* Centre score */
-.score-area{
-  flex:1;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;text-align:center;
+/* LEFT panel — big score number */
+#panel-score{
+  width:48%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
 }
 .score-number{
   font-weight:900;line-height:.88;
   letter-spacing:-.04em;
   color:rgba(255,255,255,.96);
-  transition:font-size .25s ease;
+  transition:font-size .3s ease;
 }
-.score-subtitle{
-  font-size:2.6vw;font-weight:700;
-  opacity:.58;margin-top:2.2vw;
-  letter-spacing:.02em;
+.score-pair-name{
+  font-size:1.3vw;font-weight:800;
+  text-transform:uppercase;letter-spacing:.18em;
+  opacity:.32;margin-top:2vh;
+}
+
+/* RIGHT panel — context & equation */
+#panel-info{
+  width:52%;
+  display:flex;flex-direction:column;
+  justify-content:space-between;
+  padding:4vh 4vw 3.5vh 3vw;
+  background:rgba(0,0,0,.2);
+}
+
+/* Top: pair identity */
+.info-pair-label{
+  font-size:2.2vw;font-weight:800;
+  text-transform:uppercase;letter-spacing:.14em;
+  opacity:.75;
+}
+.info-players{
+  font-size:1.6vw;font-weight:600;
+  opacity:.45;margin-top:.5vh;letter-spacing:.04em;
+}
+
+/* Middle: equation — this is the hero content of the right panel */
+.info-eq{
+  flex:1;display:flex;flex-direction:column;
+  justify-content:center;padding:.5vh 0;
+}
+.eq-label{
+  font-size:1.5vw;font-weight:800;
+  text-transform:uppercase;letter-spacing:.16em;
+  opacity:.5;margin-bottom:.4vh;
+}
+.eq-value{
+  font-weight:900;line-height:.88;
+  letter-spacing:-.03em;
+  transition:font-size .3s ease;
+}
+.eq-desc{
+  font-size:2.4vw;font-weight:700;
+  opacity:.62;margin-top:1.4vh;
+  line-height:1.35;
 }
 
 /* Bottom bar */
-.bottom-bar{display:flex;align-items:flex-end;justify-content:space-between}
+.info-bottom{
+  display:flex;align-items:flex-end;
+  justify-content:space-between;gap:2vw;
+}
 .bc-brand{
-  display:flex;align-items:center;gap:.6vw;
-  font-size:1.3vw;font-weight:700;
-  opacity:.32;text-transform:uppercase;letter-spacing:.1em;
+  display:flex;align-items:center;gap:.5vw;
+  font-size:1.1vw;font-weight:700;
+  opacity:.3;text-transform:uppercase;letter-spacing:.1em;
+  flex-shrink:0;
 }
 .live-dot{
-  width:.85vw;height:.85vw;border-radius:50%;
+  width:.75vw;height:.75vw;border-radius:50%;
   background:#4ade80;flex-shrink:0;
   animation:pulse 1.6s ease-in-out infinite;
 }
 .live-dot.offline{background:#f87171;animation:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.28}}
 
-/* Leader box */
-.leader-box{
-  border-radius:1.6vw;
-  padding:1.6vw 2.8vw;
+.match-status-txt{
+  font-size:1.3vw;font-weight:700;
+  opacity:.38;letter-spacing:.02em;
+  text-align:center;flex:1;
+}
+
+/* Rival box — bottom right of info panel */
+.rival-box{
+  border-radius:1.2vw;
+  padding:1.2vw 2vw;
   text-align:center;
-  min-width:15vw;
+  flex-shrink:0;
   border:2px solid rgba(255,255,255,.22);
-  backdrop-filter:brightness(1.15);
   transition:background .8s ease;
 }
-.leader-box-label{
-  font-size:1vw;font-weight:800;
+.rival-label{
+  font-size:.85vw;font-weight:800;
   text-transform:uppercase;letter-spacing:.12em;
-  opacity:.62;margin-bottom:.5vw;
+  opacity:.6;margin-bottom:.3vw;
 }
-.leader-box-score{
-  font-size:6vw;font-weight:900;
+.rival-score{
+  font-size:3.8vw;font-weight:900;
   line-height:1;letter-spacing:-.03em;
 }
-.leader-box-name{
-  font-size:1.2vw;font-weight:700;
-  opacity:.55;margin-top:.4vw;
+.rival-name{
+  font-size:1vw;font-weight:700;
+  opacity:.52;margin-top:.3vw;
 }
+
+/* Fullscreen button */
+#fs-btn{
+  position:fixed;bottom:1.2vh;right:1vw;
+  background:none;border:none;
+  color:rgba(255,255,255,.22);
+  font-size:1.8vw;cursor:pointer;
+  z-index:10;line-height:1;padding:.3vh .4vw;
+}
+#fs-btn:hover{color:rgba(255,255,255,.55);}
 </style>
 </head>
 <body>
@@ -148,31 +202,41 @@ body{
 </div>
 
 <div id="screen-live">
-  <div class="top-row">
-    <div>
-      <div class="pair-label"  id="pair-label">—</div>
-      <div class="pair-players" id="pair-players">—</div>
-    </div>
-    <div class="match-status" id="match-status"></div>
-  </div>
-
-  <div class="score-area">
+  <!-- LEFT: big score -->
+  <div id="panel-score">
     <div class="score-number" id="score-number">—</div>
-    <div class="score-subtitle" id="score-subtitle"></div>
+    <div class="score-pair-name" id="score-pair-name"></div>
   </div>
 
-  <div class="bottom-bar">
-    <div class="bc-brand">
-      <div class="live-dot" id="live-dot"></div>
-      Beardy Cricket
+  <!-- RIGHT: context -->
+  <div id="panel-info">
+    <div>
+      <div class="info-pair-label" id="pair-label">—</div>
+      <div class="info-players" id="pair-players">—</div>
     </div>
-    <div class="leader-box" id="leader-box" style="display:none">
-      <div class="leader-box-label" id="leader-label">Leading</div>
-      <div class="leader-box-score" id="leader-score">—</div>
-      <div class="leader-box-name"  id="leader-name"></div>
+
+    <div class="info-eq">
+      <div class="eq-label" id="eq-label"></div>
+      <div class="eq-value" id="eq-value"></div>
+      <div class="eq-desc" id="eq-desc"></div>
+    </div>
+
+    <div class="info-bottom">
+      <div class="bc-brand">
+        <div class="live-dot" id="live-dot"></div>
+        Beardy Cricket
+      </div>
+      <div class="match-status-txt" id="match-status"></div>
+      <div class="rival-box" id="rival-box" style="display:none">
+        <div class="rival-label" id="rival-label">vs</div>
+        <div class="rival-score" id="rival-score">—</div>
+        <div class="rival-name" id="rival-name"></div>
+      </div>
     </div>
   </div>
 </div>
+
+<button id="fs-btn" onclick="toggleFullscreen()" title="Toggle fullscreen">&#x26F6;</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -188,7 +252,7 @@ let matchId    = params.get('match') || null;
 let channel    = null;
 let resetTimer = null;
 
-// Full-saturation background colours per pair colour name
+// Background colours per pair colour name
 const BG = {
   purple:'#6d28d9', blue:'#1d4ed8', grey:'#374151',
   red:'#b91c1c',   green:'#166534', orange:'#c2410c', pink:'#9d174d'
@@ -208,7 +272,7 @@ function setConnected(ok){
 function render(payload){
   if(!payload) return;
 
-  const bi    = payload.batting;   // current batting pair object
+  const bi    = payload.batting;
   const pairs = payload.pairs || [];
   const done  = isFinished(payload);
 
@@ -219,20 +283,22 @@ function render(payload){
     if(!winner){ showWait(); return; }
 
     showLive(winner.color);
-    set('pair-label',   (winner.cname||'').toUpperCase() + ' PAIR WINS 🏆');
-    set('pair-players', (winner.players||[]).join(' & '));
+    set('pair-label',     (winner.cname||'').toUpperCase() + ' PAIR WINS 🏆');
+    set('pair-players',   (winner.players||[]).join(' & '));
+    set('score-pair-name','');
     setScore(winner.total);
-    set('score-subtitle', 'Final score · ' + payload.total_overs + ' overs');
-    set('match-status', 'Match complete');
+    set('match-status', 'Match complete · ' + payload.total_overs + ' overs');
 
     if(sorted.length > 1){
       const second = sorted[1];
-      showLeaderBox(second.color, second.total, second.cname + ' pair', '2nd place');
+      const margin = winner.total - second.total;
+      setEquation('WON BY', margin, 'run' + (margin !== 1 ? 's' : ''));
+      showRivalBox(second.color, second.total, second.cname + ' pair', '2nd place');
     } else {
-      hide('leader-box');
+      setEquation('', '', '');
+      hide('rival-box');
     }
 
-    // After 60 seconds, return to waiting and listen for the next match
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
       matchId = null;
@@ -246,72 +312,48 @@ function render(payload){
   clearTimeout(resetTimer);
   resetTimer = null;
 
-  // ── No live batting pair yet ───────────────────────────
   if(!bi){ showWait(); return; }
 
   showLive(bi.color);
 
-  // Pair info
-  set('pair-label',   (bi.cname||'').toUpperCase() + ' PAIR');
-  set('pair-players', (bi.players||[]).join(' & '));
-
-  // Score
+  set('pair-label',     (bi.cname||'').toUpperCase() + ' PAIR');
+  set('pair-players',   (bi.players||[]).join(' & '));
+  set('score-pair-name',(bi.cname||'').toUpperCase());
   setScore(bi.total);
 
-  // Match status (top-right)
   const ov = payload.over, ball = payload.ball;
-  set('match-status',
-    ball >= 6 ? `End of over ${ov}` : `Over ${ov} · Ball ${ball}`
-  );
+  set('match-status', ball >= 6 ? `End of over ${ov}` : `Over ${ov} · Ball ${ball}`);
 
-  // ── Subtitle: overs bowled OR runs needed ─────────────
   const ovsBatted  = Math.floor(bi.balls_faced / 6);
   const ballsExtra = bi.balls_faced % 6;
-
-  // Non-batting pairs that have already scored
   const rivals = pairs.filter(p => p.color !== bi.color && p.total > 0);
 
   if(!rivals.length){
-    // First pair up — no target yet
-    set('score-subtitle', `${ovsBatted}.${ballsExtra} overs bowled`);
+    // First pair — no target yet
+    setEquation('', `${ovsBatted}.${ballsExtra}`, 'overs batted');
+    hide('rival-box');
   } else {
-    const target     = Math.max(...rivals.map(p => p.total));
+    const target = Math.max(...rivals.map(p => p.total));
     const runsNeeded = target + 1 - bi.total;
     const ballsPerPair = pairs.length > 0
       ? Math.round((payload.total_overs / pairs.length) * 6)
       : 24;
     const ballsLeft = Math.max(0, ballsPerPair - bi.balls_faced);
+    const ballWord  = `ball${ballsLeft !== 1 ? 's' : ''}`;
 
     if(runsNeeded > 0){
-      set('score-subtitle',
-        `Need ${runsNeeded} off ${ballsLeft} ball${ballsLeft !== 1 ? 's' : ''} to lead`
-      );
+      setEquation('NEED', runsNeeded, `off ${ballsLeft} ${ballWord} to lead`);
+      // Show who they're chasing
+      const leader = [...pairs].sort((a,b)=>b.total-a.total).find(p=>p.color!==bi.color&&p.total>0);
+      if(leader) showRivalBox(leader.color, leader.total, leader.cname + ' pair', 'To beat');
+      else hide('rival-box');
     } else {
       const ahead = bi.total - target;
-      set('score-subtitle',
-        `Leading by ${ahead} · ${ballsLeft} ball${ballsLeft !== 1 ? 's' : ''} remaining`
-      );
-    }
-  }
-
-  // ── Leader box ────────────────────────────────────────
-  // Sort all pairs descending
-  const ranked = [...pairs].sort((a,b) => b.total - a.total);
-  const top = ranked[0];
-
-  if(!top || top.total === 0){
-    // Nothing meaningful to show yet
-    hide('leader-box');
-  } else if(top.color !== bi.color){
-    // Another pair is leading — show them
-    showLeaderBox(top.color, top.total, top.cname + ' pair', 'Leading');
-  } else {
-    // Batting pair is the leader — show nearest rival if they've scored
-    const rival = ranked.find(p => p.color !== bi.color && p.total > 0);
-    if(rival){
-      showLeaderBox(rival.color, rival.total, rival.cname + ' pair', '2nd');
-    } else {
-      hide('leader-box');
+      setEquation('LEADING BY', ahead, `${ballsLeft} ${ballWord} remaining`);
+      // Show nearest rival
+      const rival = [...pairs].sort((a,b)=>b.total-a.total).find(p=>p.color!==bi.color&&p.total>0);
+      if(rival) showRivalBox(rival.color, rival.total, rival.cname + ' pair', '2nd');
+      else hide('rival-box');
     }
   }
 }
@@ -337,17 +379,37 @@ function setScore(val){
   if(!el) return;
   el.textContent = val;
   const digits = String(val).length;
-  el.style.fontSize = digits <= 2 ? '34vw' : digits === 3 ? '26vw' : '20vw';
+  // vh-based so the number fills the panel height in landscape
+  el.style.fontSize = digits <= 2 ? '42vh' : digits === 3 ? '30vh' : '23vh';
 }
 
-function showLeaderBox(color, score, name, label){
-  const box = document.getElementById('leader-box');
+function setEquation(label, value, desc){
+  set('eq-label', label);
+  const el = document.getElementById('eq-value');
+  if(el){
+    el.textContent = value;
+    const len = String(value).replace(/[^0-9]/g,'').length;
+    el.style.fontSize = len <= 2 ? '20vh' : len === 3 ? '15vh' : '11vh';
+  }
+  set('eq-desc', desc);
+}
+
+function showRivalBox(color, score, name, label){
+  const box = document.getElementById('rival-box');
   if(!box) return;
-  box.style.display  = 'block';
+  box.style.display   = 'block';
   box.style.background = bg(color);
-  set('leader-label', label);
-  set('leader-score', score);
-  set('leader-name',  name);
+  set('rival-label', label);
+  set('rival-score', score);
+  set('rival-name',  name);
+}
+
+function toggleFullscreen(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  } else {
+    document.exitFullscreen().catch(()=>{});
+  }
 }
 
 // ── Supabase connection ───────────────────────────────────
@@ -382,7 +444,6 @@ function subscribeForAny(){
 }
 
 async function init(){
-  // Keep screen awake on supported browsers
   try {
     if('wakeLock' in navigator) await navigator.wakeLock.request('screen');
   } catch(e){}
@@ -394,7 +455,6 @@ async function init(){
     if(data?.payload) render(data.payload);
     subscribeToMatch(matchId);
   } else {
-    // Find most recent active match
     const { data } = await client
       .from('live_scores').select('match_id,updated_at,payload')
       .order('updated_at', { ascending: false }).limit(10);
@@ -412,7 +472,7 @@ async function init(){
   }
 }
 
-// Re-request wake lock if released when tab regains focus
+// Re-request wake lock when tab regains focus
 document.addEventListener('visibilitychange', async () => {
   if(document.visibilityState === 'visible'){
     try {
