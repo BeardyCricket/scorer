@@ -262,12 +262,12 @@ canvas{display:block;width:100%}
 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="showTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="showTab('matchstats',this)">Match stats</button>
     <button class="tab-btn" onclick="showTab('leaderboards',this)">Leaderboards</button>
     <button class="tab-btn" onclick="showTab('batting',this)">Batting</button>
     <button class="tab-btn" onclick="showTab('bowling',this)">Bowling</button>
     <button class="tab-btn" onclick="showTab('winzones',this)">Win zones</button>
     <button class="tab-btn" onclick="showTab('spirit',this)">Who is your spirit cricketer?</button>
-    <button class="tab-btn" onclick="showTab('matchstats',this)">Match stats</button>
   </div>
 
   <div class="pad">
@@ -751,6 +751,11 @@ async function fetchAllData(){
         const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
         return src.map(p=>typeof p.total==='number'?p.total:null);
       })(),
+      pairBowl:(()=>{
+        const pl=r.payload;
+        const src=pl.pairs?.length?pl.pairs:pl.game_state?.pairs?.length?pl.game_state.pairs:pl.match_stats?.pairs||[];
+        return src.map(p=>typeof p.bowl==='number'?p.bowl:null);
+      })(),
       gsSOPairs:r.payload.game_state?.soPairs||null,
       gsSOScores:r.payload.game_state?.soScores||null,
       gsSOBounds:r.payload.game_state?.soBoundaries||null,
@@ -888,7 +893,8 @@ function matchSummaries(matches){
     const pairs=Object.keys(pR).map(pi=>({
       idx:+pi,players:[...pPl[pi]],
       runs:(m.pairTotals&&m.pairTotals[+pi]!=null)?m.pairTotals[+pi]:pR[pi],
-      wkts:pW[pi],bnds:pB[pi]
+      wkts:pW[pi],bnds:pB[pi],
+      bowl:(m.pairBowl&&m.pairBowl[+pi]!=null)?m.pairBowl[+pi]:null
     }));
     const sorted=[...pairs].sort((a,b)=>b.runs-a.runs||b.bnds-a.bnds);
     let soWinnerIdx=null;
@@ -1958,6 +1964,8 @@ function drawPairScoresChart(pn,ms){
     if(!s.pairs.some(p=>p.players.includes(pn)))continue;
     matchData.push({date:m.date,pairs:[...s.sorted].map(p=>({score:p.runs,isPlayer:p.players.includes(pn)}))});
   }
+  // Show only last 10 matches so bars remain legible
+  if(matchData.length>10)matchData.splice(0,matchData.length-10);
   if(!matchData.length){
     ctx.fillStyle='#6B7A99';ctx.font='13px -apple-system,sans-serif';ctx.textAlign='center';
     ctx.fillText('No match data',W/2,H/2);return;
@@ -2329,10 +2337,12 @@ function renderMatchDetail(matchId){
   balls.forEach(b=>{
     if(!b.facing)return;
     const n=b.facing;
-    if(!batSt[n])batSt[n]={runs:0,wkts:0,balls:0};
+    if(!batSt[n])batSt[n]={runs:0,wkts:0,balls:0,fours:0,sixes:0};
     if(BAT_TYPES.has(b.type))batSt[n].balls++;
     if(RUN_TYPES.has(b.type)&&batRun(b)>0)batSt[n].runs+=batRun(b);
     if(b.type==='wkt')batSt[n].wkts++;
+    if(b.type==='normal'&&b.code==='4b')batSt[n].fours++;
+    if(b.type==='normal'&&b.run===6)batSt[n].sixes++;
   });
   const bowlSt={};
   balls.forEach(b=>{
@@ -2359,25 +2369,28 @@ function renderMatchDetail(matchId){
   const myPair=s.pairs.find(p=>p.players.includes(pn));
   const myPairIdx=myPair?.idx??null;
   let bHtml='<div class="card"><div class="card-title">Batting scorecard</div>';
-  bHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Runs</th><th>Out</th><th>Balls</th><th>SR</th></tr>';
+  bHtml+='<table class="ms-tbl"><tr><th style="text-align:left;padding-left:6px">Player</th><th>Runs</th><th>Out</th><th>Balls</th><th>SR</th><th>4s</th><th>6s</th></tr>';
   orderedPairs.forEach((pair,pi)=>{
     const isMyPair=pair.idx===myPairIdx;
     const isWin=winner&&pair.idx===winner.idx;
     const bg=isMyPair?'#EEF0FF':'var(--bg)';
     const fc=isMyPair?'var(--purple)':'var(--muted)';
-    bHtml+=`<tr class="ms-pair-hdr"><td colspan="5" style="background:${bg};color:${fc};padding:6px 6px;text-align:left">Pair ${pi+1}${isWin?' 🏆':''}: <b style="color:${isMyPair?'var(--purple)':'var(--navy)'}">${pair.runs}</b> runs · ${pair.wkts} wkt${pair.wkts!==1?'s':''}</td></tr>`;
+    bHtml+=`<tr class="ms-pair-hdr"><td colspan="7" style="background:${bg};color:${fc};padding:6px 6px;text-align:left">Pair ${pi+1}${isWin?' 🏆':''}: <b style="color:${isMyPair?'var(--purple)':'var(--navy)'}">${pair.runs}</b> runs · ${pair.wkts} wkt${pair.wkts!==1?'s':''}</td></tr>`;
     pair.players.forEach(name=>{
-      const bs=batSt[name]||{runs:0,wkts:0,balls:0};
+      const bs=batSt[name]||{runs:0,wkts:0,balls:0,fours:0,sixes:0};
       const sr=bs.balls>0?f1(bs.runs/bs.balls*100):'—';
       const isYou=name===pn;
-      bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td><td>${sr}</td></tr>`;
+      bHtml+=`<tr class="${isYou?'ms-you':''}"><td class="ms-name">${escHtml(name)}${isYou?' ★':''}</td><td>${bs.runs}</td><td>${bs.wkts}</td><td>${bs.balls}</td><td>${sr}</td><td>${bs.fours}</td><td>${bs.sixes}</td></tr>`;
     });
     const extras=extrasByPair[pair.idx]||0;
     if(extras>0){
-      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Extras</td><td style="color:var(--muted)">${extras}</td><td>—</td><td>—</td><td>—</td></tr>`;
+      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Extras</td><td style="color:var(--muted)">${extras}</td><td colspan="5">—</td></tr>`;
     }
     if(pair.wkts>0){
-      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Wicket deductions</td><td style="color:var(--muted)">−${pair.wkts*5}</td><td>—</td><td>—</td><td>—</td></tr>`;
+      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Wicket deductions</td><td style="color:var(--muted)">−${pair.wkts*5}</td><td colspan="5">—</td></tr>`;
+    }
+    if(pair.bowl!=null&&pair.bowl>0){
+      bHtml+=`<tr><td class="ms-name" style="color:var(--muted);font-style:italic">Bowling bonus</td><td style="color:var(--muted)">+${pair.bowl}</td><td colspan="5">—</td></tr>`;
     }
   });
   bHtml+='</table></div>';
