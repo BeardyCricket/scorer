@@ -2004,7 +2004,7 @@ function updateBowlOvers(){
 function ball(run,code){
   if(G.overIdx>=G.totalOvers)return;
   const bi=batIdx(),bwi=bowlIdx(),snap=snap_scores(),facingBefore=G.facingIdx;
-  G.history.push({run,code,type:'normal',legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,facingBefore});
+  G.history.push({run,code,type:'normal',legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,facingBefore,ts:Date.now()});
   G.scores[bi].bat+=run;  // NO floor at 0 — can go negative
   G.ballInOver++;setFb('','');
   if(!G.isIndoor){
@@ -2057,7 +2057,7 @@ function confirmExtra(){
   hideExtra();
   const bi=batIdx(),bwi=bowlIdx(),snap=snap_scores(),facingBefore=G.facingIdx;
   // All extras count as a ball
-  G.history.push({run,code:extraType,type:extraType,legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,facingBefore});
+  G.history.push({run,code:extraType,type:extraType,legal:true,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,facingBefore,ts:Date.now()});
   G.scores[bi].bat+=run;
   G.ballInOver++;if((extraType==='wide'||extraType==='nb')&&(run===3||run===5))switchStriker();pushBallUpdate();checkOver();
   setFb(`${extraType==='bye'?'Bye':extraType==='wide'?'Wide':'No ball'} +${run}`,'info');
@@ -2113,7 +2113,7 @@ function confirmWkt(){
   const netRun=runsFirst-5;
   const isExtraInningsOver=G.extraBatPairActive&&G.extraInningsStartOver>=0&&G.overIdx>=G.extraInningsStartOver;
   const noBowlBonus=noB||isExtraInningsOver;
-  G.history.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,noBonus:noBowlBonus,isRunout,facingBefore});
+  G.history.push({run:netRun,code:'W',type:'wkt',legal:true,dismissal:pendingDis,over:G.overIdx,ballNum:G.ballInOver,batPair:bi,bowlPair:bwi,facing:fsel(),bowling:bsel(),snap,noBonus:noBowlBonus,isRunout,facingBefore,ts:Date.now()});
   G.scores[bi].bat+=netRun;
   if(!noBowlBonus&&!isRunout){
     const isSolo=G.pairs[bwi]&&!!G.pairs[bwi].fixedBowler;
@@ -3295,8 +3295,12 @@ function renderEndScreen(res,soWinnerPairIdx){
 function buildCSV(){
   let csv='Pair,Player 1,Player 2,Batting,Bowling Bonus,Total\n';
   G.pairs.forEach((p,i)=>{csv+=`${p.cname},${p.players[0]||''},${p.players[1]||''},${G.scores[i].bat},${G.scores[i].bowl},${G.scores[i].bat+G.scores[i].bowl}\n`;});
-  csv+='\nBall by ball\nOver,Ball,Type,Dismissal,Batting Pair,Bowling Pair,Facing,Bowling,Runs,Code\n';
-  G.history.forEach(b=>{const bn=G.pairs[b.batPair]?.cname||'';csv+=`${b.over+1},${b.ballNum+1},${b.type},${b.dismissal||''},${bn},${G.pairs[b.bowlPair]?.cname||''},${b.facing||''},${b.bowling||''},${b.run},${b.code||''}\n`;});
+  csv+='\nBall by ball\nTimestamp,Over,Ball,Type,Dismissal,Batting Pair,Bowling Pair,Facing,Bowling,Runs,Code\n';
+  G.history.forEach(b=>{
+    const bn=G.pairs[b.batPair]?.cname||'';
+    const ts=b.ts?new Date(b.ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+    csv+=`${ts},${b.over+1},${b.ballNum+1},${b.type},${b.dismissal||''},${bn},${G.pairs[b.bowlPair]?.cname||''},${b.facing||''},${b.bowling||''},${b.run},${b.code||''}\n`;
+  });
   return csv;
 }
 function exportCSV(){

@@ -34,30 +34,18 @@ body{
 }
 .preview-btn:hover{color:rgba(255,255,255,.65);}
 
-/* ── Demo navigation bar ── */
+/* ── Demo bar ── */
 #demo-bar{
   display:none;position:fixed;top:0;left:0;right:0;z-index:99;
   background:rgba(0,0,0,.55);backdrop-filter:blur(6px);
-  padding:.8vh 2vw;
-  align-items:center;gap:1.2vw;
+  padding:.8vh 2vw;align-items:center;gap:1.2vw;
 }
-.demo-badge{
-  font-size:1vw;font-weight:900;letter-spacing:.12em;
-  color:#fbbf24;text-transform:uppercase;flex-shrink:0;
-}
+.demo-badge{font-size:1vw;font-weight:900;letter-spacing:.12em;color:#fbbf24;text-transform:uppercase;flex-shrink:0;}
 #demo-scene-label{font-size:1vw;opacity:.7;flex:1;text-align:left;}
-.demo-nav-btn{
-  background:rgba(255,255,255,.18);border:none;color:#fff;
-  font-size:1.2vw;font-weight:800;cursor:pointer;
-  border-radius:.5vw;padding:.3vh .9vw;flex-shrink:0;
-}
+.demo-nav-btn{background:rgba(255,255,255,.18);border:none;color:#fff;font-size:1.2vw;font-weight:800;cursor:pointer;border-radius:.5vw;padding:.3vh .9vw;flex-shrink:0;}
 .demo-nav-btn:hover{background:rgba(255,255,255,.32);}
 #demo-counter{font-size:1vw;opacity:.6;flex-shrink:0;}
-.demo-exit-btn{
-  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);
-  color:rgba(255,255,255,.7);font-size:.9vw;font-weight:700;cursor:pointer;
-  border-radius:.5vw;padding:.3vh 1vw;flex-shrink:0;letter-spacing:.04em;
-}
+.demo-exit-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:.9vw;font-weight:700;cursor:pointer;border-radius:.5vw;padding:.3vh 1vw;flex-shrink:0;letter-spacing:.04em;}
 .demo-exit-btn:hover{background:rgba(255,255,255,.22);color:#fff;}
 
 /* ── Live scoreboard — landscape two-panel ── */
@@ -65,75 +53,81 @@ body{
   flex:1;display:none;flex-direction:row;
 }
 
-/* LEFT panel — big score number */
+/* LEFT: score fills the panel */
 #panel-score{
   width:48%;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
 }
-.score-number{
+#score-number{
   font-weight:900;line-height:.88;
   letter-spacing:-.04em;
   color:rgba(255,255,255,.96);
-  transition:font-size .3s ease;
-}
-.score-pair-name{
-  font-size:1.3vw;font-weight:800;
-  text-transform:uppercase;letter-spacing:.18em;
-  opacity:.32;margin-top:2vh;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+  /* font-size set dynamically by JS */
 }
 
-/* RIGHT panel — context & equation */
+/* RIGHT: info panel */
 #panel-info{
   width:52%;
   display:flex;flex-direction:column;
   justify-content:space-between;
   padding:4vh 4vw 3.5vh 3vw;
   background:rgba(0,0,0,.2);
+  overflow:hidden;
 }
 
-/* Top: pair identity */
-.info-pair-label{
-  font-size:2.2vw;font-weight:800;
-  text-transform:uppercase;letter-spacing:.14em;
-  opacity:.75;
+/* Players (top of right panel) */
+#pair-players{
+  font-weight:800;
+  letter-spacing:.02em;
+  line-height:1.1;
+  /* font-size set by JS */
 }
-.info-players{
-  font-size:1.6vw;font-weight:600;
-  opacity:.45;margin-top:.5vh;letter-spacing:.04em;
+/* Finished state subtitle (e.g. "Wins") */
+#pair-label{
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  opacity:.7;
+  margin-top:.8vh;
+  /* font-size set by JS */
 }
 
-/* Middle: equation — this is the hero content of the right panel */
-.info-eq{
+/* Equation — hero of the right panel */
+#info-eq{
   flex:1;display:flex;flex-direction:column;
-  justify-content:center;padding:.5vh 0;
+  justify-content:center;gap:.5vh;
 }
-.eq-label{
-  font-size:1.5vw;font-weight:800;
-  text-transform:uppercase;letter-spacing:.16em;
-  opacity:.5;margin-bottom:.4vh;
+#eq-label{
+  font-weight:800;text-transform:uppercase;
+  letter-spacing:.16em;opacity:.5;
+  /* font-size set by JS */
 }
-.eq-value{
+#eq-value{
   font-weight:900;line-height:.88;
   letter-spacing:-.03em;
-  transition:font-size .3s ease;
+  font-variant-numeric:tabular-nums;
+  /* font-size set by JS */
 }
-.eq-desc{
-  font-size:2.4vw;font-weight:700;
-  opacity:.62;margin-top:1.4vh;
-  line-height:1.35;
+#eq-desc{
+  font-weight:700;opacity:.65;
+  line-height:1.3;
+  /* font-size set by JS */
 }
 
 /* Bottom bar */
-.info-bottom{
+#info-bottom{
   display:flex;align-items:flex-end;
   justify-content:space-between;gap:2vw;
 }
 .bc-brand{
   display:flex;align-items:center;gap:.5vw;
-  font-size:1.1vw;font-weight:700;
-  opacity:.3;text-transform:uppercase;letter-spacing:.1em;
+  font-weight:700;opacity:.3;
+  text-transform:uppercase;letter-spacing:.1em;
   flex-shrink:0;
+  font-size:1.1vw;
 }
 .live-dot{
   width:.75vw;height:.75vw;border-radius:50%;
@@ -142,15 +136,14 @@ body{
 }
 .live-dot.offline{background:#f87171;animation:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.28}}
-
-.match-status-txt{
-  font-size:1.3vw;font-weight:700;
-  opacity:.38;letter-spacing:.02em;
+#match-status{
+  font-weight:700;opacity:.4;letter-spacing:.03em;
   text-align:center;flex:1;
+  font-size:1.5vw;
 }
 
-/* Rival box — bottom right of info panel */
-.rival-box{
+/* Rival box */
+#rival-box{
   border-radius:1.2vw;
   padding:1.2vw 2vw;
   text-align:center;
@@ -158,27 +151,15 @@ body{
   border:2px solid rgba(255,255,255,.22);
   transition:background .8s ease;
 }
-.rival-label{
-  font-size:.85vw;font-weight:800;
-  text-transform:uppercase;letter-spacing:.12em;
-  opacity:.6;margin-bottom:.3vw;
-}
-.rival-score{
-  font-size:3.8vw;font-weight:900;
-  line-height:1;letter-spacing:-.03em;
-}
-.rival-name{
-  font-size:1vw;font-weight:700;
-  opacity:.52;margin-top:.3vw;
-}
+#rival-label{font-weight:800;text-transform:uppercase;letter-spacing:.12em;opacity:.6;font-size:1vw;margin-bottom:.3vw;}
+#rival-score{font-weight:900;line-height:1;letter-spacing:-.03em;font-size:4.5vw;}
+#rival-name{font-weight:700;opacity:.52;margin-top:.3vw;font-size:1.1vw;}
 
 /* Fullscreen button */
 #fs-btn{
-  position:fixed;bottom:1.2vh;right:1vw;
-  background:none;border:none;
-  color:rgba(255,255,255,.22);
-  font-size:1.8vw;cursor:pointer;
-  z-index:10;line-height:1;padding:.3vh .4vw;
+  position:fixed;bottom:1.2vh;right:.8vw;
+  background:none;border:none;color:rgba(255,255,255,.2);
+  font-size:1.8vw;cursor:pointer;z-index:10;padding:.3vh .4vw;
 }
 #fs-btn:hover{color:rgba(255,255,255,.55);}
 </style>
@@ -202,35 +183,29 @@ body{
 </div>
 
 <div id="screen-live">
-  <!-- LEFT: big score -->
   <div id="panel-score">
-    <div class="score-number" id="score-number">—</div>
-    <div class="score-pair-name" id="score-pair-name"></div>
+    <div id="score-number">—</div>
   </div>
-
-  <!-- RIGHT: context -->
   <div id="panel-info">
     <div>
-      <div class="info-pair-label" id="pair-label">—</div>
-      <div class="info-players" id="pair-players">—</div>
+      <div id="pair-players">—</div>
+      <div id="pair-label"></div>
     </div>
-
-    <div class="info-eq">
-      <div class="eq-label" id="eq-label"></div>
-      <div class="eq-value" id="eq-value"></div>
-      <div class="eq-desc" id="eq-desc"></div>
+    <div id="info-eq">
+      <div id="eq-label"></div>
+      <div id="eq-value"></div>
+      <div id="eq-desc"></div>
     </div>
-
-    <div class="info-bottom">
+    <div id="info-bottom">
       <div class="bc-brand">
         <div class="live-dot" id="live-dot"></div>
         Beardy Cricket
       </div>
-      <div class="match-status-txt" id="match-status"></div>
-      <div class="rival-box" id="rival-box" style="display:none">
-        <div class="rival-label" id="rival-label">vs</div>
-        <div class="rival-score" id="rival-score">—</div>
-        <div class="rival-name" id="rival-name"></div>
+      <div id="match-status"></div>
+      <div id="rival-box" style="display:none">
+        <div id="rival-label">vs</div>
+        <div id="rival-score">—</div>
+        <div id="rival-name"></div>
       </div>
     </div>
   </div>
@@ -247,12 +222,12 @@ const SUPABASE_KEY = 'sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const { createClient } = supabase;
 const client = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const params  = new URLSearchParams(window.location.search);
+const params   = new URLSearchParams(window.location.search);
 let matchId    = params.get('match') || null;
 let channel    = null;
 let resetTimer = null;
+let _lastScore = null;
 
-// Background colours per pair colour name
 const BG = {
   purple:'#6d28d9', blue:'#1d4ed8', grey:'#374151',
   red:'#b91c1c',   green:'#166534', orange:'#c2410c', pink:'#9d174d'
@@ -263,29 +238,78 @@ function isFinished(p){
   return p.status === 'finished' ||
     (p.over >= p.total_overs && p.total_overs > 0 && p.ball >= 6);
 }
-
 function setConnected(ok){
   document.getElementById('live-dot').classList.toggle('offline', !ok);
 }
 
+// ── Text fitting ──────────────────────────────────────────
+// Binary-search the largest font-size that fits within maxW × maxH (px).
+function fitText(el, maxW, maxH, maxPx){
+  if(!el || maxW <= 0 || maxH <= 0) return;
+  let lo = 8, hi = maxPx || 800;
+  el.style.fontSize = hi + 'px';
+  // Quick path — already fits
+  if(el.scrollWidth <= maxW && el.offsetHeight <= maxH){ return; }
+  while(hi - lo > 2){
+    const mid = (lo + hi) >> 1;
+    el.style.fontSize = mid + 'px';
+    (el.scrollWidth <= maxW && el.offsetHeight <= maxH) ? (lo = mid) : (hi = mid);
+  }
+  el.style.fontSize = lo + 'px';
+}
+
+function setScore(val){
+  _lastScore = val;
+  const el     = document.getElementById('score-number');
+  const panel  = document.getElementById('panel-score');
+  if(!el || !panel) return;
+  el.textContent = val;
+  fitText(el, panel.clientWidth * 0.94, panel.clientHeight * 0.9, 900);
+}
+
+function setSizes(){
+  // Right panel text sizing relative to panel height
+  const ph = document.getElementById('panel-info')?.clientHeight || window.innerHeight;
+  const s  = id => document.getElementById(id);
+  if(s('pair-players')) s('pair-players').style.fontSize = Math.round(ph * 0.075) + 'px';
+  if(s('pair-label'))   s('pair-label').style.fontSize   = Math.round(ph * 0.038) + 'px';
+  if(s('eq-label'))     s('eq-label').style.fontSize     = Math.round(ph * 0.032) + 'px';
+  if(s('eq-desc'))      s('eq-desc').style.fontSize      = Math.round(ph * 0.065) + 'px';
+}
+
+function setEquation(label, value, desc){
+  const s = id => document.getElementById(id);
+  if(s('eq-label')) s('eq-label').textContent = label;
+  if(s('eq-desc'))  s('eq-desc').textContent  = desc;
+  const el    = s('eq-value');
+  const panel = document.getElementById('panel-info');
+  if(!el || !panel) return;
+  el.textContent = value;
+  // Fit within 90% panel width, 40% panel height
+  fitText(el, panel.clientWidth * 0.9, panel.clientHeight * 0.4, 600);
+}
+
+window.addEventListener('resize', () => {
+  setSizes();
+  if(_lastScore !== null) setScore(_lastScore);
+});
+
 // ── Render ────────────────────────────────────────────────
 function render(payload){
   if(!payload) return;
-
   const bi    = payload.batting;
   const pairs = payload.pairs || [];
   const done  = isFinished(payload);
 
-  // ── Finished match ────────────────────────────────────
   if(done){
-    const sorted = [...pairs].sort((a,b)=> b.total - a.total);
+    const sorted = [...pairs].sort((a,b) => b.total - a.total);
     const winner = sorted[0];
     if(!winner){ showWait(); return; }
 
     showLive(winner.color);
-    set('pair-label',     (winner.cname||'').toUpperCase() + ' PAIR WINS 🏆');
-    set('pair-players',   (winner.players||[]).join(' & '));
-    set('score-pair-name','');
+    setSizes();
+    set('pair-players', (winner.players||[]).join(' & '));
+    set('pair-label', 'WINS 🏆');
     setScore(winner.total);
     set('match-status', 'Match complete · ' + payload.total_overs + ' overs');
 
@@ -293,7 +317,7 @@ function render(payload){
       const second = sorted[1];
       const margin = winner.total - second.total;
       setEquation('WON BY', margin, 'run' + (margin !== 1 ? 's' : ''));
-      showRivalBox(second.color, second.total, second.cname + ' pair', '2nd place');
+      showRivalBox(second.color, second.total, (second.players||[]).join(' & '), '2nd');
     } else {
       setEquation('', '', '');
       hide('rival-box');
@@ -301,24 +325,18 @@ function render(payload){
 
     clearTimeout(resetTimer);
     resetTimer = setTimeout(() => {
-      matchId = null;
-      showWait();
-      subscribeForAny();
+      matchId = null; showWait(); subscribeForAny();
     }, 60000);
     return;
   }
 
-  // Match is live — cancel any pending reset
-  clearTimeout(resetTimer);
-  resetTimer = null;
-
+  clearTimeout(resetTimer); resetTimer = null;
   if(!bi){ showWait(); return; }
 
   showLive(bi.color);
-
-  set('pair-label',     (bi.cname||'').toUpperCase() + ' PAIR');
-  set('pair-players',   (bi.players||[]).join(' & '));
-  set('score-pair-name',(bi.cname||'').toUpperCase());
+  setSizes();
+  set('pair-players', (bi.players||[]).join(' & '));
+  set('pair-label', '');
   setScore(bi.total);
 
   const ov = payload.over, ball = payload.ball;
@@ -326,33 +344,31 @@ function render(payload){
 
   const ovsBatted  = Math.floor(bi.balls_faced / 6);
   const ballsExtra = bi.balls_faced % 6;
-  const rivals = pairs.filter(p => p.color !== bi.color && p.total > 0);
+  const rivals     = pairs.filter(p => p.color !== bi.color && p.total > 0);
 
   if(!rivals.length){
-    // First pair — no target yet
     setEquation('', `${ovsBatted}.${ballsExtra}`, 'overs batted');
     hide('rival-box');
   } else {
-    const target = Math.max(...rivals.map(p => p.total));
-    const runsNeeded = target + 1 - bi.total;
+    const target      = Math.max(...rivals.map(p => p.total));
+    const runsNeeded  = target + 1 - bi.total;
     const ballsPerPair = pairs.length > 0
-      ? Math.round((payload.total_overs / pairs.length) * 6)
-      : 24;
-    const ballsLeft = Math.max(0, ballsPerPair - bi.balls_faced);
-    const ballWord  = `ball${ballsLeft !== 1 ? 's' : ''}`;
+      ? Math.round((payload.total_overs / pairs.length) * 6) : 24;
+    const ballsLeft   = Math.max(0, ballsPerPair - bi.balls_faced);
+    const ballWord    = 'ball' + (ballsLeft !== 1 ? 's' : '');
+
+    const allRanked = [...pairs].sort((a,b) => b.total - a.total);
 
     if(runsNeeded > 0){
       setEquation('NEED', runsNeeded, `off ${ballsLeft} ${ballWord} to lead`);
-      // Show who they're chasing
-      const leader = [...pairs].sort((a,b)=>b.total-a.total).find(p=>p.color!==bi.color&&p.total>0);
-      if(leader) showRivalBox(leader.color, leader.total, leader.cname + ' pair', 'To beat');
+      const leader = allRanked.find(p => p.color !== bi.color && p.total > 0);
+      if(leader) showRivalBox(leader.color, leader.total, (leader.players||[]).join(' & '), 'To beat');
       else hide('rival-box');
     } else {
       const ahead = bi.total - target;
       setEquation('LEADING BY', ahead, `${ballsLeft} ${ballWord} remaining`);
-      // Show nearest rival
-      const rival = [...pairs].sort((a,b)=>b.total-a.total).find(p=>p.color!==bi.color&&p.total>0);
-      if(rival) showRivalBox(rival.color, rival.total, rival.cname + ' pair', '2nd');
+      const rival = allRanked.find(p => p.color !== bi.color && p.total > 0);
+      if(rival) showRivalBox(rival.color, rival.total, (rival.players||[]).join(' & '), '2nd');
       else hide('rival-box');
     }
   }
@@ -367,63 +383,35 @@ function showWait(){
   document.getElementById('screen-live').style.display = 'none';
   document.body.style.background = '#1a4a2e';
 }
-
 function showLive(color){
   document.getElementById('screen-wait').style.display = 'none';
   document.getElementById('screen-live').style.display = 'flex';
   document.body.style.background = bg(color);
 }
-
-function setScore(val){
-  const el = document.getElementById('score-number');
-  if(!el) return;
-  el.textContent = val;
-  const digits = String(val).length;
-  // vh-based so the number fills the panel height in landscape
-  el.style.fontSize = digits <= 2 ? '42vh' : digits === 3 ? '30vh' : '23vh';
-}
-
-function setEquation(label, value, desc){
-  set('eq-label', label);
-  const el = document.getElementById('eq-value');
-  if(el){
-    el.textContent = value;
-    const len = String(value).replace(/[^0-9]/g,'').length;
-    el.style.fontSize = len <= 2 ? '20vh' : len === 3 ? '15vh' : '11vh';
-  }
-  set('eq-desc', desc);
-}
-
 function showRivalBox(color, score, name, label){
   const box = document.getElementById('rival-box');
   if(!box) return;
-  box.style.display   = 'block';
+  box.style.display    = 'block';
   box.style.background = bg(color);
   set('rival-label', label);
   set('rival-score', score);
   set('rival-name',  name);
 }
-
 function toggleFullscreen(){
-  if(!document.fullscreenElement){
-    document.documentElement.requestFullscreen().catch(()=>{});
-  } else {
-    document.exitFullscreen().catch(()=>{});
-  }
+  if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen().catch(()=>{});
 }
 
-// ── Supabase connection ───────────────────────────────────
+// ── Supabase ──────────────────────────────────────────────
 function subscribeToMatch(id){
   if(channel) client.removeChannel(channel);
   channel = client
     .channel('scoreboard-' + id)
     .on('postgres_changes',
       { event: 'UPDATE', schema: 'public', table: 'live_scores', filter: `match_id=eq.${id}` },
-      msg => { if(msg.new?.payload) render(msg.new.payload); }
-    )
+      msg => { if(msg.new?.payload) render(msg.new.payload); })
     .subscribe(s => setConnected(s === 'SUBSCRIBED'));
 }
-
 function subscribeForAny(){
   if(channel) client.removeChannel(channel);
   channel = client
@@ -433,91 +421,66 @@ function subscribeForAny(){
       msg => {
         const p = msg.new?.payload;
         if(!p || isFinished(p)) return;
-        if(!matchId){
-          matchId = msg.new.match_id;
-          render(p);
-          subscribeToMatch(matchId);
-        }
-      }
-    )
+        if(!matchId){ matchId = msg.new.match_id; render(p); subscribeToMatch(matchId); }
+      })
     .subscribe(s => setConnected(s === 'SUBSCRIBED'));
 }
-
 async function init(){
-  try {
-    if('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-  } catch(e){}
-
+  try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
   if(matchId){
-    const { data } = await client
-      .from('live_scores').select('payload')
-      .eq('match_id', matchId).maybeSingle();
+    const { data } = await client.from('live_scores').select('payload').eq('match_id', matchId).maybeSingle();
     if(data?.payload) render(data.payload);
     subscribeToMatch(matchId);
   } else {
-    const { data } = await client
-      .from('live_scores').select('match_id,updated_at,payload')
+    const { data } = await client.from('live_scores').select('match_id,updated_at,payload')
       .order('updated_at', { ascending: false }).limit(10);
-    const live = (data || []).filter(r =>
-      r.payload && !isFinished(r.payload) &&
-      !r.match_id.startsWith('beardy-test-')
-    );
-    if(live.length){
-      matchId = live[0].match_id;
-      render(live[0].payload);
-      subscribeToMatch(matchId);
-    } else {
-      subscribeForAny();
-    }
+    const live = (data||[]).filter(r => r.payload && !isFinished(r.payload) && !r.match_id.startsWith('beardy-test-'));
+    if(live.length){ matchId = live[0].match_id; render(live[0].payload); subscribeToMatch(matchId); }
+    else subscribeForAny();
   }
 }
-
-// Re-request wake lock when tab regains focus
 document.addEventListener('visibilitychange', async () => {
-  if(document.visibilityState === 'visible'){
-    try {
-      if('wakeLock' in navigator) await navigator.wakeLock.request('screen');
-    } catch(e){}
-  }
+  if(document.visibilityState === 'visible')
+    try { if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch(e){}
 });
 
-// ── Demo / Preview mode ───────────────────────────────────
+// ── Demo mode ─────────────────────────────────────────────
 const DEMO_SCENARIOS = [
   {
     _label: 'First pair batting — no target yet',
     batting:{color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,balls_faced:15},
     pairs:[
-      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
-      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:0, idx:1},
-      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
-      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:0, idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'], total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],   total:0, idx:3},
     ],
     over:3,ball:2,total_overs:16
   },
   {
-    _label: 'Second pair batting — chasing a target',
+    _label: 'Chasing a target',
     batting:{color:'blue',cname:'Blue',players:['Sam','Chris'],total:23,balls_faced:9},
     pairs:[
-      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
-      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:23,idx:1},
-      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
-      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:23,idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'], total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],   total:0, idx:3},
     ],
     over:5,ball:4,total_overs:16
   },
   {
-    _label: 'Second pair batting — leading',
+    _label: 'Leading',
     batting:{color:'blue',cname:'Blue',players:['Sam','Chris'],total:54,balls_faced:18},
     pairs:[
-      {color:'purple',cname:'Purple',players:['Tom','Andy'],total:47,idx:0},
-      {color:'blue',  cname:'Blue',  players:['Sam','Chris'],total:54,idx:1},
-      {color:'red',   cname:'Red',   players:['Dave','Pete'],total:0, idx:2},
-      {color:'green', cname:'Green', players:['Ed','Nick'],  total:0, idx:3},
+      {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:47,idx:0},
+      {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:54,idx:1},
+      {color:'red',   cname:'Red',   players:['Dave','Pete'], total:0, idx:2},
+      {color:'green', cname:'Green', players:['Ed','Nick'],   total:0, idx:3},
     ],
     over:6,ball:1,total_overs:16
   },
   {
-    _label: 'Large score (3 digits)',
+    _label: '3-digit score',
     batting:{color:'orange',cname:'Orange',players:['Jake','Liam'],total:112,balls_faced:22},
     pairs:[
       {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:87, idx:0},
@@ -528,9 +491,8 @@ const DEMO_SCENARIOS = [
     over:7,ball:3,total_overs:16
   },
   {
-    _label: 'Match finished — winner display',
-    status:'finished',
-    batting:null,
+    _label: 'Match finished',
+    status:'finished',batting:null,
     pairs:[
       {color:'purple',cname:'Purple',players:['Tom','Andy'],  total:89,idx:0},
       {color:'blue',  cname:'Blue',  players:['Sam','Chris'], total:76,idx:1},
@@ -540,39 +502,31 @@ const DEMO_SCENARIOS = [
     over:16,ball:6,total_overs:16
   },
 ];
-
-let demoActive = false;
-let demoIdx    = 0;
-
+let demoActive = false, demoIdx = 0;
 function startDemo(idx){
-  demoActive = true;
-  demoIdx = idx || 0;
-  clearTimeout(resetTimer);
-  resetTimer = null;
+  demoActive = true; demoIdx = idx || 0;
+  clearTimeout(resetTimer); resetTimer = null;
   document.getElementById('demo-bar').style.display = 'flex';
   renderDemo();
 }
-
 function renderDemo(){
   const s = DEMO_SCENARIOS[demoIdx];
   document.getElementById('demo-scene-label').textContent = s._label;
   document.getElementById('demo-counter').textContent = `${demoIdx+1} / ${DEMO_SCENARIOS.length}`;
   render(s);
 }
-
 function demoNav(dir){
   demoIdx = (demoIdx + dir + DEMO_SCENARIOS.length) % DEMO_SCENARIOS.length;
   renderDemo();
 }
-
 function exitDemo(){
   demoActive = false;
   document.getElementById('demo-bar').style.display = 'none';
   showWait();
 }
 
-window.addEventListener('DOMContentLoaded', ()=>{
-  if(params.get('demo')==='1') startDemo();
+window.addEventListener('DOMContentLoaded', () => {
+  if(params.get('demo') === '1') startDemo();
   else init();
 });
 </script>
