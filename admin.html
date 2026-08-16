@@ -107,6 +107,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 /* Empty */
 .empty{text-align:center;padding:24px 0;color:var(--muted);font-size:13px}
 
+/* Activity */
+.player-activity{font-size:11px;color:var(--muted);padding:3px 0 1px}
+
 /* Bulk import */
 .bulk-ta{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace;color:var(--navy);background:#fff;outline:none;resize:vertical;min-height:110px;-webkit-appearance:none}
 .bulk-ta:focus{border-color:var(--navy)}
@@ -208,6 +211,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 'use strict';
+let _activity=[];
 const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
 const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -241,16 +245,16 @@ async function verifyAdmin(email){
     .select('id,player_name,email,is_active,created_at,is_premium,premium_until')
     .order('created_at');
   if(error&&error.code==='PGRST301'){
-    // Not authenticated properly
     await db.auth.signOut();show('screen-login');return;
   }
   if(!data||data.length===0&&error){
-    // Could be RLS denying all rows — treat as not admin
     await db.auth.signOut();
     show('screen-login');
     document.getElementById('login-err').textContent='Access denied. This page is admin-only.';
     return;
   }
+  const{data:act}=await db.from('stats_activity').select('player_name,viewed_at').order('viewed_at',{ascending:false});
+  _activity=act||[];
   show('screen-admin');
   renderPlayers(data||[]);
 }
@@ -332,7 +336,27 @@ async function refreshList(){
     .select('id,player_name,email,is_active,created_at,is_premium,premium_until')
     .order('created_at');
   if(error){toast('Refresh error: '+error.message);return;}
+  const{data:act}=await db.from('stats_activity').select('player_name,viewed_at').order('viewed_at',{ascending:false});
+  _activity=act||[];
   renderPlayers(data||[]);
+}
+
+function fmtActivity(playerName){
+  const rows=_activity.filter(a=>a.player_name===playerName);
+  if(!rows.length)return'<div class="player-activity">No views recorded</div>';
+  const count=rows.length;
+  const last=new Date(rows[0].viewed_at);
+  const today=new Date();
+  let lastStr;
+  if(last.toDateString()===today.toDateString()){
+    lastStr='today at '+last.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }else{
+    const diff=Math.floor((today-last)/864e5);
+    if(diff===1)lastStr='yesterday';
+    else if(diff<7)lastStr=diff+' days ago';
+    else lastStr=last.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  }
+  return`<div class="player-activity">👁 ${count} view${count===1?'':'s'} · Last seen ${lastStr}</div>`;
 }
 
 function renderPlayers(players){
@@ -352,6 +376,7 @@ function renderPlayers(players){
             ${live?'<span class="prem-badge">⭐ Premium</span>':''}
           </div>
           <div class="player-email">${escHtml(p.email)}</div>
+          ${fmtActivity(p.player_name)}
         </div>
         <span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Inactive'}</span>
         <button class="toggle-btn" onclick="toggleActive('${p.id}',${p.is_active})">${p.is_active?'Revoke':'Restore'}</button>
