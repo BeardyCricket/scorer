@@ -781,6 +781,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       <button class="btn btn-primary" onclick="confirmAddPlayer()">Add player</button>
     </div>
 
+    <div id="remove-player-section" style="border-top:1px solid var(--border);padding-top:16px;margin-top:20px">
+      <div class="card-title">Remove a player</div>
+      <div id="remove-player-note" style="font-size:12px;color:var(--muted);margin-bottom:4px"></div>
+      <label class="lbl" style="margin-top:6px">Player</label>
+      <select class="sel-sel" id="remove-player-sel" style="width:100%;margin-bottom:12px"></select>
+      <button class="btn btn-primary" onclick="confirmRemovePlayer()" style="background:var(--red);border-color:var(--red)">Remove player</button>
+    </div>
+
     <button class="btn btn-secondary" onclick="document.getElementById('manage-players-modal').classList.add('hidden')" style="margin-top:12px">Close</button>
   </div>
 </div>
@@ -1781,12 +1789,14 @@ function updateUI(){
   }
   // Build bowling selector — pair's players first, then everyone else in an optgroup
   const bowlSel=document.getElementById('bowling-sel');
+  const _bowlCounts=playerOverCounts();
+  const _bowlOptLabel=p=>{const pr=G.pairs.find(r=>r.players.includes(p));const n=_bowlCounts[p]||0;return `${p} (${pr?pr.cname+' · ':''}${n} over${n!==1?'s':''})`;};
   const otherBowlers=G.players.filter(p=>!bwp.players.includes(p));
-  let bowlHtml=bwp.players.map(p=>`<option>${p}</option>`).join('');
-  if(otherBowlers.length)bowlHtml+=`<optgroup label="Other players">${otherBowlers.map(p=>`<option>${p}</option>`).join('')}</optgroup>`;
+  let bowlHtml=bwp.players.map(p=>`<option value="${escHtml(p)}">${_bowlOptLabel(p)}</option>`).join('');
+  if(otherBowlers.length)bowlHtml+=`<optgroup label="Other players">${otherBowlers.map(p=>`<option value="${escHtml(p)}">${_bowlOptLabel(p)}</option>`).join('')}</optgroup>`;
   bowlSel.innerHTML=bowlHtml;
   const toSelect=G.overBowler||bwp.players[0];
-  for(let i=0;i<bowlSel.options.length;i++){if(bowlSel.options[i].text===toSelect){bowlSel.selectedIndex=i;break;}}
+  for(let i=0;i<bowlSel.options.length;i++){if(bowlSel.options[i].value===toSelect){bowlSel.selectedIndex=i;break;}}
 
   // Seed mode UI
 const skipRow=document.getElementById('skip-pair-row');
@@ -4391,6 +4401,27 @@ function showManagePlayersModal(){
     const oversLeft=Math.max(0,6-G.overIdx);
     document.getElementById('add-player-note').textContent=`Available for ${oversLeft} more over${oversLeft!==1?'s':''} · ${G.numPlayers}/15 players`;
   }
+
+  // Remove player section — only pairs that haven't batted or bowled yet (including current over if mid-over)
+  const _oIdx=G.ballInOver>0?G.overIdx+1:G.overIdx;
+  const _hasBatted=new Set(G.batSched.slice(0,_oIdx));
+  const _hasBowled=new Set(G.bowlSched.slice(0,_oIdx).filter(x=>x>=0));
+  const removable=[];
+  G.pairs.forEach((p,i)=>{
+    if(p.absent||_hasBatted.has(i)||_hasBowled.has(i))return;
+    p.players.filter(n=>n!==p.borrowedPlayer).forEach(name=>removable.push({name,pairName:p.cname}));
+  });
+  const removeSection=document.getElementById('remove-player-section');
+  if(removable.length){
+    document.getElementById('remove-player-sel').innerHTML=
+      '<option value="">Choose a player…</option>'+
+      removable.map(({name,pairName})=>`<option value="${escHtml(name)}">${escHtml(name)} (${escHtml(pairName)} pair)</option>`).join('');
+    document.getElementById('remove-player-note').textContent='Only players whose pair has not yet batted or bowled.';
+    removeSection.style.display='block';
+  }else{
+    removeSection.style.display='none';
+  }
+
   document.getElementById('manage-players-modal').classList.remove('hidden');
 }
 
@@ -4493,6 +4524,73 @@ function confirmAddPlayer(){
   const pairName=G.pairs[targetPairIdx]?.cname||'';
   document.getElementById('manage-players-modal').classList.add('hidden');
   setFb(`${name} added to ${pairName} pair · schedule updated for ${G.numPlayers} players`,'info');
+  setTimeout(()=>setFb('',''),4000);
+  updateUI();saveGameState();
+}
+
+function confirmRemovePlayer(){
+  const playerName=document.getElementById('remove-player-sel').value;
+  if(!playerName){alert('Please select a player to remove.');return;}
+
+  const pairIdx=G.pairs.findIndex(p=>!p.absent&&p.players.includes(playerName)&&p.borrowedPlayer!==playerName);
+  if(pairIdx<0){alert('Player not found.');return;}
+  const pair=G.pairs[pairIdx];
+
+  // Double-check pair hasn't played (guard against stale UI)
+  const oIdx=G.ballInOver>0?G.overIdx+1:G.overIdx;
+  const hasBatted=new Set(G.batSched.slice(0,oIdx));
+  const hasBowled=new Set(G.bowlSched.slice(0,oIdx).filter(x=>x>=0));
+  if(hasBatted.has(pairIdx)||hasBowled.has(pairIdx)){
+    alert('This player\'s pair has already batted or bowled and cannot be removed.');
+    return;
+  }
+
+  if(!confirm(`Remove ${playerName} from the match?`))return;
+
+  const pairName=pair.cname||'';
+
+  // If pair had a borrowed partner, un-borrow them before restructuring
+  if(pair.borrowedPlayer){
+    pair.players=pair.players.filter(n=>n!==pair.borrowedPlayer);
+    pair.borrowedPlayer=null;
+  }
+
+  // Move player to absentPlayers, update pair state
+  if(!pair.absentPlayers)pair.absentPlayers=[];
+  pair.absentPlayers.push(playerName);
+  pair.players=pair.players.filter(n=>n!==playerName);
+  pair.absent=pair.players.length===0;
+  pair.fixedBowler=pair.players.length===1?pair.players[0]:null;
+  G.lateArrivals.delete(playerName);
+
+  // Update master player list
+  const pi=G.players.indexOf(playerName);
+  if(pi>=0)G.players.splice(pi,1);
+  G.numPlayers--;
+
+  _rebuildRemainingSchedule();
+
+  // Re-establish borrowed player if game is now odd-numbered
+  if(G.isOdd){
+    const soloIdx=G.pairs.findIndex(p=>!p.absent&&p.players.filter(n=>n!==p.borrowedPlayer).length===1&&!p.borrowedPlayer);
+    if(soloIdx>=0){
+      const sourceIdx=G.seedMode?(G.numPlayers<=10?2:3):0;
+      const sourcePair=G.pairs[sourceIdx]||G.pairs[0];
+      if(sourcePair&&sourcePair.players.length>=1){
+        const borrowed=sourcePair.players[0];
+        G.pairs[soloIdx].players=[G.pairs[soloIdx].players[0],borrowed];
+        G.pairs[soloIdx].borrowedPlayer=borrowed;
+        G.pairs[soloIdx].fixedBowler=G.pairs[soloIdx].players[0];
+      }
+    }
+  }
+
+  G.pendingBowlerSelect=true;
+  G.overBowler=null;
+  G.pendingTransition=null;
+
+  document.getElementById('manage-players-modal').classList.add('hidden');
+  setFb(`${playerName} removed from ${pairName} pair · schedule updated for ${G.numPlayers} players`,'info');
   setTimeout(()=>setFb('',''),4000);
   updateUI();saveGameState();
 }
