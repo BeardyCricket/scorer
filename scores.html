@@ -505,8 +505,11 @@ function render(payload){
         const bWkts=p.bat_wickets??p.wickets??0;
         const bFours=p.bat_fours??p.fours??0;
         const bSixes=p.bat_sixes??p.sixes??0;
+        const batExtras=(perfPairs&&p.bat_net!=null&&p.bat_gross!=null)
+          ?p.bat_net-p.bat_gross+(bWkts*5):null;
+        const extrasStr=batExtras>0?`, +${batExtras} extras`:'';
         const batSummary=perfPairs&&bRuns!=null
-          ?`🏏 Batting — ${bRuns} runs, ${bWkts} wkt${bWkts!==1?'s':''} (−${bWkts*5}), ${bFours} fours, ${bSixes} sixes`
+          ?`🏏 Batting — ${bRuns} runs${extrasStr}, ${bWkts} wkt${bWkts!==1?'s':''} (−${bWkts*5}), ${bFours} fours, ${bSixes} sixes`
           :`🏏 Batting — ${p.bat||p.total} runs`;
         const bowlSummary=perfPairs&&p.bowl_overs!=null
           ?`🔴 Bowling — ${p.bowl_overs} overs, ${p.bowl_runs} runs, ${p.bowl_wickets} wkt${p.bowl_wickets!==1?'s':''}, net ${p.bowl_net>0?'+':''}${p.bowl_net}, +${p.bowl_bonus} bonus`
