@@ -675,6 +675,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="sheet-title" id="trans-title" style="text-align:center;font-size:20px;margin-bottom:12px"></div>
     <div id="trans-body" style="font-size:15px;color:var(--muted);margin-bottom:24px;line-height:1.6"></div>
     <button class="btn btn-primary" onclick="hideTransitionModal()">Got it — continue</button>
+    <div id="trans-bat-order" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -761,7 +762,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div class="sheet" style="padding:20px 16px 40px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div class="sheet-title" style="margin-bottom:0">Manage players</div>
-      <button onclick="document.getElementById('manage-players-modal').classList.add('hidden')" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+      <button onclick="closeManagePlayersModal()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
     </div>
 
     <div class="card-title">Rename a player</div>
@@ -789,7 +790,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       <button class="btn btn-primary" onclick="confirmRemovePlayer()" style="background:var(--red);border-color:var(--red)">Remove player</button>
     </div>
 
-    <button class="btn btn-secondary" onclick="document.getElementById('manage-players-modal').classList.add('hidden')" style="margin-top:12px">Close</button>
+    <div id="bat-order-section" style="border-top:1px solid var(--border);padding-top:16px;margin-top:20px">
+      <div class="card-title">Change batting order</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Choose which pair bats next.</div>
+      <select class="sel-sel" id="bat-next-sel" style="width:100%;margin-bottom:12px"></select>
+      <button class="btn btn-primary" onclick="confirmBatNext()">Set as next to bat</button>
+    </div>
+
+    <button class="btn btn-secondary" onclick="closeManagePlayersModal()" style="margin-top:12px">Close</button>
   </div>
 </div>
 
@@ -2271,7 +2279,33 @@ function checkTransitions(){
     body=`<b style="color:var(--${nbw.color})">${nbw.cname}</b> now bowling`;
     color=nbw.color;
   }
-  if(title) showTransitionModal(title,body,color);
+  if(title){
+    showTransitionModal(title,body,color);
+    // Offer batting reorder if batting pair just changed and there are 2+ upcoming blocks
+    const reorderDiv=document.getElementById('trans-bat-order');
+    if(t.batChanged&&hasMultipleUpcomingBats()){
+      reorderDiv.innerHTML='<button class="btn btn-secondary" style="font-size:13px" onclick="openBatOrderFromTransition()">Change batting order ↗</button>';
+    }else{
+      reorderDiv.innerHTML='';
+    }
+  }
+}
+
+function hasMultipleUpcomingBats(){
+  const cur=G.batSched[G.overIdx];
+  let end=G.overIdx;
+  while(end+1<G.totalOvers&&G.batSched[end+1]===cur)end++;
+  const seen=new Set();
+  for(let o=end+1;o<G.totalOvers;o++){
+    const pi=G.batSched[o];
+    if(!G.pairs[pi]?.isExtraBat)seen.add(pi);
+  }
+  return seen.size>=2;
+}
+
+function openBatOrderFromTransition(){
+  document.getElementById('trans-modal').classList.add('hidden');
+  showManagePlayersModal();
 }
 
 function showTransitionModal(title,body,color){
@@ -4379,6 +4413,14 @@ updateTestModeUI();
 // ══════════════════════════════════════════
 // MANAGE PLAYERS DURING MATCH (rename / add)
 // ══════════════════════════════════════════
+function closeManagePlayersModal(){
+  document.getElementById('manage-players-modal').classList.add('hidden');
+  // Resume any pending game flow that was interrupted by opening this modal
+  if(G.pendingPlayerAdjust){showPlayerAdjustPrompt();return;}
+  if(G.pendingBowlerSelect){showBowlerModal();return;}
+  if(G.pendingWhoFacing){G.pendingWhoFacing=false;askWhoFacing();}
+}
+
 function showManagePlayersModal(){
   const rSel=document.getElementById('rename-player-sel');
   rSel.innerHTML=G.players.map(p=>`<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
@@ -4420,6 +4462,27 @@ function showManagePlayersModal(){
     removeSection.style.display='block';
   }else{
     removeSection.style.display='none';
+  }
+
+  // Bat order section — collect upcoming batting blocks after current pair's block
+  const _curPair=G.batSched[G.overIdx];
+  let _blockEnd=G.overIdx;
+  while(_blockEnd+1<G.totalOvers&&G.batSched[_blockEnd+1]===_curPair)_blockEnd++;
+  const _afterBlock=_blockEnd+1;
+  const _upcomingPairs=[];const _seenUp=new Set();
+  for(let o=_afterBlock;o<G.totalOvers;o++){
+    const pi=G.batSched[o];
+    if(!_seenUp.has(pi)&&!G.pairs[pi]?.isExtraBat){_seenUp.add(pi);_upcomingPairs.push(pi);}
+  }
+  const batOrderSection=document.getElementById('bat-order-section');
+  if(_upcomingPairs.length>=2){
+    document.getElementById('bat-next-sel').innerHTML=_upcomingPairs.map((pi,i)=>{
+      const p=G.pairs[pi];
+      return `<option value="${pi}"${i===0?' selected':''}>${escHtml(p.cname)} pair${i===0?' (currently next)':''}</option>`;
+    }).join('');
+    batOrderSection.style.display='block';
+  }else{
+    batOrderSection.style.display='none';
   }
 
   document.getElementById('manage-players-modal').classList.remove('hidden');
@@ -4595,6 +4658,46 @@ function confirmRemovePlayer(){
   updateUI();saveGameState();
 }
 
+function confirmBatNext(){
+  const targetPairIdx=parseInt(document.getElementById('bat-next-sel').value);
+  if(isNaN(targetPairIdx))return;
+
+  // Find end of current batting block
+  const currentPair=G.batSched[G.overIdx];
+  let blockEnd=G.overIdx;
+  while(blockEnd+1<G.totalOvers&&G.batSched[blockEnd+1]===currentPair)blockEnd++;
+  const nextStart=blockEnd+1;
+
+  // If the chosen pair is already next, just close
+  if(nextStart>=G.totalOvers||G.batSched[nextStart]===targetPairIdx){
+    document.getElementById('manage-players-modal').classList.add('hidden');
+    return;
+  }
+
+  // Find the target pair's block
+  let targetStart=-1;
+  for(let o=nextStart;o<G.totalOvers;o++){if(G.batSched[o]===targetPairIdx){targetStart=o;break;}}
+  if(targetStart<0)return;
+  let targetEnd=targetStart;
+  while(targetEnd+1<G.totalOvers&&G.batSched[targetEnd+1]===targetPairIdx)targetEnd++;
+  const targetLen=targetEnd-targetStart+1;
+
+  // Remove target block from its current position and re-insert at nextStart
+  const tBat=G.batSched.splice(targetStart,targetLen);
+  const tBowl=G.bowlSched.splice(targetStart,targetLen);
+  const tRaw=G.bowlSchedRaw.splice(targetStart,targetLen);
+  G.batSched.splice(nextStart,0,...tBat);
+  G.bowlSched.splice(nextStart,0,...tBowl);
+  G.bowlSchedRaw.splice(nextStart,0,...tRaw);
+
+  G.overBowler=null;G.pendingBowlerSelect=true;
+  const targetName=G.pairs[targetPairIdx]?.cname||'Unknown';
+  document.getElementById('manage-players-modal').classList.add('hidden');
+  setFb(`${targetName} pair moved to bat next`,'info');
+  setTimeout(()=>setFb('',''),3000);
+  updateUI();saveGameState();
+}
+
 function _rebuildRemainingSchedule(){
   const doneBat=G.batSched.slice(0,G.overIdx);
   const doneBowl=G.bowlSched.slice(0,G.overIdx);
@@ -4617,14 +4720,23 @@ function _rebuildRemainingSchedule(){
     const ss=SEED_SCHED[total]||SEED_SCHED[total-1]||SEED_SCHED[total+1];
     if(!ss){console.warn('No seed schedule for',total,'players');return;}
     schedOpp=ss.opp||4;
-    for(const actualIdx of (ss.batOrder||keepPairs)){
-      if(!keepPairs.includes(actualIdx))continue;
-      const slot=ss.slots[actualIdx]||ss.slots[0];
+    // Map SEED_SCHED position → actual G.pairs index by colour.
+    // SEED_SCHED indices assume a specific colour ordering (e.g. 8p: Blue=0,Red=1,Purple=2,Grey=3).
+    // When players are removed mid-match the actual pair indices don't change, so a pair like Grey
+    // that was originally at G.pairs[4] would never appear in a batOrder designed for Grey=3.
+    // Resolving by colour makes the mapping stable regardless of mid-game removals.
+    const seedColors=total<=8?SEED_COLORS_SMALL:total<=10?SEED_COLORS_MID:SEED_COLORS_LARGE;
+    const posToActual=seedColors.map(col=>G.pairs.findIndex(p=>p.color===col&&!p.absent));
+    const batSeq=ss.batOrder||seedColors.map((_,i)=>i);
+    for(const seedPos of batSeq){
+      const actualIdx=posToActual[seedPos]??-1;
+      if(actualIdx<0||!keepPairs.includes(actualIdx))continue;
+      const slot=ss.slots[seedPos]||ss.slots[0];
       const batted=Math.min(alreadyBatted[actualIdx]||0,schedOpp);
       for(let o=batted;o<schedOpp;o++){
         const raw=slot[o]??0;
-        const bowlIdx=(raw==='L'||raw==='2')?-1:Math.min(typeof raw==='number'?raw:0,newNP-1);
-        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlIdx);
+        const bowlActual=(raw==='L'||raw==='2')?-1:(posToActual[raw]??-1);
+        newBat.push(actualIdx);newBowlRaw.push(raw);newBowl.push(bowlActual>=0?bowlActual:0);
       }
     }
   } else {
