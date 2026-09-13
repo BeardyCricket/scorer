@@ -226,6 +226,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .seed-num-inp{width:34px;height:26px;border:1px solid var(--border);border-radius:6px;font-size:11px;font-weight:700;text-align:center;padding:0 2px;background:var(--grey-l);color:var(--muted);}
 .seed-num-inp:focus{outline:2px solid var(--brand);outline-offset:-1px}
 .seed-num-inp.has-seed{background:var(--brand-l);border-color:var(--brand);color:var(--brand)}
+.seed-num-inp.seed-num-locked{border-color:#d97706!important;background:#fff8ed!important;color:#92400e!important}
+.seed-num-reset{display:none;width:20px;height:26px;border:none;background:none;cursor:pointer;font-size:13px;color:#d97706;padding:0;line-height:1;opacity:.7}
+.seed-num-reset:hover{opacity:1}
 .seed-mode-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:8px}
 .tog{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}
 .tog input{opacity:0;width:0;height:0;position:absolute}
@@ -3485,8 +3488,10 @@ function renderRoster(){
       const ex=!!p.extras;
       const hasHistory=!!(_playerStatsCache&&_playerStatsCache[correctName(p.name)]?.bb>0);
       const snAuto=!!p.seedNumAuto&&!p.seedNumLocked;
-      const snClass=snAuto?'seed-num-auto':(!hasHistory&&_playerStatsCache?'seed-num-unranked':'');
+      const snLocked=!!p.seedNumLocked;
+      const snClass=snLocked?'seed-num-locked':snAuto?'seed-num-auto':(!hasHistory&&_playerStatsCache?'seed-num-unranked':'');
       const snPlaceholder=(!hasHistory&&_playerStatsCache)?'new':'—';
+      const snTitle=snLocked?'Manually overridden — click ↺ to restore auto-calculated rank':snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)';
       row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
         <div class="seed-wrap">
           <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Rank 1 — bat early">1</button>
@@ -3494,7 +3499,8 @@ function renderRoster(){
           <button class="seed-btn${sd===3?' sel-seed':''}" onclick="setRosterSeed(${i},3,this)" title="Rank 3 — bat later">3</button>
         </div>
         <input class="seed-num-inp${snClass?' '+snClass:''}" type="number" min="1" max="10" value="${sn?escHtml(String(sn)):''}" placeholder="${snPlaceholder}"
-          oninput="setRosterSeedNum(${i},this.value,this)" onblur="finalizeRosterSeedNum(${i})" title="${snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)'}">
+          oninput="setRosterSeedNum(${i},this.value,this)" onblur="finalizeRosterSeedNum(${i})" title="${snTitle}">
+        <button class="seed-num-reset" onclick="clearRosterSeedLock(${i})" title="Restore auto-calculated rank" style="${snLocked?'display:inline':'display:none'}">↺</button>
         <button class="seed-btn extras-btn${ex?' sel-extras':''}" onclick="setRosterExtras(${i},this)" title="Extras flag — avoid pairing with another extras player${p.extrasAuto&&!p.extrasLocked?' (auto-calculated)':''}">E</button>
         <div class="status-chips">
           <div class="status-chip${st==='present'?' s-present':''}" onclick="setPlayerStatus(${i},'present')">✓</div>
@@ -3503,7 +3509,7 @@ function renderRoster(){
         </div>
         <button class="roster-del" onclick="removeRosterPlayer(${i})">×</button>`;
       list.appendChild(row);
-      if(sn){const inp=row.querySelector('.seed-num-inp');if(inp)inp.classList.add('has-seed');}
+      if(sn&&!snLocked){const inp=row.querySelector('.seed-num-inp');if(inp)inp.classList.add('has-seed');}
     });
   }
   updateRosterToday();
@@ -3551,19 +3557,41 @@ function setRosterSeedNum(i,val,el){
   rosterPlayers[i].seedNum=(n>=1&&n<=10)?n:null;
   rosterPlayers[i].seedNumLocked=!!rosterPlayers[i].seedNum;
   rosterPlayers[i].seedNumAuto=false;
-  if(el)el.classList.toggle('has-seed',!!rosterPlayers[i].seedNum);
+  if(el){
+    el.classList.remove('has-seed','seed-num-auto','seed-num-unranked');
+    if(rosterPlayers[i].seedNumLocked){
+      el.classList.add('seed-num-locked');
+      const row=el.closest('.roster-row');
+      const resetBtn=row?.querySelector('.seed-num-reset');
+      if(resetBtn)resetBtn.style.display='inline';
+    } else {
+      el.classList.remove('seed-num-locked');
+      const row=el.closest('.roster-row');
+      const resetBtn=row?.querySelector('.seed-num-reset');
+      if(resetBtn)resetBtn.style.display='none';
+    }
+  }
+  saveRoster();
 }
 
 function finalizeRosterSeedNum(i){
   const newSeed=rosterPlayers[i].seedNum;
   if(newSeed){
-    // Push everyone else at the same rank or lower (higher number) down by 1
     rosterPlayers.forEach((p,j)=>{
       if(j!==i&&p.seedNum!=null&&p.seedNum>=newSeed){
         p.seedNum=Math.min(p.seedNum+1,10);
       }
     });
   }
+  saveRoster();
+  renderRoster();
+}
+
+function clearRosterSeedLock(i){
+  rosterPlayers[i].seedNumLocked=false;
+  rosterPlayers[i].seedNum=null;
+  rosterPlayers[i].seedNumAuto=false;
+  if(_playerStatsCache)_applyRosterStats(_playerStatsCache);
   saveRoster();
   renderRoster();
 }
