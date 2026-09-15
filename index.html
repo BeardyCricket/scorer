@@ -514,6 +514,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div id="skip-pair-row" class="hidden" style="padding:4px 16px 0">
     <button class="skip-pair-btn" onclick="skipBattingPair()">⏭ Skip to next pair</button>
   </div>
+  <div id="extra-bat-turn-row" class="hidden" style="padding:4px 16px 0">
+    <button class="skip-pair-btn" onclick="showExtraBatTurnModal()">➕ Add extra batting turn</button>
+  </div>
   <div class="sp">
     <button class="sb" onclick="ball(0,'0')">0</button>
     <button class="sb" onclick="ball(1,'1')">1</button>
@@ -757,6 +760,19 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </div>
     <button class="btn btn-primary" onclick="confirmExtraBatPair()">⭐ Yes — play extra innings</button>
     <button class="btn btn-secondary" style="margin-top:10px" onclick="declineExtraBatPair()">No — go to results</button>
+  </div>
+</div>
+
+<!-- EXTRA BAT TURN MODAL -->
+<div class="overlay hidden" id="extra-bat-turn-modal">
+  <div class="sheet" style="padding:24px 16px 48px">
+    <div class="sheet-title">Add extra batting turn</div>
+    <div class="sheet-sub" style="margin-bottom:16px">Select the player to join a solo batter. One additional 4-over batting turn will be inserted after the current pair finishes.</div>
+    <label class="lbl">Extra player</label>
+    <select class="sel-sel" id="extra-bat-turn-sel" style="width:100%;margin-bottom:4px"></select>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="extra-bat-turn-hint"></div>
+    <button class="btn btn-primary" onclick="confirmExtraBatTurn()">Insert extra batting turn</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="hideExtraBatTurnModal()">Cancel</button>
   </div>
 </div>
 
@@ -1092,8 +1108,8 @@ const SCHED = {
 // SEED MODE SCHEDULES (from Excel)
 // Pair order: 8p   → [0=Blue,1=Red,2=Purple,3=Grey]
 //             9p   → [0=Blue,1=Red,2=Purple,3=Green(solo),4=Grey]
-//             10p  → [0=Blue,1=Red,2=Purple,3=Green,4=Grey]
-//             11-14p → [0=Blue,1=Red,2=Green,3=Purple,4=Grey,5=Orange,6=Pink]
+//             10p  → [0=Green,1=Blue,2=Red,3=Purple,4=Grey]
+//             11-14p → [0=Green,1=Blue,2=Red,3=Purple,4=Grey,5=Orange,6=Pink]
 // 'L' = leaders bowl dynamically
 // ══════════════════════════════════════════
 const SEED_SCHED = {
@@ -1119,52 +1135,57 @@ const SEED_SCHED = {
       3:[0,0,'L','L'], // Green(solo) bats: Blue,Blue,Leaders,Leaders
       4:[3,2,2,3]     // Grey bats: Green,Purple,Purple,Green
   }},
+  // 10p: Green(seeds1&6)=0, Blue(seeds2&5)=1, Red(seeds3&4)=2, Purple=3, Grey=4
   10: { opp:4, odd:false,
-    batOrder:[2,0,4,1,3],          // Purple→Blue→Grey→Red→Green
+    batOrder:[3,1,4,2,0],          // Purple→Blue→Grey→Red→Green
     slots:{
-      0:[2,2,1,1],    // Blue bats: Purple,Purple,Red,Red
-      1:[0,0,3,3],    // Red bats: Blue,Blue,Green,Green
-      2:[4,4,1,1],    // Purple bats: Grey,Grey,Red,Red
-      3:[4,4,0,0],    // Green bats: Grey,Grey,Blue,Blue
-      4:[3,3,2,2]     // Grey bats: Green,Green,Purple,Purple
+      0:[2,2,1,1],    // Green bats: Red,Red,Blue,Blue
+      1:[0,0,4,4],    // Blue bats: Green,Green,Grey,Grey
+      2:[0,0,3,3],    // Red bats: Green,Green,Purple,Purple
+      3:[4,4,2,2],    // Purple bats: Grey,Grey,Red,Red
+      4:[3,3,1,1]     // Grey bats: Purple,Purple,Blue,Blue
   }},
+  // 11p: Green(seeds1&6)=0, Blue(seeds2&5)=1, Red(seeds3&4)=2, Purple=3, Grey=4, Orange(solo)=5
   11: { opp:4, odd:true,
-    batOrder:[3,0,4,1,2,5],        // Purple→Blue→Grey→Red→Green→Orange(solo)
+    batOrder:[3,1,4,2,0,5],        // Purple→Blue→Grey→Red→Green→Orange(solo)
     slots:{
-      0:[1,2,2,3],    // Blue bats: Red,Green,Green,Purple
-      1:[0,0,4,4],    // Red bats: Blue,Blue,Grey,Grey
-      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
-      3:[4,4,5,1],    // Purple bats: Grey,Grey,Orange,Red
-      4:[3,5,2,2],    // Grey bats: Purple,Orange,Green,Green
-      5:[3,3,'L','L'] // Orange (solo): Purple,Purple,Leaders,Leaders
+      0:[1,1,2,2],    // Green bats: Blue,Blue,Red,Red
+      1:[2,0,0,2],    // Blue bats: Red,Green,Green,Red
+      2:[1,1,0,0],    // Red bats: Blue,Blue,Green,Green
+      3:[4,4,5,2],    // Purple bats: Grey,Grey,Orange,Red
+      4:[2,3,3,5],    // Grey bats: Red,Purple,Purple,Orange
+      5:[4,4,3,3]     // Orange (solo) bats: Grey,Grey,Purple,Purple
   }},
+  // 12p: Green(seeds1&6)=0, Blue(seeds2&5)=1, Red(seeds3&4)=2, Purple=3, Grey=4, Orange=5
   12: { opp:4, odd:false,
-    batOrder:[3,0,4,1,2,5],        // Purple→Blue→Grey→Red→Green→Orange
+    batOrder:[3,1,4,2,0,5],        // Purple→Blue→Grey→Red→Green→Orange
     slots:{
-      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
-      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
-      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      0:[1,1,2,2],    // Green bats: Blue,Blue,Red,Red
+      1:[2,2,0,0],    // Blue bats: Red,Red,Green,Green
+      2:[1,1,0,0],    // Red bats: Blue,Blue,Green,Green
       3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
       4:[3,3,5,5],    // Grey bats: Purple,Purple,Orange,Orange
       5:[4,4,3,3]     // Orange bats: Grey,Grey,Purple,Purple
   }},
+  // 13p: Green(seeds1&6)=0, Blue(seeds2&5)=1, Red(seeds3&4)=2, Purple=3, Grey=4, Orange=5, Pink(solo)=6
   13: { opp:4, odd:true,
-    batOrder:[3,0,4,1,2,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink(solo)
+    batOrder:[3,1,4,2,0,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink(solo)
     slots:{
-      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
-      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
-      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      0:[1,1,2,2],    // Green bats: Blue,Blue,Red,Red
+      1:[2,2,0,0],    // Blue bats: Red,Red,Green,Green
+      2:[1,1,0,0],    // Red bats: Blue,Blue,Green,Green
       3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
       4:[6,3,3,6],    // Grey bats: Pink,Purple,Purple,Pink
       5:[4,4,3,3],    // Orange bats: Grey,Grey,Purple,Purple
       6:[5,5,'L','L'] // Pink (solo): Orange,Orange,Leaders,Leaders
   }},
+  // 14p: Green(seeds1&6)=0, Blue(seeds2&5)=1, Red(seeds3&4)=2, Purple=3, Grey=4, Orange=5, Pink=6
   14: { opp:4, odd:false,
-    batOrder:[3,0,4,1,2,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink
+    batOrder:[3,1,4,2,0,5,6],      // Purple→Blue→Grey→Red→Green→Orange→Pink
     slots:{
-      0:[1,1,2,2],    // Blue bats: Red,Red,Green,Green
-      1:[0,0,2,2],    // Red bats: Blue,Blue,Green,Green
-      2:[0,0,1,1],    // Green bats: Blue,Blue,Red,Red
+      0:[1,1,2,2],    // Green bats: Blue,Blue,Red,Red
+      1:[2,2,0,0],    // Blue bats: Red,Red,Green,Green
+      2:[1,1,0,0],    // Red bats: Blue,Blue,Green,Green
       3:[4,4,5,5],    // Purple bats: Grey,Grey,Orange,Orange
       4:[6,6,3,3],    // Grey bats: Pink,Pink,Purple,Purple
       5:[6,6,4,4],    // Orange bats: Pink,Pink,Grey,Grey
@@ -1177,8 +1198,8 @@ const SEED_COLORS_SMALL = ['blue','red','purple','grey'];
 const SEED_CNAMES_SMALL = ['Blue','Red','Purple','Grey'];
 const SEED_COLORS_MID   = ['blue','red','purple','green','grey'];
 const SEED_CNAMES_MID   = ['Blue','Red','Purple','Green','Grey'];
-const SEED_COLORS_LARGE = ['blue','red','green','purple','grey','orange','pink'];
-const SEED_CNAMES_LARGE = ['Blue','Red','Green','Purple','Grey','Orange','Pink'];
+const SEED_COLORS_LARGE = ['green','blue','red','purple','grey','orange','pink'];
+const SEED_CNAMES_LARGE = ['Green','Blue','Red','Purple','Grey','Orange','Pink'];
 
 // ══════════════════════════════════════════
 // STATE
@@ -1822,6 +1843,12 @@ const skipRow=document.getElementById('skip-pair-row');
       canSkip=G.ballInOver===0&&isFirstOverOfBlock&&hasNextBlock;
     }
     skipRow.classList.toggle('hidden',!canSkip);
+  }
+  const extraTurnRow=document.getElementById('extra-bat-turn-row');
+  if(extraTurnRow){
+    // Show in seed mode when the match is active and not at the very end
+    const showExtraTurn=G.seedMode&&G.overIdx<G.totalOvers&&G.totalOvers>0;
+    extraTurnRow.classList.toggle('hidden',!showExtraTurn);
   }
 
   // Check if we need to show a transition modal (new batting or bowling pair)
@@ -2727,7 +2754,9 @@ function showBowlerLB(){
 // PLAYER COUNT REDUCTION (late arrivals)
 // ══════════════════════════════════════════
 function reduceCutoffOver(){
-  if(G.seedMode)return 4; // seed mode: locked after over 4
+  // In seed mode, 12→11 allowed up to end of over 3 (overIdx pre-incr < 3)
+  // 12→10 validated separately in confirmPairSelection (up to end of over 2)
+  if(G.seedMode)return G.numPlayers>=12?3:0;
   // Cutoff: before over 5 for ≤9 players, before over 9 for 14-15, before over 7 otherwise
   return G.numPlayers<=9?4:G.numPlayers>=14?8:6;
 }
@@ -2866,12 +2895,15 @@ function confirmPairSelection(){
   if(!adjustState)return;
   const active=adjustState.pairPlayers.map((pl,i)=>({i,pl})).filter(d=>d.pl.length>0);
   if(!active.length){alert('Assign at least one player.');return;}
+  const total=active.reduce((s,d)=>s+d.pl.length,0);
+  if(G.seedMode&&total<=10&&G.overIdx>=3){
+    alert('In seed mode, reducing to 10 players can only be done up to the end of over 2.');return;
+  }
   const soloCount=active.filter(d=>d.pl.length===1).length;
   if(soloCount>1){alert('Only the last pair should have 1 player (solo).\nPlease move extra players into other pairs first.');return;}
   document.getElementById('reduce-modal').classList.add('hidden');
 
   const hasBatted=adjustState.hasBatted;
-  const total=active.reduce((s,d)=>s+d.pl.length,0);
 
   // Apply player changes to G.pairs
   G.pairs.forEach((p,i)=>{
@@ -2957,7 +2989,7 @@ function confirmPairSelection(){
   // Odd game: borrow first player from first batting pair to bat with the solo pair
   if(G.isOdd&&solo.length===1){
     const soloActualIdx=keepPairs[keepPairs.length-1]; // solo pair is always last
-    const purpleActualIdx=G.seedMode?(G.numPlayers<=10?2:3):0;
+    const purpleActualIdx=G.seedMode?(G.numPlayers===9?2:3):0;
     const firstActualIdx=keepPairs.find(i=>i===purpleActualIdx)??keepPairs[0]; // first batting pair (Purple)
     const borrowed=G.pairs[firstActualIdx].players[0];
     // Add borrowed player — they bat with the solo player but fixedBowler ensures they never bowl
@@ -3716,7 +3748,7 @@ function playToday(){
 function buildSeedPairs(){
   const rnd=arr=>{for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;};
   const total=G.numPlayers;
-  const mid=(total===9||total===10);
+  const mid=(total===9); // 9p only — 10p now uses the same top-6 structure as 11-14p
   const small=!mid&&total<=9; // effectively total===8 (seed mode runs for 8-14p)
   const seedColors=mid?SEED_COLORS_MID:small?SEED_COLORS_SMALL:SEED_COLORS_LARGE;
   const seedCnames=mid?SEED_CNAMES_MID:small?SEED_CNAMES_SMALL:SEED_CNAMES_LARGE;
@@ -3727,36 +3759,39 @@ function buildSeedPairs(){
   G.playerExtrasMap={};
   rosterPlayers.forEach(p=>{G.playerExtrasMap[p.name]=!!p.extras;});
 
-  // Sort ALL players (present + late) by seedNum ascending — latecomers placed by seed rank
+  // Sort ALL players (present + late) by seedNum ascending
   const allObjs=rosterPlayers
     .filter(p=>sessionStatuses[p.name]==='present'||sessionStatuses[p.name]==='late')
     .map(p=>({name:p.name,sn:p.seedNum>=1&&p.seedNum<=10?p.seedNum:Infinity}))
     .sort((a,b)=>a.sn-b.sn);
 
+  // Even-latecomer grouping: keep them together as a dedicated pair at the end
+  const lateSet=new Set(lateNames);
+  let latecomePair=null;
+  let coreObjs=allObjs;
+  if(lateNames.length>=2&&lateNames.length%2===0&&total%2===0){
+    const lateObjs=allObjs.filter(o=>lateSet.has(o.name));
+    coreObjs=allObjs.filter(o=>!lateSet.has(o.name));
+    latecomePair=[lateObjs[0]?.name,lateObjs[1]?.name].filter(Boolean);
+    // If 4+ latecomers, remaining go back into core (keeps pairs of 2 correct)
+    if(lateObjs.length>2)coreObjs=[...coreObjs,...lateObjs.slice(2)];
+  }
+
   G.pairs=[];
   const mk=(color,cname,players)=>({color,cname,players:players.filter(Boolean),fixedBowler:null,borrowedPlayer:null});
 
   if(mid){
-    // 9 or 10 players: all seeded into fixed positions by seed rank
-    // Top 4: Blue(1st & 4th), Red(2nd & 3rd)
-    G.pairs.push(mk('blue',  'Blue',  [allObjs[0]?.name,allObjs[3]?.name]));
-    G.pairs.push(mk('red',   'Red',   [allObjs[1]?.name,allObjs[2]?.name]));
-    if(total===10){
-      // Next 4: Purple(5th & 8th), Green(6th & 7th); then Grey(9th & 10th)
-      G.pairs.push(mk('purple','Purple',[allObjs[4]?.name,allObjs[7]?.name]));
-      G.pairs.push(mk('green', 'Green', [allObjs[5]?.name,allObjs[6]?.name]));
-      G.pairs.push(mk('grey',  'Grey',  [allObjs[8]?.name,allObjs[9]?.name]));
-    } else {
-      // 9 players: Purple(5th & 7th), Green(6th solo), Grey(8th & 9th)
-      G.pairs.push(mk('purple','Purple',[allObjs[4]?.name,allObjs[6]?.name]));
-      const greenPlayer=allObjs[5]?.name;
-      G.pairs.push({color:'green',cname:'Green',players:greenPlayer?[greenPlayer]:[],fixedBowler:greenPlayer||null,borrowedPlayer:null});
-      G.pairs.push(mk('grey',  'Grey',  [allObjs[7]?.name,allObjs[8]?.name]));
-    }
+    // 9 players: Top 4: Blue(1st & 4th), Red(2nd & 3rd); Purple(5th & 7th), Green(6th solo), Grey(8th & 9th)
+    G.pairs.push(mk('blue',  'Blue',  [coreObjs[0]?.name,coreObjs[3]?.name]));
+    G.pairs.push(mk('red',   'Red',   [coreObjs[1]?.name,coreObjs[2]?.name]));
+    G.pairs.push(mk('purple','Purple',[coreObjs[4]?.name,coreObjs[6]?.name]));
+    const greenPlayer=coreObjs[5]?.name;
+    G.pairs.push({color:'green',cname:'Green',players:greenPlayer?[greenPlayer]:[],fixedBowler:greenPlayer||null,borrowedPlayer:null});
+    G.pairs.push(mk('grey',  'Grey',  [coreObjs[7]?.name,coreObjs[8]?.name]));
   } else if(small){
     // 8 players: top 4 seeded → Blue(1st & 4th), Red(2nd & 3rd); remaining randomly → Purple, Grey
-    const seeded=allObjs.slice(0,4);
-    const remain=separateExtras(rnd(allObjs.slice(4).map(p=>p.name)),G.playerExtrasMap);
+    const seeded=coreObjs.slice(0,4);
+    const remain=separateExtras(rnd(coreObjs.slice(4).map(p=>p.name)),G.playerExtrasMap);
     G.pairs.push(mk('blue','Blue',[seeded[0]?.name,seeded[3]?.name]));
     G.pairs.push(mk('red', 'Red', [seeded[1]?.name,seeded[2]?.name]));
     for(let i=0;i<remain.length;i+=2){
@@ -3767,12 +3802,12 @@ function buildSeedPairs(){
       else{G.pairs.push({color,cname,players:[remain[i]],fixedBowler:remain[i],borrowedPlayer:null});}
     }
   } else {
-    // 11-14 players: top 6 seeded → Blue(1st & 6th), Red(2nd & 5th), Green(3rd & 4th); rest random
-    const seeded=allObjs.slice(0,6);
-    const remain=separateExtras(rnd(allObjs.slice(6).map(p=>p.name)),G.playerExtrasMap);
-    G.pairs.push(mk('blue', 'Blue', [seeded[0]?.name,seeded[5]?.name]));
-    G.pairs.push(mk('red',  'Red',  [seeded[1]?.name,seeded[4]?.name]));
-    G.pairs.push(mk('green','Green',[seeded[2]?.name,seeded[3]?.name]));
+    // 10-14 players: top 6 seeded → Green(1st & 6th), Blue(2nd & 5th), Red(3rd & 4th); rest random
+    const seeded=coreObjs.slice(0,6);
+    const remain=separateExtras(rnd(coreObjs.slice(6).map(p=>p.name)),G.playerExtrasMap);
+    G.pairs.push(mk('green','Green',[seeded[0]?.name,seeded[5]?.name]));
+    G.pairs.push(mk('blue', 'Blue', [seeded[1]?.name,seeded[4]?.name]));
+    G.pairs.push(mk('red',  'Red',  [seeded[2]?.name,seeded[3]?.name]));
     for(let i=0;i<remain.length;i+=2){
       const pi=G.pairs.length;
       const color=seedColors[pi]||'purple';
@@ -3782,12 +3817,23 @@ function buildSeedPairs(){
     }
   }
 
+  // Append latecomer pair at the appropriate slot (Pink → Orange → Grey based on total)
+  if(latecomePair&&latecomePair.length===2){
+    const pi=G.pairs.length;
+    let lc_color,lc_cname;
+    if(pi>=6){lc_color='pink';lc_cname='Pink';}
+    else if(pi>=5){lc_color='orange';lc_cname='Orange';}
+    else if(pi>=4){lc_color='grey';lc_cname='Grey';}
+    else{lc_color=seedColors[pi]||'green';lc_cname=seedCnames[pi]||'Green';}
+    G.pairs.push(mk(lc_color,lc_cname,latecomePair));
+  }
+
   G.numPairs=G.pairs.length;
   G.lateArrivals=new Set(lateNames);
 
   // Odd game: solo pair borrows first player of Purple pair for batting
   if(G.isOdd){
-    const purpleIdx=total<=10?2:3;
+    const purpleIdx=total===9?2:3; // 9p mid: Purple is pair 2; 10p+: Purple is pair 3
     // In 9-player mid mode the solo pair (Green) is at index 3, not last
     const soloIdx=(mid&&total===9)?3:G.numPairs-1;
     const soloPair=G.pairs[soloIdx];
@@ -3905,12 +3951,18 @@ function showLateModal(){
   document.getElementById('late-modal-sub').textContent=`Has ${m.playerName} arrived yet?`;
   const altDiv=document.getElementById('late-modal-alt');
   if(m.type==='bat'){
+    // Check if the entire batting pair consists of late arrivals
+    const bp=G.pairs[m.pairIdx];
+    const allPairLate=bp&&bp.players.filter(n=>n!==bp.borrowedPlayer).every(n=>G.lateArrivals.has(n));
+    const skipBtn=allPairLate
+      ?`<button class="btn btn-secondary" style="margin-top:8px" onclick="skipAbsentPair(${m.pairIdx})">Pair not coming — skip their turns</button>`
+      :'';
     const subs=eligibleSubBatters(m.pairIdx);
     if(subs.length){
       const pick=subs[Math.floor(Math.random()*subs.length)];
-      altDiv.innerHTML=`<button class="btn btn-secondary" onclick="useSubBatter('${pick.replace(/'/g,"\\'")}')">Not arrived — sub in ${pick}</button>`;
+      altDiv.innerHTML=`<button class="btn btn-secondary" onclick="useSubBatter('${pick.replace(/'/g,"\\'")}')">Not arrived — sub in ${pick}</button>${skipBtn}`;
     } else {
-      altDiv.innerHTML='<div style="font-size:13px;color:var(--muted)">No eligible subs yet (need players who\'ve batted + bowled 2 overs).</div>';
+      altDiv.innerHTML=`<div style="font-size:13px;color:var(--muted)">No eligible subs yet (need players who've batted + bowled 2 overs).</div>${skipBtn}`;
     }
   } else {
     altDiv.innerHTML=`<button class="btn btn-secondary" onclick="hideLateModal();setTimeout(()=>{G.pendingBowlerSelect=true;showBowlerOtherPick();},100)">Not arrived — pick another bowler</button>`;
@@ -3960,6 +4012,113 @@ function useSubBatter(name){
   }
   updateUI();
   setFb(`${name} subbing for late arrival`,'info');
+}
+
+function skipAbsentPair(pairIdx){
+  hideLateModal();
+  const pair=G.pairs[pairIdx];
+  if(!pair)return;
+  pair.absent=true;
+  if(!pair.absentPlayers)pair.absentPlayers=[];
+  pair.players.filter(n=>n!==pair.borrowedPlayer).forEach(n=>{
+    pair.absentPlayers.push(n);
+    G.lateArrivals.delete(n);
+  });
+  pair.players=[];pair.fixedBowler=null;
+  // Remove this pair's remaining bat overs and reassign bowling from them to dynamic
+  const done=G.overIdx;
+  const newBat=[],newBowl=[],newBowlRaw=[];
+  for(let i=done;i<G.batSched.length;i++){
+    if(G.batSched[i]===pairIdx)continue; // skip absent pair's batting overs
+    newBat.push(G.batSched[i]);
+    const bwl=G.bowlSched[i];
+    const raw=G.bowlSchedRaw[i];
+    // If this pair was scheduled to bowl, replace with dynamic leader selection
+    newBowl.push(bwl===pairIdx?-1:bwl);
+    newBowlRaw.push(raw===pairIdx?'L':raw);
+  }
+  G.batSched=[...G.batSched.slice(0,done),...newBat];
+  G.bowlSched=[...G.bowlSched.slice(0,done),...newBowl];
+  G.bowlSchedRaw=[...G.bowlSchedRaw.slice(0,done),...newBowlRaw];
+  G.totalOvers=G.batSched.length;
+  G.pendingBowlerSelect=true;G.overBowler=null;
+  setFb(`${pair.cname} pair absent — turns skipped`,'info');
+  setTimeout(()=>setFb('',''),3000);
+  updateUI();saveGameState();
+}
+
+// ══════════════════════════════════════════
+// MANUAL EXTRA BATTING TURN (seed mode)
+// ══════════════════════════════════════════
+function showExtraBatTurnModal(){
+  if(!G.seedMode)return;
+  // Default suggestion: seed 6 (second player in Green pair = pair 0 in 10-14p)
+  // If seed 6's pair is leading, default to seed 5 (second player in Blue pair = pair 1)
+  const ranked=rankByScore();
+  const leadPairIdx=ranked[0];
+  const greenPair=G.pairs[0];
+  const bluePair=G.pairs[1];
+  const seed6=greenPair?.players?.filter(n=>n!==greenPair.borrowedPlayer)[1]||greenPair?.players?.[1]||null;
+  const seed5=bluePair?.players?.filter(n=>n!==bluePair.borrowedPlayer)[1]||bluePair?.players?.[1]||null;
+  const greenLeads=(leadPairIdx===0);
+  const defaultPlayer=greenLeads?seed5:seed6;
+
+  const sel=document.getElementById('extra-bat-turn-sel');
+  sel.innerHTML=G.players.map(name=>`<option value="${name.replace(/"/g,'&quot;')}"${name===defaultPlayer?' selected':''}>${name}</option>`).join('');
+  const hint=document.getElementById('extra-bat-turn-hint');
+  if(defaultPlayer===seed5&&greenLeads)hint.textContent='Seed 5 suggested — Green pair is currently leading';
+  else if(defaultPlayer===seed6)hint.textContent='Seed 6 suggested by default';
+  else hint.textContent='';
+  document.getElementById('extra-bat-turn-modal').classList.remove('hidden');
+}
+
+function hideExtraBatTurnModal(){
+  document.getElementById('extra-bat-turn-modal').classList.add('hidden');
+}
+
+function confirmExtraBatTurn(){
+  const sel=document.getElementById('extra-bat-turn-sel');
+  const extraPlayer=sel?.value;
+  if(!extraPlayer)return;
+  hideExtraBatTurnModal();
+
+  // Insert after the current batting pair's block ends
+  const curBat=G.batSched[G.overIdx];
+  let insertAt=G.overIdx;
+  while(insertAt<G.totalOvers&&G.batSched[insertAt]===curBat)insertAt++;
+
+  // Create a new pair slot for this extra turn
+  const newPairIdx=G.pairs.length;
+  const extraPlayerOrigPair=G.pairs.findIndex(p=>p.players.includes(extraPlayer));
+  G.pairs.push({color:'yellow',cname:'Extra',players:[extraPlayer],isExtraBatTurn:true,absent:false,fixedBowler:null,borrowedPlayer:null});
+  G.scores.push({bat:0,bowl:0});
+  G.numPairs++;
+
+  // Pick 4 bowlers cycling through non-absent, non-batting pairs
+  // Prefer pairs from the same tier as the extra player's original pair
+  const topTierMax=2; // 0=Green,1=Blue,2=Red
+  const isTopTier=extraPlayerOrigPair>=0&&extraPlayerOrigPair<=topTierMax;
+  let bowlCandidates=G.pairs.slice(0,newPairIdx)
+    .map((_,i)=>i)
+    .filter(i=>!G.pairs[i].absent&&i!==extraPlayerOrigPair&&(isTopTier?(i<=topTierMax):(i>topTierMax)));
+  if(!bowlCandidates.length){
+    bowlCandidates=G.pairs.slice(0,newPairIdx).map((_,i)=>i).filter(i=>!G.pairs[i].absent&&i!==extraPlayerOrigPair);
+  }
+  if(!bowlCandidates.length)bowlCandidates=[0];
+
+  const newBat=[],newBowl=[],newBowlRaw=[];
+  for(let o=0;o<4;o++){
+    const bowlerIdx=bowlCandidates[o%bowlCandidates.length];
+    newBat.push(newPairIdx);newBowl.push(bowlerIdx);newBowlRaw.push(bowlerIdx);
+  }
+  G.batSched.splice(insertAt,0,...newBat);
+  G.bowlSched.splice(insertAt,0,...newBowl);
+  G.bowlSchedRaw.splice(insertAt,0,...newBowlRaw);
+  G.totalOvers+=4;
+  G.pendingBowlerSelect=true;G.overBowler=null;
+  setFb(`Extra batting turn for ${extraPlayer} inserted`,'info');
+  setTimeout(()=>setFb('',''),3000);
+  updateUI();saveGameState();
 }
 
 // ══════════════════════════════════════════
@@ -4753,7 +4912,7 @@ function _rebuildRemainingSchedule(){
     // When players are removed mid-match the actual pair indices don't change, so a pair like Grey
     // that was originally at G.pairs[4] would never appear in a batOrder designed for Grey=3.
     // Resolving by colour makes the mapping stable regardless of mid-game removals.
-    const seedColors=total<=8?SEED_COLORS_SMALL:total<=10?SEED_COLORS_MID:SEED_COLORS_LARGE;
+    const seedColors=total<=8?SEED_COLORS_SMALL:total===9?SEED_COLORS_MID:SEED_COLORS_LARGE;
     const posToActual=seedColors.map(col=>G.pairs.findIndex(p=>p.color===col&&!p.absent));
     const batSeq=ss.batOrder||seedColors.map((_,i)=>i);
     for(const seedPos of batSeq){
