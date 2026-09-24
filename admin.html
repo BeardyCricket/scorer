@@ -245,7 +245,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </select>
       </div>
       <div id="hist-wrap" style="display:none;margin-top:12px">
-        <div id="hist-info" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <div id="hist-info" style="font-size:12px;color:var(--muted)"></div>
+          <button class="match-load-btn" id="restore-date-btn" onclick="restoreMatchDate()" style="font-size:12px;padding:6px 12px;background:var(--amber)" title="Reset updated_at back to the original match start time">Restore match date</button>
+        </div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="hist-tbl">
             <colgroup>
@@ -734,7 +737,7 @@ async function saveBallEdit(idx){
     }
     recomputePayload(_editPayload);
     const{error}=await db.from('live_scores')
-      .update({payload:_editPayload,updated_at:new Date().toISOString()})
+      .update({payload:_editPayload})
       .eq('match_id',_editMatchId);
     if(error)throw error;
     _changedBalls.add(idx);
@@ -746,6 +749,20 @@ async function saveBallEdit(idx){
     errEl.style.display='block';
     btn.disabled=false;btn.textContent='Save changes';
   }
+}
+
+async function restoreMatchDate(){
+  const startedAt=_editPayload?.started_at;
+  if(!startedAt){toast('No original match date found in this payload.');return;}
+  const btn=document.getElementById('restore-date-btn');
+  btn.disabled=true;btn.textContent='Restoring…';
+  const{error}=await db.from('live_scores')
+    .update({updated_at:startedAt})
+    .eq('match_id',_editMatchId);
+  btn.disabled=false;btn.textContent='Restore match date';
+  if(error){toast('Error: '+error.message);return;}
+  const d=new Date(startedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  toast('Match date restored to '+d+' ✓');
 }
 
 function recomputePayload(payload){
