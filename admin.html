@@ -115,6 +115,35 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .bulk-ta:focus{border-color:var(--navy)}
 .btn-import{padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
 .btn-import:disabled{opacity:.5;cursor:default}
+
+/* Match History Editor */
+.match-load-btn{padding:9px 18px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
+.match-load-btn:disabled{opacity:.5;cursor:default}
+.msel{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--navy);background:#fff;outline:none;-webkit-appearance:none;margin-top:6px}
+.hist-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+.hist-tbl th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 4px;border-bottom:2px solid var(--border)}
+.hist-tbl td{padding:5px 4px;border-bottom:1px solid var(--border);vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-tbl tr.hist-changed td{background:#dcfce7}
+.hist-over{font-size:11px;font-weight:700}
+.hist-run{font-size:12px;font-weight:700}
+.btype{display:inline-block;padding:1px 5px;border-radius:6px;font-size:10px;font-weight:700}
+.btype-normal{background:#dcfce7;color:#166534}
+.btype-wide{background:#fef3c7;color:#92400e}
+.btype-nb{background:#fee2e2;color:#991b1b}
+.btype-bye{background:#e0f2fe;color:#075985}
+.btype-wkt{background:#f3e8ff;color:#6b21a8}
+.edit-panel{background:#f0f4ff;padding:12px 8px;border-top:2px solid var(--navy)}
+.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.edit-field{display:flex;flex-direction:column;gap:3px}
+.elbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.einp,.esel{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--navy);background:#fff;width:100%;-webkit-appearance:none;outline:none}
+.einp:focus,.esel:focus{border-color:var(--navy)}
+.edit-actions{display:flex;gap:8px;margin-top:10px}
+.btn-saveball{padding:8px 18px;background:var(--green);color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-saveball:disabled{opacity:.5;cursor:default}
+.btn-cancball{padding:8px 14px;background:none;border:1px solid var(--border);border-radius:7px;font-size:13px;cursor:pointer;color:var(--muted)}
+.ball-edit-btn{padding:3px 9px;border:1px solid var(--border);border-radius:5px;background:#fff;font-size:11px;font-weight:600;cursor:pointer;color:var(--navy);white-space:nowrap}
+.ball-edit-btn:hover{border-color:var(--navy)}
 </style>
 </head>
 <body>
@@ -202,6 +231,33 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="card">
       <div class="card-title">Current players</div>
       <div id="player-list"><div class="empty">Loading…</div></div>
+    </div>
+
+    <!-- Match History Editor -->
+    <div class="card">
+      <div class="card-title">Match History Editor</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Fix scoring errors from past matches — correct who was batting, who bowled, run values, dismissal types. Changes update scores.html and stats.html immediately.</p>
+      <button class="match-load-btn" id="load-hist-btn" onclick="loadMatchList()">Load recent matches</button>
+      <div id="hist-sel-wrap" style="display:none;margin-top:10px">
+        <label class="lbl">Select match</label>
+        <select class="msel" id="match-sel" onchange="onMatchSelect()">
+          <option value="">— select a match —</option>
+        </select>
+      </div>
+      <div id="hist-wrap" style="display:none;margin-top:12px">
+        <div id="hist-info" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table class="hist-tbl">
+            <colgroup>
+              <col style="width:46px"><col style="width:46px"><col><col><col style="width:32px"><col style="width:44px">
+            </colgroup>
+            <thead><tr>
+              <th>Ball</th><th>Type</th><th>Bat</th><th>Bowl</th><th>Runs</th><th></th>
+            </tr></thead>
+            <tbody id="hist-body"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -480,6 +536,244 @@ async function bulkImport(){
   const ok=results.filter(r=>r.status==='ok').length;
   toast(`${ok} of ${results.length} imported`);
   if(ok)await refreshList();
+}
+
+// ── MATCH HISTORY EDITOR ─────────────────────────────────────────────
+let _matchPayloads={},_editMatchId=null,_editPayload=null,_editBallIdx=null,_changedBalls=new Set();
+
+async function loadMatchList(){
+  const btn=document.getElementById('load-hist-btn');
+  btn.disabled=true;btn.textContent='Loading…';
+  const{data,error}=await db.from('live_scores')
+    .select('match_id,updated_at,payload')
+    .not('match_id','like','beardy-test-%')
+    .order('updated_at',{ascending:false})
+    .limit(25);
+  btn.disabled=false;btn.textContent='Load recent matches';
+  if(error){toast('Error loading matches: '+error.message);return;}
+  _matchPayloads={};
+  const sel=document.getElementById('match-sel');
+  sel.innerHTML='<option value="">— select a match —</option>';
+  (data||[]).forEach(row=>{
+    _matchPayloads[row.match_id]=row.payload||{};
+    const p=row.payload||{};
+    const d=row.updated_at?new Date(row.updated_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):row.match_id;
+    const players=(p.pairs||[]).flatMap(pr=>pr.players||[]).join(', ');
+    const balls=(p.history||[]).length;
+    const opt=document.createElement('option');
+    opt.value=row.match_id;
+    opt.textContent=`${d} · ${balls} balls · ${players.slice(0,50)||row.match_id}`;
+    sel.appendChild(opt);
+  });
+  document.getElementById('hist-sel-wrap').style.display='block';
+  document.getElementById('hist-wrap').style.display='none';
+  toast((data||[]).length+' matches loaded');
+}
+
+function onMatchSelect(){
+  const id=document.getElementById('match-sel').value;
+  if(!id){document.getElementById('hist-wrap').style.display='none';return;}
+  _editMatchId=id;
+  _editPayload=JSON.parse(JSON.stringify(_matchPayloads[id]));
+  _editBallIdx=null;
+  _changedBalls=new Set();
+  renderHistory();
+}
+
+function renderHistory(){
+  const hist=_editPayload.history||[];
+  const pairs=_editPayload.pairs||[];
+  document.getElementById('hist-info').textContent=`${hist.length} balls · ${pairs.length} pairs · click Edit on any ball to correct it`;
+  const tbody=document.getElementById('hist-body');
+  tbody.innerHTML='';
+  hist.forEach((b,idx)=>{
+    const type=b.type||'normal';
+    const typeLbl=type==='nb'?'NB':type==='wkt'?'Wkt':type.charAt(0).toUpperCase()+type.slice(1);
+    const runLbl=type==='wkt'?'W':String(b.run||0);
+    const tr=document.createElement('tr');
+    tr.id='hr-'+idx;
+    if(_changedBalls.has(idx))tr.className='hist-changed';
+    tr.innerHTML=
+      '<td><span class="hist-over">O'+(( b.over||0)+1)+'.'+(( b.ballNum||0)+1)+'</span></td>'+
+      '<td><span class="btype btype-'+type+'">'+escHtml(typeLbl)+'</span></td>'+
+      '<td>'+escHtml(b.facing||'—')+'</td>'+
+      '<td>'+escHtml(b.bowling||'—')+'</td>'+
+      '<td class="hist-run">'+escHtml(runLbl)+'</td>'+
+      '<td><button class="ball-edit-btn" onclick="openBallEdit('+idx+')">Edit</button></td>';
+    tbody.appendChild(tr);
+    const editTr=document.createElement('tr');
+    editTr.id='he-'+idx;
+    editTr.style.display='none';
+    editTr.innerHTML='<td colspan="6" class="edit-panel" id="ep-'+idx+'"></td>';
+    tbody.appendChild(editTr);
+  });
+  document.getElementById('hist-wrap').style.display='block';
+}
+
+function openBallEdit(idx){
+  if(_editBallIdx!==null&&_editBallIdx!==idx)closeBallEdit();
+  _editBallIdx=idx;
+  const b=_editPayload.history[idx];
+  const pairs=_editPayload.pairs||[];
+  const bp=pairs[b.batPair]||{};
+  const bwp=pairs[b.bowlPair]||{};
+  const allP=[...new Set(pairs.flatMap(p=>p.players||[]))];
+  const batP=(bp.players||[]).length?bp.players:allP;
+  const bowlP=(bwp.players||[]).length?bwp.players:allP;
+  const mkOpts=(list,sel)=>list.map(n=>`<option value="${escHtml(n)}"${n===sel?' selected':''}>${escHtml(n)}</option>`).join('');
+  const typeList=['normal','wide','nb','bye','wkt'];
+  const typeOpts=typeList.map(t=>`<option value="${t}"${t===b.type?' selected':''}>${t}</option>`).join('');
+  const codeOpts=codeOptsFor(b.type||'normal',b.code||'');
+  const disList=['','Caught','Bowled','Stumped','Run out','Ceiling hit','Other'];
+  const disOpts=disList.map(d=>`<option value="${d}"${d===(b.dismissal||'')?' selected':''}>${d||'—'}</option>`).join('');
+  const isWkt=b.type==='wkt';
+  const isRO=b.dismissal==='Run out';
+  document.getElementById('ep-'+idx).innerHTML=`
+    <div class="edit-grid">
+      <div class="edit-field">
+        <span class="elbl">Batsman on strike</span>
+        <select class="esel" id="ef-facing">${mkOpts(batP,b.facing||'')}</select>
+      </div>
+      <div class="edit-field">
+        <span class="elbl">Bowler</span>
+        <select class="esel" id="ef-bowling">${mkOpts(bowlP,b.bowling||'')}</select>
+      </div>
+      <div class="edit-field">
+        <span class="elbl">Ball type</span>
+        <select class="esel" id="ef-type" onchange="onEditTypeChange()">${typeOpts}</select>
+      </div>
+      <div class="edit-field">
+        <span class="elbl">Run value</span>
+        <input class="einp" id="ef-run" type="number" value="${b.run||0}" min="-20" max="20" step="1">
+      </div>
+      <div class="edit-field">
+        <span class="elbl">Code</span>
+        <select class="esel" id="ef-code">${codeOpts}</select>
+      </div>
+      <div class="edit-field" id="ef-dis-wrap"${isWkt?'':' style="display:none"'}>
+        <span class="elbl">Dismissal type</span>
+        <select class="esel" id="ef-dismissal" onchange="onEditDisChange()">${disOpts}</select>
+      </div>
+      <div class="edit-field" id="ef-runout-wrap"${isRO?'':' style="display:none"'}>
+        <span class="elbl">Is run out?</span>
+        <select class="esel" id="ef-isrunout">
+          <option value="true"${b.isRunout?' selected':''}>Yes — no bowling bonus</option>
+          <option value="false"${!b.isRunout?' selected':''}>No — credit to bowler</option>
+        </select>
+      </div>
+      <div class="edit-field" id="ef-nobonus-wrap"${isWkt?'':' style="display:none"'}>
+        <span class="elbl">Bowling bonus?</span>
+        <select class="esel" id="ef-nobonus">
+          <option value="false"${!b.noBonus?' selected':''}>Yes — give bonus</option>
+          <option value="true"${b.noBonus?' selected':''}>No — no bonus</option>
+        </select>
+      </div>
+    </div>
+    <div class="edit-actions">
+      <button class="btn-saveball" id="saveball-btn" onclick="saveBallEdit(${idx})">Save changes</button>
+      <button class="btn-cancball" onclick="closeBallEdit()">Cancel</button>
+    </div>
+    <div id="saveball-err" style="font-size:12px;color:var(--red);margin-top:6px;display:none"></div>
+  `;
+  document.getElementById('he-'+idx).style.display='';
+  const tr=document.getElementById('hr-'+idx);
+  if(tr)tr.style.background='#fff8e1';
+}
+
+function codeOptsFor(type,current){
+  const map={normal:['0','1','2','3','4','4b','5','6'],wide:['wide'],nb:['nb'],bye:['bye'],wkt:['W']};
+  const opts=map[type]||map.normal;
+  return opts.map(c=>`<option value="${c}"${c===current?' selected':''}>${c}</option>`).join('');
+}
+
+function onEditTypeChange(){
+  const type=document.getElementById('ef-type').value;
+  const isWkt=type==='wkt';
+  document.getElementById('ef-dis-wrap').style.display=isWkt?'':'none';
+  document.getElementById('ef-nobonus-wrap').style.display=isWkt?'':'none';
+  if(!isWkt)document.getElementById('ef-runout-wrap').style.display='none';
+  const codeSel=document.getElementById('ef-code');
+  if(codeSel)codeSel.innerHTML=codeOptsFor(type,'');
+}
+
+function onEditDisChange(){
+  const dis=document.getElementById('ef-dismissal')?.value;
+  document.getElementById('ef-runout-wrap').style.display=dis==='Run out'?'':'none';
+}
+
+function closeBallEdit(){
+  if(_editBallIdx===null)return;
+  const idx=_editBallIdx;
+  document.getElementById('he-'+idx).style.display='none';
+  const tr=document.getElementById('hr-'+idx);
+  if(tr&&!_changedBalls.has(idx))tr.style.background='';
+  _editBallIdx=null;
+}
+
+async function saveBallEdit(idx){
+  const btn=document.getElementById('saveball-btn');
+  const errEl=document.getElementById('saveball-err');
+  btn.disabled=true;btn.textContent='Saving…';
+  errEl.style.display='none';
+  try{
+    const b=_editPayload.history[idx];
+    const type=document.getElementById('ef-type').value;
+    const run=parseInt(document.getElementById('ef-run').value,10)||0;
+    b.facing=document.getElementById('ef-facing').value;
+    b.bowling=document.getElementById('ef-bowling').value;
+    b.type=type;
+    b.run=run;
+    b.code=document.getElementById('ef-code').value;
+    if(type==='wkt'){
+      const dis=document.getElementById('ef-dismissal').value;
+      b.dismissal=dis||undefined;
+      b.isRunout=document.getElementById('ef-isrunout').value==='true';
+      b.noBonus=document.getElementById('ef-nobonus').value==='true';
+    }else{
+      delete b.dismissal;delete b.isRunout;delete b.noBonus;
+    }
+    recomputePayload(_editPayload);
+    const{error}=await db.from('live_scores')
+      .update({payload:_editPayload,updated_at:new Date().toISOString()})
+      .eq('match_id',_editMatchId);
+    if(error)throw error;
+    _changedBalls.add(idx);
+    closeBallEdit();
+    renderHistory();
+    toast('Ball updated ✓');
+  }catch(e){
+    errEl.textContent='Save failed: '+e.message;
+    errEl.style.display='block';
+    btn.disabled=false;btn.textContent='Save changes';
+  }
+}
+
+function recomputePayload(payload){
+  const hist=payload.history||[];
+  const pairs=payload.pairs||[];
+  const gsP=payload.game_state?.pairs||[];
+  pairs.forEach((p,i)=>{
+    p.bat=hist.filter(b=>b.batPair===i).reduce((s,b)=>s+(b.run||0),0);
+    const isSolo=gsP[i]?.fixedBowler!=null||(p.players||[]).length<=1;
+    p.bowl=hist.filter(b=>b.bowlPair===i&&b.type==='wkt'&&!b.isRunout&&!b.noBonus).reduce((s)=>s+(isSolo?4:2),0);
+    p.total=p.bat+p.bowl;
+    p.wickets=hist.filter(b=>b.batPair===i&&b.type==='wkt').length;
+    p.fours=hist.filter(b=>b.batPair===i&&b.code==='4b').length;
+    p.sixes=hist.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length;
+    p.balls_faced=hist.filter(b=>b.batPair===i&&b.legal).length;
+  });
+  const bm={};
+  hist.forEach(b=>{
+    if(!b.bowling)return;
+    if(!bm[b.bowling])bm[b.bowling]={player:b.bowling,balls:0,wickets:0,runs:0};
+    bm[b.bowling].balls++;
+    if(b.type==='wkt'&&!b.isRunout&&b.dismissal!=='Run out')bm[b.bowling].wickets++;
+    if(b.type!=='wkt'&&(b.run||0)>0)bm[b.bowling].runs+=b.run;
+  });
+  payload.bowling_figures=Object.values(bm)
+    .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets,runs:f.runs,net:f.runs-(5*f.wickets)}))
+    .sort((a,b)=>b.wickets-a.wickets||b.balls-a.balls);
+  delete payload.match_stats;
 }
 
 window.addEventListener('DOMContentLoaded',init);
