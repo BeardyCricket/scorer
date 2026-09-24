@@ -104,6 +104,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .sel-wrap{flex:1}
 .sel-lbl{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .sel-sel{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:14px;background:var(--card);color:var(--text)}
+.strike-section{margin:8px 16px 4px;background:var(--green-l);border:2px solid var(--green);border-radius:var(--rs);padding:10px 12px 8px}
+.strike-hdr{font-size:13px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.strike-sel{font-size:16px!important;font-weight:700!important;border-color:var(--green)!important;padding:11px 10px!important}
 /* Score pad - 4 cols */
 .sp{padding:10px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
 .sb{padding:13px 2px;border-radius:var(--rs);border:1.5px solid var(--border);background:var(--card);font-size:13px;font-weight:700;cursor:pointer;text-align:center;color:var(--text);line-height:1.3}
@@ -505,11 +508,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <span id="team-target-msg"></span>
     <span id="team-target-rr" style="font-size:12px;opacity:.85"></span>
   </div>
-  <div class="sel-row">
-    <div class="sel-wrap"><div class="sel-lbl">Facing</div><select class="sel-sel" id="facing-sel" onchange="facingManualChange(this.value)"></select></div>
+  <div class="strike-section">
+    <div class="strike-hdr">🏏 Who is on strike?</div>
+    <select class="sel-sel strike-sel" id="facing-sel" onchange="facingManualChange(this.value)"></select>
+    <div id="batter-balls" style="font-size:12px;color:var(--muted);margin-top:6px;min-height:16px"></div>
+  </div>
+  <div class="sel-row" style="padding-top:8px;padding-bottom:0">
     <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="bowling-sel" onchange="onBowlerSelChange(this.value)"></select></div>
   </div>
-  <div id="batter-balls" style="text-align:center;font-size:12px;color:var(--muted);padding:4px 16px 0"></div>
   <div class="fb" id="fb"></div>
   <div id="skip-pair-row" class="hidden" style="padding:4px 16px 0">
     <button class="skip-pair-btn" onclick="skipBattingPair()">⏭ Skip to next pair</button>
@@ -573,11 +579,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="band-score" id="so-bat-score">0</div>
   </div>
   <div class="ball-row" id="so-ball-row"></div>
-  <div class="sel-row">
-    <div class="sel-wrap"><div class="sel-lbl">Facing</div><select class="sel-sel" id="so-facing-sel" onchange="soFacingChange(this.value)"></select></div>
+  <div class="strike-section">
+    <div class="strike-hdr">🏏 Who is on strike?</div>
+    <select class="sel-sel strike-sel" id="so-facing-sel" onchange="soFacingChange(this.value)"></select>
+    <div id="so-batter-balls" style="font-size:12px;color:var(--muted);margin-top:6px;min-height:16px"></div>
+  </div>
+  <div class="sel-row" style="padding-top:8px;padding-bottom:0">
     <div class="sel-wrap"><div class="sel-lbl">Bowling</div><select class="sel-sel" id="so-bowling-sel"></select></div>
   </div>
-  <div id="so-batter-balls" style="text-align:center;font-size:12px;color:var(--muted);padding:4px 16px 0"></div>
   <div class="fb" id="so-fb"></div>
   <div class="sp">
     <button class="sb" onclick="soBall(0,'0')">0</button>
