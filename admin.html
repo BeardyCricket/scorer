@@ -542,7 +542,7 @@ async function bulkImport(){
 }
 
 // ── MATCH HISTORY EDITOR ─────────────────────────────────────────────
-let _matchPayloads={},_editMatchId=null,_editPayload=null,_editBallIdx=null,_changedBalls=new Set();
+let _matchPayloads={},_matchOriginalDates={},_editMatchId=null,_editPayload=null,_editOriginalDate=null,_editBallIdx=null,_changedBalls=new Set();
 
 async function loadMatchList(){
   const btn=document.getElementById('load-hist-btn');
@@ -554,11 +554,12 @@ async function loadMatchList(){
     .limit(25);
   btn.disabled=false;btn.textContent='Load recent matches';
   if(error){toast('Error loading matches: '+error.message);return;}
-  _matchPayloads={};
+  _matchPayloads={};_matchOriginalDates={};
   const sel=document.getElementById('match-sel');
   sel.innerHTML='<option value="">— select a match —</option>';
   (data||[]).forEach(row=>{
     _matchPayloads[row.match_id]=row.payload||{};
+    _matchOriginalDates[row.match_id]=row.updated_at;
     const p=row.payload||{};
     const d=row.updated_at?new Date(row.updated_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):row.match_id;
     const players=(p.pairs||[]).flatMap(pr=>pr.players||[]).join(', ');
@@ -578,6 +579,7 @@ function onMatchSelect(){
   if(!id){document.getElementById('hist-wrap').style.display='none';return;}
   _editMatchId=id;
   _editPayload=JSON.parse(JSON.stringify(_matchPayloads[id]));
+  _editOriginalDate=_matchOriginalDates[id]||null;
   _editBallIdx=null;
   _changedBalls=new Set();
   renderHistory();
@@ -736,8 +738,10 @@ async function saveBallEdit(idx){
       delete b.dismissal;delete b.isRunout;delete b.noBonus;
     }
     recomputePayload(_editPayload);
+    const upd={payload:_editPayload};
+    if(_editOriginalDate)upd.updated_at=_editOriginalDate;
     const{error}=await db.from('live_scores')
-      .update({payload:_editPayload})
+      .update(upd)
       .eq('match_id',_editMatchId);
     if(error)throw error;
     _changedBalls.add(idx);
