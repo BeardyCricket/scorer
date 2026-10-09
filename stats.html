@@ -402,28 +402,50 @@ canvas{display:block;width:100%}
     <div id="tab-winzones" class="hidden">
       <div class="card" style="background:#f0f9ff;border-color:#bae6fd">
         <div class="card-title" style="color:#0369a1">What are Win Zones?</div>
-        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of <b>pair innings</b> tends to win matches — and how often your pair plays that way. Every pair innings (you + your partner for that match) is placed in one of 9 zones based on two things: how many wickets your pair lost, and how many boundaries (4s and 6s) your pair hit.</p>
-        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> The large coloured percentage is the overall win rate for all pairs who landed in that zone. Below it is the total number of pair innings across all players. "Your pair" shows how many of your pair innings fell there — green background means your pair won at least once from that zone 🏆.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of <b>pair innings</b> tends to win matches — and how often your pair plays that way. Every pair innings is placed in one of 9 zones based on wickets lost and boundaries hit. Outdoor and indoor are shown separately as the different formats play very differently.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> The large coloured percentage is the overall win rate for all pairs in that zone. Below it is the total pair innings count. "Your pair" shows how many of your innings fell there — green background means your pair won at least once from that zone 🏆.</p>
         <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:6px"><b>Colours:</b> <span style="color:#1D9E75;font-weight:600">Green = 40%+ win rate</span> · <span style="color:#BA7517;font-weight:600">Amber = 15–39%</span> · <span style="color:#E24B4A;font-weight:600">Red = under 15%</span></p>
         <p style="font-size:13px;color:#1A2744;line-height:1.65">Use it to understand what style of innings gives you the best chance of winning — and whether your natural game puts you in the high-win zones.</p>
       </div>
+
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:14px 0 2px">🌤 Outdoor</div>
       <div class="card">
-        <div class="card-title">Win zones — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
-        <div style="overflow-x:auto"><table class="wz-table" id="wz-table"></table></div>
-        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets your pair lost · Columns = boundaries your pair hit (4s + 6s) · Green background = your pair won there 🏆</div>
+        <div class="card-title">Win zones (outdoor) — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
+        <div style="overflow-x:auto"><table class="wz-table" id="wz-table-outdoor"></table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s) · Green background = your pair won there 🏆</div>
       </div>
       <div class="card">
-        <div class="card-title">Expected vs actual wins</div>
-        <p class="desc">Multiply the win rate of each zone by how many times your pair landed there — that gives your "expected" wins based purely on zone distribution. Compares to your actual wins.</p>
+        <div class="card-title">Expected vs actual wins (outdoor)</div>
+        <p class="desc">Multiply the win rate of each zone by how many times your pair landed there — that gives your "expected" wins based purely on zone distribution.</p>
         <div class="pred-row">
-          <div class="pred-cell"><div class="pred-val" id="pred-wins">—</div><div class="pred-lbl">Expected wins</div></div>
-          <div class="pred-cell"><div class="pred-val" id="actual-wins">—</div><div class="pred-lbl">Actual wins</div></div>
-          <div class="pred-cell"><div class="pred-val" id="pred-diff">—</div><div class="pred-lbl">Difference</div></div>
+          <div class="pred-cell"><div class="pred-val" id="pred-wins-outdoor">—</div><div class="pred-lbl">Expected wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="actual-wins-outdoor">—</div><div class="pred-lbl">Actual wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="pred-diff-outdoor">—</div><div class="pred-lbl">Difference</div></div>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Insights</div>
-        <div id="wz-insights"></div>
+        <div class="card-title">Insights (outdoor)</div>
+        <div id="wz-insights-outdoor"></div>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:14px 0 2px">🏟 Indoor</div>
+      <div class="card">
+        <div class="card-title">Win zones (indoor) — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
+        <div style="overflow-x:auto"><table class="wz-table" id="wz-table-indoor"></table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s) · Green background = your pair won there 🏆</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Expected vs actual wins (indoor)</div>
+        <p class="desc">Multiply the win rate of each zone by how many times your pair landed there — that gives your "expected" wins based purely on zone distribution.</p>
+        <div class="pred-row">
+          <div class="pred-cell"><div class="pred-val" id="pred-wins-indoor">—</div><div class="pred-lbl">Expected wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="actual-wins-indoor">—</div><div class="pred-lbl">Actual wins</div></div>
+          <div class="pred-cell"><div class="pred-val" id="pred-diff-indoor">—</div><div class="pred-lbl">Difference</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Insights (indoor)</div>
+        <div id="wz-insights-indoor"></div>
       </div>
     </div>
 
@@ -1510,16 +1532,49 @@ function renderH2HBatters(pn,ps,pl,flat){
 function renderWinZones(pn,ms,flat,prem){
   if(!prem){
     document.getElementById('tab-winzones').innerHTML=`
-      ${upgradeCard('Win Zones is available to Beardy Stats Club members — a 3×3 matrix showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
+      ${upgradeCard('Win Zones is available to Beardy Stats Club members — separate outdoor and indoor 3×3 matrices showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
     return;
   }
-  // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
-  const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0,playerWins:0})));
-  const indoorMode=activePeriod==='indoor';
-  const wktRow=indoorMode?(w=>w>=3?2:w>=2?1:0):(w=>w>=2?2:w);
-  const bndCol=b=>b>=5?2:b>=3?1:0;
+  const outdoorMs=filteredMatches.filter(m=>!isIndoorDate(m.date));
+  const indoorMs=filteredMatches.filter(m=>isIndoorDate(m.date));
 
-  for(const m of filteredMatches){
+  renderOneWinZone({
+    pn,ms,matches:outdoorMs,
+    wktRow:w=>w>=2?2:w,
+    bndCol:b=>b>=5?2:b>=3?1:0,
+    wktLabels:['0 wkts','1 wkt','2+ wkts'],
+    bndLabels:['0–2 bnds','3–4 bnds','5+ bnds'],
+    tableId:'wz-table-outdoor',
+    pwId:'pred-wins-outdoor',awId:'actual-wins-outdoor',diffId:'pred-diff-outdoor',
+    insightsId:'wz-insights-outdoor',
+    lowWktFn:pp=>pp.wkts===0,
+    lowWktLabel:'0 wickets',
+    lowWktEmptyMsg:"You haven't yet completed an innings without losing a wicket in this period.",
+    topBndFn:pp=>pp.bnds>=5,
+    topBndLabel:'5+ boundaries',
+  });
+
+  renderOneWinZone({
+    pn,ms,matches:indoorMs,
+    wktRow:w=>w>=4?2:w>=3?1:0,
+    bndCol:b=>b>=6?2:b>=3?1:0,
+    wktLabels:['0–2 wkts','3 wkts','4+ wkts'],
+    bndLabels:['0–2 bnds','3–5 bnds','6+ bnds'],
+    tableId:'wz-table-indoor',
+    pwId:'pred-wins-indoor',awId:'actual-wins-indoor',diffId:'pred-diff-indoor',
+    insightsId:'wz-insights-indoor',
+    lowWktFn:pp=>pp.wkts<=2,
+    lowWktLabel:'0–2 wickets',
+    lowWktEmptyMsg:"You haven't yet completed an innings with 2 or fewer wickets lost in this period.",
+    topBndFn:pp=>pp.bnds>=6,
+    topBndLabel:'6+ boundaries',
+  });
+}
+
+function renderOneWinZone({pn,ms,matches,wktRow,bndCol,wktLabels,bndLabels,tableId,pwId,awId,diffId,insightsId,lowWktFn,lowWktLabel,lowWktEmptyMsg,topBndFn,topBndLabel}){
+  const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0,playerWins:0})));
+
+  for(const m of matches){
     const s=ms[m.matchId];if(!s)continue;
     const winner=matchWinner(s);
     for(const pair of s.pairs){
@@ -1535,10 +1590,16 @@ function renderWinZones(pn,ms,flat,prem){
     }
   }
 
-  const wktLabels=indoorMode?['0–1 wkts','2 wkts','3+ wkts']:['0 wkts','1 wkt','2+ wkts'];
-  const bndLabels=['0–2 bnds','3–4 bnds','5+ bnds'];
+  const table=document.getElementById(tableId);
+  if(!table)return;
 
-  const table=document.getElementById('wz-table');
+  if(!matches.length){
+    table.innerHTML='<tr><td style="padding:12px;font-size:12px;color:var(--muted)">No matches in this period</td></tr>';
+    [pwId,awId,diffId].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='—';});
+    const ins=document.getElementById(insightsId);if(ins)ins.innerHTML='<div class="empty">No data yet</div>';
+    return;
+  }
+
   let html='<tr><th class="wz-th"></th>';
   bndLabels.forEach(l=>{html+=`<th class="wz-th">${l}</th>`;});
   html+='</tr>';
@@ -1566,66 +1627,53 @@ function renderWinZones(pn,ms,flat,prem){
   }
   table.innerHTML=html;
 
+  // Expected vs actual
   let predWins=0,actWins=0;
   for(let r=0;r<3;r++)for(let c=0;c<3;c++){
     const cell=grid[r][c];
-    if(cell.player>0){
-      const wr=cell.total?cell.wins/cell.total:0;
-      predWins+=wr*cell.player;
-      actWins+=cell.playerWins;
-    }
+    if(cell.player>0){predWins+=(cell.total?cell.wins/cell.total:0)*cell.player;actWins+=cell.playerWins;}
   }
-  const pwEl=document.getElementById('pred-wins');
-  const awEl=document.getElementById('actual-wins');
-  const diffEl=document.getElementById('pred-diff');
+  const pwEl=document.getElementById(pwId),awEl=document.getElementById(awId),diffEl=document.getElementById(diffId);
   if(pwEl){
     const hasData=predWins>0||actWins>0;
     pwEl.textContent=hasData?predWins.toFixed(1):'—';
     awEl.textContent=hasData?String(actWins):'—';
-    if(hasData){
-      const diff=actWins-predWins;
-      diffEl.textContent=(diff>=0?'+':'')+diff.toFixed(1);
-      diffEl.style.color=diff>=0?'var(--green)':'var(--red)';
-    }else{diffEl.textContent='—';}
+    if(hasData){const diff=actWins-predWins;diffEl.textContent=(diff>=0?'+':'')+diff.toFixed(1);diffEl.style.color=diff>=0?'var(--green)':'var(--red)';}
+    else diffEl.textContent='—';
   }
 
   // Insights
   const insights=[];
-  // Most common zone for player
   let maxCell=null,maxCount=0;
   for(let r=0;r<3;r++)for(let c=0;c<3;c++){
     if(grid[r][c].player>maxCount){maxCount=grid[r][c].player;maxCell={r,c};}
   }
   if(maxCell&&maxCount>0){
-    const cellData=grid[maxCell.r][maxCell.c];
-    const zonePct=cellData.total?Math.round(cellData.wins/cellData.total*100):0;
-    insights.push(`Your most common zone is <b>${wktLabels[maxCell.r]}, ${bndLabels[maxCell.c]}</b> (${maxCount} innings). Overall win rate in this zone: <b>${zonePct}%</b>.`);
+    const cd=grid[maxCell.r][maxCell.c];
+    insights.push(`Your most common zone is <b>${wktLabels[maxCell.r]}, ${bndLabels[maxCell.c]}</b> (${maxCount} innings). Overall win rate in this zone: <b>${cd.total?Math.round(cd.wins/cd.total*100):0}%</b>.`);
   }
-  // Zero/low wicket innings (row 0: 0 wkts outdoor, 0–1 wkts indoor)
-  const zeroWktTotal=grid[0].reduce((s,c)=>s+c.player,0);
-  if(zeroWktTotal>0){
-    const zeroWktMatchWins=filteredMatches.filter(m=>{
+  const lowWktTotal=grid[0].reduce((s,c)=>s+c.player,0);
+  if(lowWktTotal>0){
+    const lowWktWins=matches.filter(m=>{
       const s=ms[m.matchId];if(!s)return false;
       const pp=s.sorted.find(p=>p.players.includes(pn));
-      return pp&&(indoorMode?pp.wkts<=1:pp.wkts===0)&&pp.idx===matchWinner(s)?.idx;
+      return pp&&lowWktFn(pp)&&pp.idx===matchWinner(s)?.idx;
     }).length;
-    const zeroLbl=indoorMode?'0–1 wickets':'0 wickets';
-    insights.push(`You've batted with <b>${zeroLbl} lost</b> in <b>${zeroWktTotal}</b> innings, winning <b>${zeroWktMatchWins}</b> of them.`);
+    insights.push(`You've batted with <b>${lowWktLabel} lost</b> in <b>${lowWktTotal}</b> innings, winning <b>${lowWktWins}</b> of them.`);
   }else{
-    insights.push(indoorMode?`You haven't yet completed an innings losing fewer than 2 wickets in this period.`:`You haven't yet completed an innings without losing a wicket in this period.`);
+    insights.push(lowWktEmptyMsg);
   }
-  // Boundary insight
-  const fivePlusBnds=[grid[0][2],grid[1][2],grid[2][2]].reduce((s,c)=>s+c.player,0);
-  if(fivePlusBnds>0){
-    const fivePlusWins=filteredMatches.filter(m=>{
+  const topBndTotal=[grid[0][2],grid[1][2],grid[2][2]].reduce((s,c)=>s+c.player,0);
+  if(topBndTotal>0){
+    const topBndWins=matches.filter(m=>{
       const s=ms[m.matchId];if(!s)return false;
       const pp=s.sorted.find(p=>p.players.includes(pn));
-      return pp&&pp.bnds>=5&&pp.idx===matchWinner(s)?.idx;
+      return pp&&topBndFn(pp)&&pp.idx===matchWinner(s)?.idx;
     }).length;
-    insights.push(`When hitting <b>5+ boundaries</b> (${fivePlusBnds} times), you've won <b>${fivePlusWins}</b> of those innings.`);
+    insights.push(`When hitting <b>${topBndLabel}</b> (${topBndTotal} times), you've won <b>${topBndWins}</b> of those innings.`);
   }
 
-  document.getElementById('wz-insights').innerHTML=
+  document.getElementById(insightsId).innerHTML=
     insights.map(t=>`<div class="insight">${t}</div>`).join('')||'<div class="empty">No data yet</div>';
 }
 
