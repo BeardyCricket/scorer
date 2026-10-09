@@ -523,6 +523,9 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div id="extra-bat-turn-row" class="hidden" style="padding:4px 16px 0">
     <button class="skip-pair-btn" onclick="showExtraBatTurnModal()">➕ Add extra batting turn</button>
   </div>
+  <div id="odd-borrow-change-row" class="hidden" style="padding:4px 16px 0">
+    <button class="skip-pair-btn" onclick="showOddBorrowChangeModal()">🔄 Change solo batting partner</button>
+  </div>
   <div class="sp">
     <button class="sb" onclick="ball(0,'0')">0</button>
     <button class="sb" onclick="ball(1,'1')">1</button>
@@ -762,6 +765,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Extra batting pair</div>
       <div style="font-size:15px;font-weight:700" id="extra-bat-pair-name">—</div>
       <div style="font-size:12px;color:var(--green);margin-top:4px;font-weight:600" id="extra-start-bonus"></div>
+      <div style="margin-top:10px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px">Override — pick manually</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select class="sel-sel" id="extra-bat-manual-1" style="flex:1;min-width:100px;font-size:13px"></select>
+          <span style="color:var(--muted);font-size:13px">&amp;</span>
+          <select class="sel-sel" id="extra-bat-manual-2" style="flex:1;min-width:100px;font-size:13px"></select>
+        </div>
+      </div>
     </div>
     <div style="background:var(--grey-l);border-radius:var(--rs);padding:12px 14px;margin-bottom:20px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Bowlers (1 over each — no wicket bonus)</div>
@@ -782,6 +793,35 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="extra-bat-turn-hint"></div>
     <button class="btn btn-primary" onclick="confirmExtraBatTurn()">Insert extra batting turn</button>
     <button class="btn btn-secondary" style="margin-top:10px" onclick="hideExtraBatTurnModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ODD BORROW MODAL -->
+<div class="overlay hidden" id="odd-borrow-modal">
+  <div class="sheet" style="padding:24px 16px 48px">
+    <div style="font-size:32px;text-align:center;margin-bottom:8px">🔄</div>
+    <div class="sheet-title" style="text-align:center;margin-bottom:4px">Who bats with <span id="odd-borrow-solo-name">—</span>?</div>
+    <div class="sheet-sub" style="margin-bottom:16px">One player gets an extra batting turn as partner for the solo pair. They won't bowl any more overs.</div>
+    <div style="background:var(--grey-l);border-radius:var(--rs);padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Suggested partner</div>
+      <div style="font-size:15px;font-weight:700" id="odd-borrow-suggested">—</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px" id="odd-borrow-reason">—</div>
+    </div>
+    <label class="lbl">Or pick anyone manually</label>
+    <select class="sel-sel" id="odd-borrow-sel" style="width:100%;margin-bottom:16px"></select>
+    <button class="btn btn-primary" onclick="confirmOddBorrow()">Confirm partner</button>
+  </div>
+</div>
+
+<!-- ODD BORROW CHANGE MODAL -->
+<div class="overlay hidden" id="odd-borrow-change-modal">
+  <div class="sheet" style="padding:24px 16px 48px">
+    <div class="sheet-title" style="margin-bottom:4px">Change batting partner</div>
+    <div class="sheet-sub" style="margin-bottom:16px">Replace the current partner for the solo pair's remaining overs.</div>
+    <label class="lbl">New partner</label>
+    <select class="sel-sel" id="odd-borrow-change-sel" style="width:100%;margin-bottom:16px"></select>
+    <button class="btn btn-primary" onclick="confirmOddBorrowChange()">Change partner</button>
+    <button class="btn btn-secondary" style="margin-top:10px" onclick="document.getElementById('odd-borrow-change-modal').classList.add('hidden')">Cancel</button>
   </div>
 </div>
 
@@ -1241,6 +1281,7 @@ function freshState(){
     extraInningsBowlers:[],
     extraInningsStartOver:-1,
     seedMode:false,
+    oddBorrowChosen:false,
     soActive:false,soPairs:[],soPhase:0,soScores:[0,0],soBallInOver:0,soFacingIdx:0,soHistory:[],soFinalRes:null,soBoundaries:[0,0]};
 }
 G=freshState();
@@ -1775,7 +1816,7 @@ function validateBowling(){
 function startMatch(){
   G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
   G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();G.matchId=(testMode?'beardy-test-':'beardy-')+Date.now().toString(36);
-  G.facingIdx=0;G.snapshots=[];
+  G.facingIdx=0;G.snapshots=[];G.oddBorrowChosen=false;
   G.pendingBowlerSelect=true;
   // Auto-generate ntfy topic from match date + configured start time
   const autoTopic=generateNtfyTopic();
@@ -1859,6 +1900,12 @@ const skipRow=document.getElementById('skip-pair-row');
     const showExtraTurn=G.seedMode&&G.overIdx<G.totalOvers&&G.totalOvers>0;
     extraTurnRow.classList.toggle('hidden',!showExtraTurn);
   }
+    const oddBorrowRow=document.getElementById('odd-borrow-change-row');
+    if(oddBorrowRow){
+      const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+      const showChange=G.isOdd&&G.oddBorrowChosen&&soloIdx>=0&&batIdx()===soloIdx;
+      oddBorrowRow.classList.toggle('hidden',!showChange);
+    }
 
   // Check if we need to show a transition modal (new batting or bowling pair)
   checkTransitions();
@@ -2292,6 +2339,11 @@ function checkTransitions(){
     return;
   }
   const t=G.pendingTransition;
+  // If solo pair is about to bat and we haven't chosen the borrowed player yet, show borrow modal first
+  if(G.isOdd&&!G.oddBorrowChosen&&t.batChanged){
+    const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+    if(soloIdx>=0&&t.newBat===soloIdx){showOddBorrowModal();return;}
+  }
   G.pendingTransition=null;
   const np=G.numPairs;
   let title='',body='',color='grey';
@@ -3016,6 +3068,100 @@ function confirmPairSelection(){
   updateUI();saveGameState();
 }
 
+// ── Odd game borrowed player selection ──────────────────
+function pickOddBorrowSuggestion(){
+  const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+  if(soloIdx<0)return{suggested:null,allOthers:[],reason:''};
+  const soloPair=G.pairs[soloIdx];
+  const soloPlayer=soloPair.fixedBowler;
+  const counts=playerOverCounts();
+  const ranked=rankByScore();
+  const leaderPlayers=new Set(G.pairs[ranked[0]].players);
+  const allOthers=G.players.filter(p=>p!==soloPlayer&&!soloPair.players.some(x=>x===p&&x!==soloPair.borrowedPlayer));
+  // Eligible: bowled 2+ overs and not currently leading
+  const eligible=allOthers.filter(p=>(counts[p]||0)>=2&&!leaderPlayers.has(p));
+  const pool=eligible.length?eligible:[...leaderPlayers].filter(p=>p!==soloPlayer&&G.players.includes(p));
+  const shuffled=[...pool].sort(()=>Math.random()-.5);
+  const suggested=shuffled[0]||allOthers[0]||null;
+  let reason='';
+  if(eligible.length&&suggested){
+    reason=`Bowled ${counts[suggested]||0} overs · not currently leading`;
+  }else if(suggested){
+    reason=`No eligible players (needs 2 overs bowled, not leading) — picking from ${leaderPlayers.has(suggested)?'current leaders':'available players'}`;
+  }
+  return{suggested,allOthers,counts,reason};
+}
+
+function showOddBorrowModal(){
+  const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+  if(soloIdx<0){checkTransitions();return;}
+  const soloPair=G.pairs[soloIdx];
+  const soloPlayer=soloPair.fixedBowler;
+  document.getElementById('odd-borrow-solo-name').textContent=soloPlayer;
+  const{suggested,allOthers,counts,reason}=pickOddBorrowSuggestion();
+  document.getElementById('odd-borrow-suggested').textContent=suggested||'—';
+  document.getElementById('odd-borrow-reason').textContent=reason;
+  const sel=document.getElementById('odd-borrow-sel');
+  sel.innerHTML='';
+  allOthers.forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p;
+    const bowlLabel=`${counts[p]||0} over${(counts[p]||0)!==1?'s':''} bowled`;
+    opt.textContent=p+(p===suggested?' (suggested)':'')+` — ${bowlLabel}`;
+    if(p===suggested)opt.selected=true;
+    sel.appendChild(opt);
+  });
+  document.getElementById('odd-borrow-modal').classList.remove('hidden');
+}
+
+function confirmOddBorrow(){
+  const chosen=document.getElementById('odd-borrow-sel').value;
+  if(!chosen)return;
+  const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+  if(soloIdx<0)return;
+  const soloPair=G.pairs[soloIdx];
+  soloPair.borrowedPlayer=chosen;
+  soloPair.players=[soloPair.fixedBowler,chosen];
+  G.oddBorrowChosen=true;
+  document.getElementById('odd-borrow-modal').classList.add('hidden');
+  saveGameState();
+  checkTransitions();
+}
+
+function showOddBorrowChangeModal(){
+  const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+  if(soloIdx<0)return;
+  const soloPair=G.pairs[soloIdx];
+  const soloPlayer=soloPair.fixedBowler;
+  const current=soloPair.borrowedPlayer;
+  const allOthers=G.players.filter(p=>p!==soloPlayer);
+  const sel=document.getElementById('odd-borrow-change-sel');
+  sel.innerHTML='';
+  allOthers.forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p;
+    opt.textContent=p+(p===current?' (current)':'');
+    if(p===current)opt.selected=true;
+    sel.appendChild(opt);
+  });
+  document.getElementById('odd-borrow-change-modal').classList.remove('hidden');
+}
+
+function confirmOddBorrowChange(){
+  const chosen=document.getElementById('odd-borrow-change-sel').value;
+  if(!chosen)return;
+  const soloIdx=G.pairs.findIndex(p=>p.fixedBowler&&!p.isExtraBat);
+  if(soloIdx<0)return;
+  const soloPair=G.pairs[soloIdx];
+  const prev=soloPair.borrowedPlayer;
+  soloPair.borrowedPlayer=chosen;
+  soloPair.players=[soloPair.fixedBowler,chosen];
+  document.getElementById('odd-borrow-change-modal').classList.add('hidden');
+  updateUI();saveGameState();
+  if(prev!==chosen)setFb(`Partner changed to ${chosen}`,'info');
+  setTimeout(()=>setFb('',''),3000);
+}
+
 // ══════════════════════════════════════════
 // END
 // ══════════════════════════════════════════
@@ -3063,11 +3209,26 @@ function showExtraBatPairModal(){
   document.getElementById('extra-start-bonus').textContent=bonusText;
   document.getElementById('extra-bowl-pairs').textContent=
     _pendingExtraBowlers.length?_pendingExtraBowlers.join(', ')+' (1 over each)':'—';
+  // Populate manual override dropdowns
+  const sel1=document.getElementById('extra-bat-manual-1');
+  const sel2=document.getElementById('extra-bat-manual-2');
+  if(sel1&&sel2){
+    const opts=G.players.map(p=>`<option value="${p}">${p}</option>`).join('');
+    sel1.innerHTML=opts;
+    sel2.innerHTML=opts;
+    sel1.value=bat1||G.players[0];
+    sel2.value=bat2||G.players[1]||G.players[0];
+  }
   document.getElementById('extra-bat-modal').classList.remove('hidden');
 }
 
 function confirmExtraBatPair(){
   document.getElementById('extra-bat-modal').classList.add('hidden');
+  const m1=document.getElementById('extra-bat-manual-1')?.value;
+  const m2=document.getElementById('extra-bat-manual-2')?.value;
+  if(m1&&m2&&(m1!==_pendingExtraBatters[0]||m2!==_pendingExtraBatters[1])){
+    _pendingExtraBatters=[m1,m2];
+  }
   const[bat1,bat2]=_pendingExtraBatters;
   // New pair slot — orange (always free in 7–10 player games) so it's visually distinct
   const newPairIdx=G.pairs.length;

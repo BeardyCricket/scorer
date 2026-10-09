@@ -297,9 +297,11 @@ canvas{display:block;width:100%}
       </div>
       <div class="card">
         <div class="card-title">Ranking score</div>
-        <div style="text-align:center;padding:8px 0 4px">
-          <div class="stat-big" id="net-score">—</div>
-          <div class="stat-sub">Ranking score factoring in batting and bowling performance, 100 = average</div>
+        <p class="desc">Batting and bowling performance, 100 = average</p>
+        <div class="mini-row" style="grid-template-columns:repeat(3,1fr)">
+          <div class="mini-cell"><div class="mini-val" id="net-score">—</div><div class="mini-lbl">Combined</div></div>
+          <div class="mini-cell"><div class="mini-val" id="net-score-outdoor">—</div><div class="mini-lbl">Outdoor</div></div>
+          <div class="mini-cell"><div class="mini-val" id="net-score-indoor">—</div><div class="mini-lbl">Indoor</div></div>
         </div>
       </div>
       <div id="ranking-trend-card"></div>
@@ -964,12 +966,36 @@ const fDate=d=>{
 const ordinal=n=>{const s=['th','st','nd','rd'];const v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);};
 
 // ── Overview ───────────────────────────────────────────────
+function isIndoorDate(d){
+  const m=d.getMonth(),day=d.getDate();
+  const outdoorStart=m>3||(m===3&&day>=30);
+  const outdoorEnd=m<8||(m===8&&day<=9);
+  return!(outdoorStart&&outdoorEnd);
+}
+
 function renderOverview(pn,pl,ms,flat,prem){
   const ps=pl[pn];
   // Net contribution (100 = avg)
   const allNets=Object.values(pl).filter(p=>p.bb>0||p.lb>0).map(p=>p.net);
   const avgNet=allNets.length?allNets.reduce((s,n)=>s+n,0)/allNets.length:0;
   document.getElementById('net-score').textContent=ps!=null?Math.round(100+(ps.net-avgNet)):'—';
+
+  // Indoor / outdoor ranking scores
+  const indoorMs=filteredMatches.filter(m=>isIndoorDate(m.date));
+  const outdoorMs=filteredMatches.filter(m=>!isIndoorDate(m.date));
+  const indEl=document.getElementById('net-score-indoor');
+  const outEl=document.getElementById('net-score-outdoor');
+  const rankScore=(matches,name)=>{
+    if(!matches.length)return'—';
+    const h=matches.flatMap(m=>m.history);
+    const{pl:p}=computeAllStats(h);
+    const ps2=p[name];if(!ps2)return'—';
+    const nets=Object.values(p).filter(x=>x.bb>0||x.lb>0).map(x=>x.net);
+    const avg=nets.length?nets.reduce((s,n)=>s+n,0)/nets.length:0;
+    return String(Math.round(100+(ps2.net-avg)));
+  };
+  if(indEl)indEl.textContent=rankScore(indoorMs,pn);
+  if(outEl)outEl.textContent=rankScore(outdoorMs,pn);
 
   // Win/place %
   const playerMs=filteredMatches.filter(m=>{
@@ -1489,7 +1515,8 @@ function renderWinZones(pn,ms,flat,prem){
   }
   // cell[wktRow][bndCol]: {total, wins, playerCount, playerWins}
   const grid=Array.from({length:3},()=>Array.from({length:3},()=>({total:0,wins:0,player:0,playerWins:0})));
-  const wktRow=w=>w>=2?2:w;
+  const indoorMode=activePeriod==='indoor';
+  const wktRow=indoorMode?(w=>w>=3?2:w>=2?1:0):(w=>w>=2?2:w);
   const bndCol=b=>b>=5?2:b>=3?1:0;
 
   for(const m of filteredMatches){
@@ -1508,7 +1535,7 @@ function renderWinZones(pn,ms,flat,prem){
     }
   }
 
-  const wktLabels=['0 wkts','1 wkt','2+ wkts'];
+  const wktLabels=indoorMode?['0–1 wkts','2 wkts','3+ wkts']:['0 wkts','1 wkt','2+ wkts'];
   const bndLabels=['0–2 bnds','3–4 bnds','5+ bnds'];
 
   const table=document.getElementById('wz-table');
@@ -1574,18 +1601,18 @@ function renderWinZones(pn,ms,flat,prem){
     const zonePct=cellData.total?Math.round(cellData.wins/cellData.total*100):0;
     insights.push(`Your most common zone is <b>${wktLabels[maxCell.r]}, ${bndLabels[maxCell.c]}</b> (${maxCount} innings). Overall win rate in this zone: <b>${zonePct}%</b>.`);
   }
-  // Zero wicket innings
+  // Zero/low wicket innings (row 0: 0 wkts outdoor, 0–1 wkts indoor)
   const zeroWktTotal=grid[0].reduce((s,c)=>s+c.player,0);
   if(zeroWktTotal>0){
-    const zeroWktWins=grid[0].reduce((s,c,ci)=>s+grid[0][ci].wins,0);
     const zeroWktMatchWins=filteredMatches.filter(m=>{
       const s=ms[m.matchId];if(!s)return false;
       const pp=s.sorted.find(p=>p.players.includes(pn));
-      return pp&&pp.wkts===0&&pp.idx===matchWinner(s)?.idx;
+      return pp&&(indoorMode?pp.wkts<=1:pp.wkts===0)&&pp.idx===matchWinner(s)?.idx;
     }).length;
-    insights.push(`You've batted with <b>0 wickets lost</b> in <b>${zeroWktTotal}</b> innings, winning <b>${zeroWktMatchWins}</b> of them.`);
+    const zeroLbl=indoorMode?'0–1 wickets':'0 wickets';
+    insights.push(`You've batted with <b>${zeroLbl} lost</b> in <b>${zeroWktTotal}</b> innings, winning <b>${zeroWktMatchWins}</b> of them.`);
   }else{
-    insights.push(`You haven't yet completed an innings without losing a wicket in this period.`);
+    insights.push(indoorMode?`You haven't yet completed an innings losing fewer than 2 wickets in this period.`:`You haven't yet completed an innings without losing a wicket in this period.`);
   }
   // Boundary insight
   const fivePlusBnds=[grid[0][2],grid[1][2],grid[2][2]].reduce((s,c)=>s+c.player,0);
