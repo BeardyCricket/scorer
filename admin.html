@@ -623,8 +623,8 @@ function openBallEdit(idx){
   const bp=pairs[b.batPair]||{};
   const bwp=pairs[b.bowlPair]||{};
   const allP=[...new Set(pairs.flatMap(p=>p.players||[]))];
-  const batP=(bp.players||[]).length?bp.players:allP;
-  const bowlP=(bwp.players||[]).length?bwp.players:allP;
+  const batP=allP.length?allP:(bp.players||[]);
+  const bowlP=allP.length?allP:(bwp.players||[]);
   const mkOpts=(list,sel)=>list.map(n=>`<option value="${escHtml(n)}"${n===sel?' selected':''}>${escHtml(n)}</option>`).join('');
   const typeList=['normal','wide','nb','bye','wkt'];
   const typeOpts=typeList.map(t=>`<option value="${t}"${t===b.type?' selected':''}>${t}</option>`).join('');
