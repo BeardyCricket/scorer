@@ -209,6 +209,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .roster-row:last-child{border-bottom:none}
 .roster-name-inp{flex:0 0 100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--rs);font-size:14px;background:var(--card);color:var(--text);min-width:0}
 .roster-name-inp:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.name-suggestions{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;overflow:hidden;max-height:240px;overflow-y:auto}
+.name-sug-item{padding:9px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;color:var(--text);border-bottom:1px solid var(--border)}
+.name-sug-item:last-child{border-bottom:none}
+.name-sug-item:hover,.name-sug-item.sug-active{background:var(--brand);color:#fff}
+.name-sug-item:hover .name-sug-meta,.name-sug-item.sug-active .name-sug-meta{color:rgba(255,255,255,.75)}
+.name-sug-meta{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0}
+.name-sug-new{color:var(--brand);font-style:italic}
+.name-sug-item.name-sug-new:hover,.name-sug-item.name-sug-new.sug-active{background:var(--brand-l,#eff6ff);color:var(--brand)}
 .status-chips{display:flex;gap:3px;flex-shrink:0}
 .status-chip{padding:5px 7px;border-radius:20px;border:1.5px solid var(--border);background:var(--grey-l);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;color:var(--muted)}
 .status-chip.s-present{background:var(--green-l);border-color:var(--green);color:var(--green)}
@@ -1006,6 +1014,7 @@ const NAME_CORRECTIONS={'Domi':'Dom','Jural':'Jarell','Nero':'Niro'};
 const correctName=n=>NAME_CORRECTIONS[n]||n;
 let _playerStatsCache=null;
 let _statsLoading=false;
+let _knownPlayerNames=new Set(); // all player names ever seen across past matches
 
 async function getPlayerStats(){
   if(_playerStatsCache)return _playerStatsCache;
@@ -1014,10 +1023,18 @@ async function getPlayerStats(){
   try{
     const{data,error}=await supabaseClient.from('live_scores').select('payload').not('match_id','like','beardy-test-%');
     const history=[];
-    (data||[]).forEach(row=>(row.payload?.history||[]).forEach(b=>{
-      if(!b)return;
-      history.push({...b,facing:b.facing?correctName(b.facing):b.facing,bowling:b.bowling?correctName(b.bowling):b.bowling});
-    }));
+    (data||[]).forEach(row=>{
+      (row.payload?.history||[]).forEach(b=>{
+        if(!b)return;
+        const fc=b.facing?correctName(b.facing):b.facing;
+        const bw=b.bowling?correctName(b.bowling):b.bowling;
+        if(fc)_knownPlayerNames.add(fc);
+        if(bw)_knownPlayerNames.add(bw);
+        history.push({...b,facing:fc,bowling:bw});
+      });
+      // also collect names from pair definitions (catches players who never faced/bowled)
+      (row.payload?.pairs||[]).forEach(pair=>(pair.players||[]).forEach(n=>{if(n)_knownPlayerNames.add(correctName(n));}));
+    });
     _playerStatsCache=_computePlayerStats(history);
   }catch(e){console.warn('[Stats]',e);_playerStatsCache={};}
   _statsLoading=false;
@@ -2118,14 +2135,21 @@ function updateTargetStrip(){
 
   if(ballsRemaining<=0){strip.className='target-strip';return;}
 
+  // In 5-ball over mode the batting pair's runs are worth ×1.2 adjusted, so display in raw run terms
+  // adjusted gap × (5/6) = raw runs needed (since raw × 1.2 = adjusted, raw = adjusted × 5/6)
+  const inFiveBall=useAdj&&isOverFiveBall(G.overIdx);
+  const toRaw=(adj)=>inFiveBall?Math.round(adj*5/6):adj;
+
   if(runsNeeded<=0){
+    const displayClear=toRaw(1-runsNeeded);
     strip.className='target-strip leading';
-    document.getElementById('target-msg').textContent=`Leading — ${1-runsNeeded} run${1-runsNeeded!==1?'s':''} clear`;
+    document.getElementById('target-msg').textContent=`Leading — ${displayClear} run${displayClear!==1?'s':''} clear`;
     document.getElementById('target-rr').textContent=`Target ${target}`;
   } else {
-    const rrr=(runsNeeded/ballsRemaining*6).toFixed(1);
+    const displayNeeded=toRaw(runsNeeded);
+    const rrr=inFiveBall?(displayNeeded/ballsRemaining*5).toFixed(1):(runsNeeded/ballsRemaining*6).toFixed(1);
     strip.className='target-strip chasing';
-    document.getElementById('target-msg').textContent=`Need ${runsNeeded} from ${ballsRemaining} ball${ballsRemaining!==1?'s':''}`;
+    document.getElementById('target-msg').textContent=`Need ${displayNeeded} from ${ballsRemaining} ball${ballsRemaining!==1?'s':''}`;
     document.getElementById('target-rr').textContent=`${rrr} rpo`;
   }
 }
@@ -3779,7 +3803,7 @@ function renderRoster(){
       const snClass=snLocked?'seed-num-locked':snAuto?'seed-num-auto':(!hasHistory&&_playerStatsCache?'seed-num-unranked':'');
       const snPlaceholder=(!hasHistory&&_playerStatsCache)?'new':'—';
       const snTitle=snLocked?'Manually overridden — click ↺ to restore auto-calculated rank':snAuto?'Auto-calculated from match history — type to override':'Seed number for seed mode (1=best, blank=unseeded)';
-      row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
+      row.innerHTML=`<input class="roster-name-inp" value="${escHtml(p.name)}" oninput="showRosterNameSuggestions(this,${i})" onfocus="showRosterNameSuggestions(this,${i})" onchange="updateRosterName(${i},this.value)" onblur="saveRoster()">
         <div class="seed-wrap">
           <button class="seed-btn${sd===1?' sel-seed':''}" onclick="setRosterSeed(${i},1,this)" title="Rank 1 — bat early">1</button>
           <button class="seed-btn${sd===2?' sel-seed':''}" onclick="setRosterSeed(${i},2,this)" title="Rank 2 — default">2</button>
@@ -3811,6 +3835,106 @@ function renderRoster(){
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ── ROSTER NAME AUTOCOMPLETE ────────────────────────────
+let _sugActiveIdx=-1;
+
+function _getRosterSuggestions(typed){
+  if(!typed)return[];
+  const lower=typed.toLowerCase();
+  const rosterSet=new Set(rosterPlayers.map(p=>p.name.toLowerCase()));
+  const all=new Set([..._knownPlayerNames,...Object.keys(_playerStatsCache||{})]);
+  const matches=[...all].filter(n=>{
+    if(rosterSet.has(n.toLowerCase()))return false; // already in roster
+    return n.toLowerCase().includes(lower);
+  });
+  // sort: starts-with first, then alphabetical
+  matches.sort((a,b)=>{
+    const al=a.toLowerCase(),bl=b.toLowerCase();
+    const as=al.startsWith(lower),bs=bl.startsWith(lower);
+    if(as&&!bs)return-1;if(!as&&bs)return 1;
+    return a.localeCompare(b);
+  });
+  return matches.slice(0,8);
+}
+
+function showRosterNameSuggestions(input,rosterIdx){
+  hideRosterNameSuggestions();
+  _sugActiveIdx=-1;
+  const typed=(input.value||'').trim();
+  // Only show if stats loaded (or at least partially known)
+  if(!typed||(!_playerStatsCache&&!_knownPlayerNames.size))return;
+  const matches=_getRosterSuggestions(typed);
+  const exactMatch=matches.some(m=>m.toLowerCase()===typed.toLowerCase());
+  if(!matches.length&&exactMatch)return;
+
+  const drop=document.createElement('div');
+  drop.className='name-suggestions';
+  drop.id='roster-name-dropdown';
+
+  matches.forEach((name,mi)=>{
+    const stats=_playerStatsCache?.[name];
+    const meta=stats?.bb>0?`${stats.bb} balls`:'past player';
+    const item=document.createElement('div');
+    item.className='name-sug-item';
+    item.dataset.idx=mi;
+    item.innerHTML=`<span>${escHtml(name)}</span><span class="name-sug-meta">${meta}</span>`;
+    item.onmousedown=e=>{e.preventDefault();applyRosterNameSuggestion(rosterIdx,name,input);};
+    drop.appendChild(item);
+  });
+
+  // "Use as new player" footer when typed name differs from all suggestions
+  if(!exactMatch){
+    const newItem=document.createElement('div');
+    newItem.className='name-sug-item name-sug-new';
+    newItem.dataset.idx=matches.length;
+    newItem.innerHTML=`<span>➕ Add "<strong>${escHtml(typed)}</strong>" as new player</span><span class="name-sug-meta">no history</span>`;
+    newItem.onmousedown=e=>{e.preventDefault();applyRosterNameSuggestion(rosterIdx,typed,input);};
+    drop.appendChild(newItem);
+  }
+
+  if(!drop.children.length)return;
+
+  const rect=input.getBoundingClientRect();
+  drop.style.top=(rect.bottom+window.scrollY+2)+'px';
+  drop.style.left=rect.left+'px';
+  drop.style.minWidth=Math.max(rect.width,200)+'px';
+  drop.style.position='absolute';
+  document.body.appendChild(drop);
+
+  // keyboard nav on the input
+  input._sugIdx=rosterIdx;
+  input.onkeydown=e=>_rosterSugKeydown(e,rosterIdx,input);
+}
+
+function _rosterSugKeydown(e,rosterIdx,input){
+  const drop=document.getElementById('roster-name-dropdown');
+  if(!drop)return;
+  const items=[...drop.querySelectorAll('.name-sug-item')];
+  if(e.key==='ArrowDown'){e.preventDefault();_sugActiveIdx=Math.min(_sugActiveIdx+1,items.length-1);items.forEach((el,i)=>el.classList.toggle('sug-active',i===_sugActiveIdx));}
+  else if(e.key==='ArrowUp'){e.preventDefault();_sugActiveIdx=Math.max(_sugActiveIdx-1,0);items.forEach((el,i)=>el.classList.toggle('sug-active',i===_sugActiveIdx));}
+  else if(e.key==='Enter'&&_sugActiveIdx>=0){e.preventDefault();const chosen=items[_sugActiveIdx];if(chosen)chosen.onmousedown(e);}
+  else if(e.key==='Escape'){hideRosterNameSuggestions();input.onkeydown=null;}
+}
+
+function applyRosterNameSuggestion(rosterIdx,name,input){
+  input.value=name;
+  hideRosterNameSuggestions();
+  updateRosterName(rosterIdx,name);
+}
+
+function hideRosterNameSuggestions(){
+  _sugActiveIdx=-1;
+  const d=document.getElementById('roster-name-dropdown');
+  if(d)d.remove();
+}
+
+// close dropdown when clicking outside
+document.addEventListener('mousedown',e=>{
+  if(!e.target.closest('#roster-name-dropdown')&&!e.target.classList.contains('roster-name-inp')){
+    hideRosterNameSuggestions();
+  }
+});
 
 function updateRosterName(i,name){
   name=name.trim();
@@ -3903,11 +4027,20 @@ function rToggleSeedMode(on){
 }
 
 function addRosterPlayer(){
-  const name='Player '+(rosterPlayers.length+1);
-  rosterPlayers.push({name,seed:2,seedNum:null});
-  sessionStatuses[name]='present';
+  const placeholder='Player '+(rosterPlayers.length+1);
+  rosterPlayers.push({name:placeholder,seed:2,seedNum:null});
+  sessionStatuses[placeholder]='present';
   saveRoster();
   renderRoster();
+  // Focus last name input and clear placeholder so user types immediately
+  const inputs=document.querySelectorAll('.roster-name-inp');
+  const last=inputs[inputs.length-1];
+  if(last){
+    last.focus();
+    last.select();
+    // scroll into view
+    last.scrollIntoView({behavior:'smooth',block:'nearest'});
+  }
 }
 
 function removeRosterPlayer(i){
