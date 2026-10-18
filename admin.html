@@ -314,6 +314,7 @@ async function verifyAdmin(email){
   }
   const{data:act}=await db.from('stats_activity').select('player_name,viewed_at').order('viewed_at',{ascending:false});
   _activity=act||[];
+  (data||[]).forEach(p=>_allKnownPlayers.add(p.player_name));
   show('screen-admin');
   renderPlayers(data||[]);
 }
@@ -542,7 +543,7 @@ async function bulkImport(){
 }
 
 // ── MATCH HISTORY EDITOR ─────────────────────────────────────────────
-let _matchPayloads={},_matchOriginalDates={},_editMatchId=null,_editPayload=null,_editOriginalDate=null,_editBallIdx=null,_changedBalls=new Set();
+let _matchPayloads={},_matchOriginalDates={},_editMatchId=null,_editPayload=null,_editOriginalDate=null,_editBallIdx=null,_changedBalls=new Set(),_allKnownPlayers=new Set();
 
 async function loadMatchList(){
   const btn=document.getElementById('load-hist-btn');
@@ -560,6 +561,9 @@ async function loadMatchList(){
   (data||[]).forEach(row=>{
     _matchPayloads[row.match_id]=row.payload||{};
     _matchOriginalDates[row.match_id]=row.updated_at;
+    const _hp=row.payload||{};
+    (_hp.pairs||[]).flatMap(pr=>pr.players||[]).forEach(n=>_allKnownPlayers.add(n));
+    (_hp.history||[]).forEach(b=>{if(b.facing)_allKnownPlayers.add(b.facing);if(b.bowling)_allKnownPlayers.add(b.bowling);});
     const p=row.payload||{};
     const d=row.updated_at?new Date(row.updated_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit'}):row.match_id;
     const players=(p.pairs||[]).flatMap(pr=>pr.players||[]).join(', ');
@@ -615,6 +619,13 @@ function renderHistory(){
   document.getElementById('hist-wrap').style.display='block';
 }
 
+function buildPlayerDatalist(matchPlayers){
+  const inMatch=new Set(matchPlayers);
+  const opts=matchPlayers.map(n=>`<option value="${escHtml(n)}">`);
+  [..._allKnownPlayers].filter(n=>!inMatch.has(n)).sort().forEach(n=>opts.push(`<option value="${escHtml(n)}">`));
+  return opts.join('');
+}
+
 function openBallEdit(idx){
   if(_editBallIdx!==null&&_editBallIdx!==idx)closeBallEdit();
   _editBallIdx=idx;
@@ -625,7 +636,6 @@ function openBallEdit(idx){
   const allP=[...new Set(pairs.flatMap(p=>p.players||[]))];
   const batP=allP.length?allP:(bp.players||[]);
   const bowlP=allP.length?allP:(bwp.players||[]);
-  const mkOpts=(list,sel)=>list.map(n=>`<option value="${escHtml(n)}"${n===sel?' selected':''}>${escHtml(n)}</option>`).join('');
   const typeList=['normal','wide','nb','bye','wkt'];
   const typeOpts=typeList.map(t=>`<option value="${t}"${t===b.type?' selected':''}>${t}</option>`).join('');
   const codeOpts=codeOptsFor(b.type||'normal',b.code||'');
@@ -637,11 +647,13 @@ function openBallEdit(idx){
     <div class="edit-grid">
       <div class="edit-field">
         <span class="elbl">Batsman on strike</span>
-        <select class="esel" id="ef-facing">${mkOpts(batP,b.facing||'')}</select>
+        <input class="einp" id="ef-facing" list="dl-facing-${idx}" value="${escHtml(b.facing||'')}" autocomplete="off" placeholder="Type or select name">
+        <datalist id="dl-facing-${idx}">${buildPlayerDatalist(batP)}</datalist>
       </div>
       <div class="edit-field">
         <span class="elbl">Bowler</span>
-        <select class="esel" id="ef-bowling">${mkOpts(bowlP,b.bowling||'')}</select>
+        <input class="einp" id="ef-bowling" list="dl-bowling-${idx}" value="${escHtml(b.bowling||'')}" autocomplete="off" placeholder="Type or select name">
+        <datalist id="dl-bowling-${idx}">${buildPlayerDatalist(bowlP)}</datalist>
       </div>
       <div class="edit-field">
         <span class="elbl">Ball type</span>
