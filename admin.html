@@ -270,7 +270,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 'use strict';
-let _activity=[];
+let _activity=[],_loginStats={};
 const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
 const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -288,6 +288,15 @@ function toast(msg,ms=2500){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+async function fetchLoginStats(){
+  try{
+    const{data,error}=await db.rpc('admin_get_login_stats');
+    if(error||!data)return;
+    _loginStats={};
+    data.forEach(r=>{_loginStats[r.email.toLowerCase()]=r;});
+  }catch(e){}
 }
 
 async function init(){
@@ -314,6 +323,7 @@ async function verifyAdmin(email){
   }
   const{data:act}=await db.from('stats_activity').select('player_name,viewed_at').order('viewed_at',{ascending:false});
   _activity=act||[];
+  await fetchLoginStats();
   (data||[]).forEach(p=>_allKnownPlayers.add(p.player_name));
   show('screen-admin');
   renderPlayers(data||[]);
@@ -398,7 +408,25 @@ async function refreshList(){
   if(error){toast('Refresh error: '+error.message);return;}
   const{data:act}=await db.from('stats_activity').select('player_name,viewed_at').order('viewed_at',{ascending:false});
   _activity=act||[];
+  await fetchLoginStats();
   renderPlayers(data||[]);
+}
+
+function fmtLoginStats(email){
+  const r=_loginStats[(email||'').toLowerCase()];
+  if(!r)return'';
+  const last=new Date(r.last_sign_in_at);
+  const created=new Date(r.auth_created_at);
+  if(!r.last_sign_in_at||Math.abs(last-created)<60000){
+    return'<div class="player-activity">🔑 0 logins</div>';
+  }
+  const today=new Date();
+  const diffDays=Math.floor((today-last)/864e5);
+  let dateStr;
+  if(diffDays===0)dateStr='today';
+  else if(diffDays===1)dateStr='yesterday';
+  else dateStr=diffDays+' days ago';
+  return`<div class="player-activity">🔑 Last login: ${dateStr}</div>`;
 }
 
 function fmtActivity(playerName){
@@ -436,6 +464,7 @@ function renderPlayers(players){
             ${live?'<span class="prem-badge">⭐ Premium</span>':''}
           </div>
           <div class="player-email">${escHtml(p.email)}</div>
+          ${fmtLoginStats(p.email)}
           ${fmtActivity(p.player_name)}
         </div>
         <span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Inactive'}</span>
