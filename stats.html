@@ -166,6 +166,12 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .upgrade-card{background:#f7f8fb;border:1.5px dashed #c4c8d8;border-radius:12px;padding:22px 16px;text-align:center;margin-top:12px}
 .upgrade-cta{display:inline-block;background:var(--navy);color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;font-weight:600;margin-top:2px}
 
+/* Premium blur preview */
+.prem-blur-body{filter:blur(5px);pointer-events:none;user-select:none;overflow:hidden}
+.prem-chart-ph{height:140px;background:var(--bg);border-radius:6px;display:flex;align-items:flex-end;gap:3px;padding:8px 4px}
+.prem-chart-ph-bar{flex:1;border-radius:2px 2px 0 0;opacity:.55}
+.prem-blur-wz{filter:blur(6px);pointer-events:none;user-select:none;overflow:hidden}
+
 /* Canvas */
 canvas{display:block;width:100%}
 
@@ -1246,6 +1252,7 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   if(!prem){
     const totalRuns=ps?.br??0;
     const sr=ps?.bb>0?ps.br/ps.bb*100:null;
+    const fakeBars=(cols)=>cols.map((h,i)=>`<div class="prem-chart-ph-bar" style="height:${h}%;background:${['#1D9E75','#BA7517','#7F77DD','#E24B4A','#1A2744'][i%5]}"></div>`).join('');
     document.getElementById('tab-batting').innerHTML=`
       <div class="card">
         <div class="card-title">Batting</div>
@@ -1255,7 +1262,62 @@ function renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${sr!=null?f1(sr):'—'}</div><div class="mini-lbl">Strike rate</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper batting stats are available to Beardy Stats Club members — per-match run charts, scoring breakdown, strike rate by over, form of dismissal, head-to-head vs bowlers, and quality-adjusted performance.')}</div>`;
+      ${upgradeCard('')}
+      <div class="card">
+        <div class="card-title">Individual Batting Stats</div>
+        <div class="prem-blur-body">
+          <div class="stats-grid">
+            <div class="stat-cell"><div class="stat-cell-val">247</div><div class="stat-cell-lbl">Total runs</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">118.3</div><div class="stat-cell-lbl">Strike rate</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">24.7</div><div class="stat-cell-lbl">Avg per innings</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">82.3</div><div class="stat-cell-lbl">Runs per wicket</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">3</div><div class="stat-cell-lbl">Wickets lost</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">209</div><div class="stat-cell-lbl">Balls faced</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">vs all-player average</div>
+        <div class="prem-blur-body">
+          <div class="cmp-row"><span class="cmp-lbl">Dismissals per match</span><span class="cmp-me flag-green">0.3</span><span class="cmp-avg">all players avg: 0.7</span></div>
+          <div class="cmp-row"><span class="cmp-lbl">Strike rate</span><span class="cmp-me flag-green">118.3</span><span class="cmp-avg">all players avg: 108.5</span></div>
+        </div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Runs per match <span style="font-size:9px;font-weight:400;color:var(--muted)">green=0wkt amber=1wkt red=2+</span></div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([68,45,90,55,78,42,65,82,50,73])}</div></div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Scoring breakdown <span style="font-size:9px;font-weight:400;color:var(--muted)">% of balls faced</span></div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([80,55,35,20,65,45,90,30,70,50])}</div></div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Strike rate by over</div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([60,72,85,95])}</div></div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Strike rate over time</div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([50,55,58,62,65,63,70,68,72,75])}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Head-to-head vs bowlers <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
+        <div class="prem-blur-body">
+          ${['Player A','Player B','Player C','Player D'].map(n=>`<div class="h2h-row"><div class="h2h-name">${n}</div><div class="h2h-bar-bg"><div class="h2h-bar" style="width:72%"></div></div><div class="h2h-val">124.0</div><div class="h2h-sub">0 wkts</div></div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Batting vs bowler quality</div>
+        <div class="prem-blur-body">
+          <table class="opp-tbl"><thead><tr><th></th><th>Top bowlers</th><th>Mid bowlers</th><th>Bottom bowlers</th></tr></thead>
+          <tbody><tr><td class="row-lbl">Run rate</td><td>98.4</td><td>112.1</td><td>127.6</td></tr>
+          <tr><td class="row-lbl">Wickets lost</td><td>2</td><td>1</td><td>0</td></tr>
+          <tr><td class="row-lbl">Balls faced</td><td>48</td><td>54</td><td>36</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Form of dismissal <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
+        <div class="prem-blur-body"><div class="prem-chart-ph" style="height:160px;">${fakeBars([75,45,30,55,20])}</div></div>
+      </div>`;
     return;
   }
 
@@ -1427,6 +1489,7 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
   if(!prem){
     const wkts=flat.filter(b=>b.bowling===pn&&b.type==='wkt'&&!(b.isRunout||b.dismissal==='Run out')).length;
     const eco=ps?.lb>0?ps.raw_bowl*6/100:null;
+    const fakeBars=(cols)=>cols.map((h,i)=>`<div class="prem-chart-ph-bar" style="height:${h}%;background:${['#7F77DD','#1D9E75','#BA7517','#E24B4A','#1A2744'][i%5]}"></div>`).join('');
     document.getElementById('tab-bowling').innerHTML=`
       <div class="card">
         <div class="card-title">Bowling</div>
@@ -1436,7 +1499,55 @@ function renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,prem){
           <div class="mini-cell"><div class="mini-val">${eco!=null?f1(eco):'—'}</div><div class="mini-lbl">Economy</div></div>
         </div>
       </div>
-      ${upgradeCard('Deeper bowling stats are available to Beardy Stats Club members — economy trend charts, extras %, dot ball %, wicket type breakdown, head-to-head vs batters, and batter quality analysis.')}</div>`;
+      ${upgradeCard('')}
+      <div class="card">
+        <div class="card-title">Bowling Stats</div>
+        <div class="prem-blur-body">
+          <div class="stats-grid">
+            <div class="stat-cell"><div class="stat-cell-val">7.2</div><div class="stat-cell-lbl">Economy</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">8</div><div class="stat-cell-lbl">Wickets</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">18.0</div><div class="stat-cell-lbl">Balls per wkt</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">21.6</div><div class="stat-cell-lbl">Runs per wkt</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">144</div><div class="stat-cell-lbl">Balls bowled</div></div>
+            <div class="stat-cell"><div class="stat-cell-val">173</div><div class="stat-cell-lbl">Runs conceded</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">vs all-player average</div>
+        <div class="prem-blur-body">
+          <div class="cmp-row"><span class="cmp-lbl">Economy rate</span><span class="cmp-me flag-green">7.2</span><span class="cmp-avg">all players avg: 8.4</span></div>
+          <div class="cmp-row"><span class="cmp-lbl">Extras %</span><span class="cmp-me">4.2%</span><span class="cmp-avg">all players avg: 5.8%</span></div>
+          <div class="cmp-row"><span class="cmp-lbl">Dot ball %</span><span class="cmp-me flag-green">38%</span><span class="cmp-avg">all players avg: 32%</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Economy by match <span style="font-size:9px;font-weight:400;color:var(--muted)">🎯 = wicket taken</span></div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([60,80,45,70,55,90,40,65,75,50])}</div></div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">Economy over time</div>
+        <div class="prem-blur-body"><div class="prem-chart-ph">${fakeBars([85,80,75,72,70,68,72,69,65,63])}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Head-to-head vs batters <span style="font-size:9px;font-weight:400;color:var(--muted)">min 6 balls</span></div>
+        <div class="prem-blur-body">
+          ${['Player A','Player B','Player C','Player D'].map(n=>`<div class="h2h-row"><div class="h2h-name">${n}</div><div class="h2h-bar-bg"><div class="h2h-bar h2h-bowl-bar" style="width:65%"></div></div><div class="h2h-val">7.5/ov</div><div class="h2h-sub">1 wkt</div></div>`).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Bowling vs batter quality</div>
+        <div class="prem-blur-body">
+          <table class="opp-tbl"><thead><tr><th></th><th>Best third</th><th>Mid third</th><th>Bottom third</th></tr></thead>
+          <tbody><tr><td class="row-lbl">Economy</td><td>8.1</td><td>7.4</td><td>6.2</td></tr>
+          <tr><td class="row-lbl">Wickets</td><td>3</td><td>3</td><td>2</td></tr>
+          <tr><td class="row-lbl">Balls bowled</td><td>54</td><td>48</td><td>42</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="card" style="padding-left:8px;padding-right:8px">
+        <div class="card-title" style="padding-left:8px">How you take wickets <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
+        <div class="prem-blur-body"><div class="prem-chart-ph" style="height:160px;">${fakeBars([75,45,30,55,20])}</div></div>
+      </div>`;
     return;
   }
   const allBowlers=Object.values(pl).filter(p=>p.lb>0);
@@ -1531,8 +1642,76 @@ function renderH2HBatters(pn,ps,pl,flat){
 // ── Win zones ──────────────────────────────────────────────
 function renderWinZones(pn,ms,flat,prem){
   if(!prem){
+    const fakeWzRow=(vals)=>vals.map(v=>`<td class="wz-td"><div class="wz-pct">${v}%</div><div class="wz-total">24 innings</div><div class="wz-player">Your pair: 3</div></td>`).join('');
     document.getElementById('tab-winzones').innerHTML=`
-      ${upgradeCard('Win Zones is available to Beardy Stats Club members — separate outdoor and indoor 3×3 matrices showing which type of innings tends to win matches, based on wickets lost and boundaries hit, with personalised insights about your game.')}</div>`;
+      <div class="card" style="background:#f0f9ff;border-color:#bae6fd">
+        <div class="card-title" style="color:#0369a1">What are Win Zones?</div>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px">Win Zones shows which type of <b>pair innings</b> tends to win matches — and how often your pair plays that way. Every pair innings is placed in one of 9 zones based on wickets lost and boundaries hit. Outdoor and indoor are shown separately as the different formats play very differently.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:10px"><b>How to read it:</b> The large coloured percentage is the overall win rate for all pairs in that zone. Below it is the total pair innings count. "Your pair" shows how many of your innings fell there — green background means your pair won at least once from that zone 🏆.</p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65;margin-bottom:6px"><b>Colours:</b> <span style="color:#1D9E75;font-weight:600">Green = 40%+ win rate</span> · <span style="color:#BA7517;font-weight:600">Amber = 15–39%</span> · <span style="color:#E24B4A;font-weight:600">Red = under 15%</span></p>
+        <p style="font-size:13px;color:#1A2744;line-height:1.65">Use it to understand what style of innings gives you the best chance of winning — and whether your natural game puts you in the high-win zones.</p>
+      </div>
+      ${upgradeCard('')}
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:14px 0 2px">🌤 Outdoor</div>
+      <div class="card">
+        <div class="card-title">Win zones (outdoor) — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
+        <div class="prem-blur-wz" style="overflow-x:auto"><table class="wz-table">
+          <thead><tr><th class="wz-th"></th><th class="wz-th">0–2 bnds</th><th class="wz-th">3–4 bnds</th><th class="wz-th">5+ bnds</th></tr></thead>
+          <tbody>
+            <tr><th class="wz-th">0 wkts</th>${fakeWzRow([12,28,52])}</tr>
+            <tr><th class="wz-th">1 wkt</th>${fakeWzRow([8,19,41])}</tr>
+            <tr><th class="wz-th">2+ wkts</th>${fakeWzRow([4,11,22])}</tr>
+          </tbody>
+        </table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s) · Green background = your pair won there 🏆</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Expected vs actual wins (outdoor)</div>
+        <div class="prem-blur-wz">
+          <div class="pred-row">
+            <div class="pred-cell"><div class="pred-val">4.2</div><div class="pred-lbl">Expected wins</div></div>
+            <div class="pred-cell"><div class="pred-val">5</div><div class="pred-lbl">Actual wins</div></div>
+            <div class="pred-cell"><div class="pred-val">+0.8</div><div class="pred-lbl">Difference</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Insights (outdoor)</div>
+        <div class="prem-blur-wz">
+          <div class="insight">Your pair most often lands in the <b>1 wkt / 3–4 bnds</b> zone, which has a 19% win rate across all players.</div>
+          <div class="insight">When your pair hits <b>5+ boundaries</b> you win significantly more often — this is your strongest zone.</div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:14px 0 2px">🏟 Indoor</div>
+      <div class="card">
+        <div class="card-title">Win zones (indoor) — win rate / all pairs / <b style="color:var(--navy)">your pair</b></div>
+        <div class="prem-blur-wz" style="overflow-x:auto"><table class="wz-table">
+          <thead><tr><th class="wz-th"></th><th class="wz-th">0–2 bnds</th><th class="wz-th">3–5 bnds</th><th class="wz-th">6+ bnds</th></tr></thead>
+          <tbody>
+            <tr><th class="wz-th">0–2 wkts</th>${fakeWzRow([10,25,48])}</tr>
+            <tr><th class="wz-th">3 wkts</th>${fakeWzRow([6,17,38])}</tr>
+            <tr><th class="wz-th">4+ wkts</th>${fakeWzRow([3,9,18])}</tr>
+          </tbody>
+        </table></div>
+        <div style="margin-top:8px;font-size:10px;color:var(--muted)">Rows = wickets lost · Columns = boundaries hit (4s + 6s) · Green background = your pair won there 🏆</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Expected vs actual wins (indoor)</div>
+        <div class="prem-blur-wz">
+          <div class="pred-row">
+            <div class="pred-cell"><div class="pred-val">3.7</div><div class="pred-lbl">Expected wins</div></div>
+            <div class="pred-cell"><div class="pred-val">4</div><div class="pred-lbl">Actual wins</div></div>
+            <div class="pred-cell"><div class="pred-val">+0.3</div><div class="pred-lbl">Difference</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Insights (indoor)</div>
+        <div class="prem-blur-wz">
+          <div class="insight">Your pair most often lands in the <b>3 wkts / 3–5 bnds</b> zone, which has a 17% win rate across all players.</div>
+          <div class="insight">Hitting <b>6+ boundaries</b> doubles your win rate — a key target for your indoor game.</div>
+        </div>
+      </div>`;
     return;
   }
   const outdoorMs=filteredMatches.filter(m=>!isIndoorDate(m.date));
@@ -1980,6 +2159,7 @@ function renderLeaderboards(pn,ms,prem){
   const gbHtml=(topFirst.map((p,i)=>row(i,p.name,p.name===pn,String(p.w)+' wins','2nd: '+p.p2+' · 3rd: '+p.p3+' · played: '+p.played)).join('')||noData)+minNote;
 
   if(!prem){
+    const fakeLbRows=names=>names.map((n,i)=>{const rc=i===0?'lb-rank-1':i===1?'lb-rank-2':i===2?'lb-rank-3':'lb-rank-n';return`<div class="lb-row"><div class="lb-rank ${rc}">${i+1}</div><div style="flex:1"><div class="lb-name">${n}</div></div><div class="lb-val">—</div></div>`;}).join('');
     document.getElementById('tab-leaderboards').innerHTML=`
       <div class="lb-section-hdr">Pair Stats</div>
       <div class="card">
@@ -1987,7 +2167,41 @@ function renderLeaderboards(pn,ms,prem){
         <p class="desc">Most wins, tiebroken by 2nd places then 3rd places.</p>
         ${gbHtml}
       </div>
-      ${upgradeCard('More leaderboards are available to Beardy Stats Club members — top pair scores, pair averages, individual batting (runs, strike rates, balls per wicket) and bowling leaderboards.')}</div>`;
+      ${upgradeCard('')}
+      <div class="card">
+        <div class="card-title">Top 5 pair scores</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top 5 pair averages</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="lb-section-hdr">Individual Batting</div>
+      <div class="card">
+        <div class="card-title">Top 5 total runs</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top 5 strike rates</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Best balls per wicket lost</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="lb-section-hdr">Individual Bowling</div>
+      <div class="card">
+        <div class="card-title">Top 5 wickets taken</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Best economy rates</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Most wickets per match</div>
+        <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
+      </div>`;
     return;
   }
 
