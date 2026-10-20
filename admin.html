@@ -284,6 +284,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
             <input class="form-inp" id="su-name" list="su-datalist" placeholder="Type or select name">
             <datalist id="su-datalist"></datalist>
           </div>
+          <div class="form-group">
+            <label class="lbl">Email <span style="font-weight:400;text-transform:none;font-size:10px">(new players only)</span></label>
+            <input class="form-inp" id="su-email" type="email" placeholder="Leave blank if already has account">
+          </div>
           <button class="btn-add" onclick="addManualSignup()">+ Add</button>
         </div>
         <div id="su-add-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
@@ -940,18 +944,44 @@ function renderSignupList(signups,date,venue){
 async function addManualSignup(){
   const sel=document.getElementById('su-match-sel').value;
   const name=document.getElementById('su-name').value.trim();
+  const email=document.getElementById('su-email').value.trim().toLowerCase();
   const status=document.getElementById('su-add-status');
   if(!sel){status.textContent='Select a match first.';return;}
   if(!name){status.textContent='Enter a player name.';return;}
   const[date,venue]=sel.split('|');
+
+  // Add to match_signups
   const{error}=await db.from('match_signups').insert({
     match_date:date,venue_code:venue,
     canonical_name:name,raw_name:name,
-    email:'',product_name:'Manual entry',
+    email:email||'',product_name:'Manual entry',
   });
   if(error){status.textContent='Error: '+error.message;return;}
+
+  // If email provided and not already in player_access, create stats account
+  if(email){
+    const{data:existing}=await db.from('player_access').select('id').eq('email',email).maybeSingle();
+    if(!existing){
+      const{data:{session}}=await db.auth.getSession();
+      const res=await fetch('https://gdhqqcqzshvomnyfhsya.supabase.co/functions/v1/admin-create-player',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+        body:JSON.stringify({name,email}),
+      });
+      if(res.ok){
+        status.textContent=name+' added + stats account created.';
+      } else {
+        status.textContent=name+' added to match (stats account creation failed — add manually if needed).';
+      }
+    } else {
+      status.textContent=name+' added (already has a stats account).';
+    }
+  } else {
+    status.textContent=name+' added.';
+  }
+
   document.getElementById('su-name').value='';
-  status.textContent=name+' added.';
+  document.getElementById('su-email').value='';
   onSignupMatchSelect();
 }
 
