@@ -3780,24 +3780,28 @@ function showRoster(){
 async function populateSignupsDropdown(){
   const sel=document.getElementById('signup-match-sel');
   sel.innerHTML='<option value="">Loading…</option>';
-  const cutoff=new Date();
-  cutoff.setDate(cutoff.getDate()-7);
-  const cutoffStr=cutoff.toISOString().slice(0,10);
   const{data,error}=await supabaseClient
     .from('match_signups')
-    .select('match_date,venue_code')
-    .gte('match_date',cutoffStr)
-    .order('match_date',{ascending:true});
+    .select('match_date,venue_code');
   if(error||!data||!data.length){
     sel.innerHTML='<option value="">No upcoming signups found</option>';
     return;
   }
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-7);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
   const seen=new Set();
   const matches=[];
   data.forEach(row=>{
+    if(!row.match_date||row.match_date<cutoffStr)return;
     const key=`${row.match_date}|${row.venue_code}`;
     if(!seen.has(key)){seen.add(key);matches.push(row);}
   });
+  matches.sort((a,b)=>a.match_date.localeCompare(b.match_date));
+  if(!matches.length){
+    sel.innerHTML='<option value="">No upcoming signups found</option>';
+    return;
+  }
   sel.innerHTML='<option value="">Select a match…</option>';
   matches.forEach(m=>{
     const opt=document.createElement('option');
