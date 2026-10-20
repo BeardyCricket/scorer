@@ -343,15 +343,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div class="pad">
     <div class="card">
       <div class="card-title">Load signups from SumUp</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <div style="flex:1">
-          <label class="lbl">Match date</label>
-          <input class="inp" type="date" id="signup-date-inp" style="width:100%">
-        </div>
-        <div>
-          <label class="lbl">Venue</label>
-          <input class="inp" type="text" id="signup-venue-inp" placeholder="TD, WM…" style="width:70px;text-transform:uppercase">
-        </div>
+      <div style="margin-bottom:10px">
+        <label class="lbl">Select match</label>
+        <select class="inp" id="signup-match-sel" style="width:100%">
+          <option value="">Loading matches…</option>
+        </select>
       </div>
       <button class="btn btn-secondary" onclick="loadSignupsFromSupabase()" id="load-signups-btn" style="width:100%">Load signups</button>
       <div id="signups-load-status" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px"></div>
@@ -3777,22 +3773,55 @@ function importRosterCSV(input){
 function showRoster(){
   loadRoster();
   renderRoster();
-  const today=new Date().toISOString().slice(0,10);
-  document.getElementById('signup-date-inp').value=today;
+  populateSignupsDropdown();
   show('s-roster');
 }
 
+async function populateSignupsDropdown(){
+  const sel=document.getElementById('signup-match-sel');
+  sel.innerHTML='<option value="">Loading…</option>';
+  const cutoff=new Date();
+  cutoff.setDate(cutoff.getDate()-7);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const{data,error}=await supabaseClient
+    .from('match_signups')
+    .select('match_date,venue_code')
+    .gte('match_date',cutoffStr)
+    .order('match_date',{ascending:true});
+  if(error||!data||!data.length){
+    sel.innerHTML='<option value="">No upcoming signups found</option>';
+    return;
+  }
+  const seen=new Set();
+  const matches=[];
+  data.forEach(row=>{
+    const key=`${row.match_date}|${row.venue_code}`;
+    if(!seen.has(key)){seen.add(key);matches.push(row);}
+  });
+  sel.innerHTML='<option value="">Select a match…</option>';
+  matches.forEach(m=>{
+    const opt=document.createElement('option');
+    opt.value=`${m.match_date}|${m.venue_code}`;
+    const d=new Date(m.match_date+'T12:00:00');
+    opt.textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})+' — '+m.venue_code;
+    sel.appendChild(opt);
+  });
+}
+
 async function loadSignupsFromSupabase(){
-  const dateVal=document.getElementById('signup-date-inp').value;
-  const venueVal=document.getElementById('signup-venue-inp').value.trim().toUpperCase();
+  const sel=document.getElementById('signup-match-sel');
+  const val=sel.value;
   const statusEl=document.getElementById('signups-load-status');
   const btn=document.getElementById('load-signups-btn');
-  if(!dateVal){statusEl.textContent='Please select a date.';return;}
+  if(!val){statusEl.textContent='Please select a match.';return;}
+  const[dateVal,venueVal]=val.split('|');
   btn.disabled=true;
   statusEl.textContent='Loading…';
-  let query=supabaseClient.from('match_signups').select('canonical_name').eq('match_date',dateVal);
-  if(venueVal)query=query.eq('venue_code',venueVal);
-  const{data,error}=await query;
+  const{data,error}=await supabaseClient
+    .from('match_signups')
+    .select('canonical_name')
+    .eq('match_date',dateVal)
+    .eq('venue_code',venueVal);
   btn.disabled=false;
   if(error){statusEl.textContent='Error loading signups.';return;}
   if(!data||!data.length){statusEl.textContent='No signups found.';return;}
