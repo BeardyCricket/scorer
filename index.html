@@ -342,6 +342,21 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   </div>
   <div class="pad">
     <div class="card">
+      <div class="card-title">Load signups from SumUp</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label class="lbl">Match date</label>
+          <input class="inp" type="date" id="signup-date-inp" style="width:100%">
+        </div>
+        <div>
+          <label class="lbl">Venue</label>
+          <input class="inp" type="text" id="signup-venue-inp" placeholder="TD, WM…" style="width:70px;text-transform:uppercase">
+        </div>
+      </div>
+      <button class="btn btn-secondary" onclick="loadSignupsFromSupabase()" id="load-signups-btn" style="width:100%">Load signups</button>
+      <div id="signups-load-status" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px"></div>
+    </div>
+    <div class="card">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">Registered players<button id="recalc-btn" style="font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--card);cursor:pointer;color:var(--brand);font-weight:600" onclick="recalculateSeeds()">↻ Recalculate seeds</button></div>
       <div id="roster-list"></div>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px">
@@ -3762,7 +3777,40 @@ function importRosterCSV(input){
 function showRoster(){
   loadRoster();
   renderRoster();
+  const today=new Date().toISOString().slice(0,10);
+  document.getElementById('signup-date-inp').value=today;
   show('s-roster');
+}
+
+async function loadSignupsFromSupabase(){
+  const dateVal=document.getElementById('signup-date-inp').value;
+  const venueVal=document.getElementById('signup-venue-inp').value.trim().toUpperCase();
+  const statusEl=document.getElementById('signups-load-status');
+  const btn=document.getElementById('load-signups-btn');
+  if(!dateVal){statusEl.textContent='Please select a date.';return;}
+  btn.disabled=true;
+  statusEl.textContent='Loading…';
+  let query=supabaseClient.from('match_signups').select('canonical_name').eq('match_date',dateVal);
+  if(venueVal)query=query.eq('venue_code',venueVal);
+  const{data,error}=await query;
+  btn.disabled=false;
+  if(error){statusEl.textContent='Error loading signups.';return;}
+  if(!data||!data.length){statusEl.textContent='No signups found.';return;}
+  const existing=new Set(rosterPlayers.map(p=>p.name.toLowerCase()));
+  let added=0;
+  data.forEach(s=>{
+    const name=s.canonical_name;
+    if(!existing.has(name.toLowerCase())){
+      rosterPlayers.push({name,seed:2,seedNum:null});
+      sessionStatuses[name]='present';
+      existing.add(name.toLowerCase());
+      added++;
+    }
+  });
+  if(added>0){saveRoster();renderRoster();}
+  statusEl.textContent=added>0
+    ?`Added ${added} player${added!==1?'s':''} (${data.length} signup${data.length!==1?'s':''} found).`
+    :`${data.length} signup${data.length!==1?'s':''} found — all already in roster.`;
 }
 
 function renderRoster(){
