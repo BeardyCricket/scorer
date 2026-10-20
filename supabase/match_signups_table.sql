@@ -24,3 +24,8 @@ create policy "service_write" on match_signups
 
 -- Handy index for the roster screen query (lookup by date)
 create index if not exists match_signups_date_idx on match_signups (match_date);
+
+-- Required from Oct 30 2026: explicit grants for new tables
+grant select on public.match_signups to anon;
+grant select, insert, update, delete on public.match_signups to authenticated;
+grant select, insert, update, delete on public.match_signups to service_role;

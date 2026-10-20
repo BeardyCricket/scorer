@@ -262,6 +262,34 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
       </div>
     </div>
+
+    <!-- Match Signups Manager -->
+    <div class="card">
+      <div class="card-title">Match Signups Manager</div>
+      <div class="form-row" style="margin-bottom:10px;align-items:flex-end">
+        <div class="form-group">
+          <label class="lbl">Match</label>
+          <select class="form-inp" id="su-match-sel" onchange="onSignupMatchSelect()">
+            <option value="">— select a match —</option>
+          </select>
+        </div>
+        <button class="match-load-btn" onclick="loadSignupsAdmin()" style="white-space:nowrap">↻ Refresh</button>
+      </div>
+      <div id="su-list"></div>
+      <div id="su-add-wrap" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+        <div class="card-title">Add player manually</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="lbl">Name</label>
+            <input class="form-inp" id="su-name" list="su-datalist" placeholder="Type or select name">
+            <datalist id="su-datalist"></datalist>
+          </div>
+          <button class="btn-add" onclick="addManualSignup()">+ Add</button>
+        </div>
+        <div id="su-add-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -327,6 +355,7 @@ async function verifyAdmin(email){
   (data||[]).forEach(p=>_allKnownPlayers.add(p.player_name));
   show('screen-admin');
   renderPlayers(data||[]);
+  loadSignupsAdmin();
 }
 
 async function doLogin(){
@@ -836,6 +865,115 @@ function recomputePayload(payload){
     .map(f=>({player:f.player,overs:Math.floor(f.balls/6)+'.'+f.balls%6,wickets:f.wickets,runs:f.runs,net:f.runs-(5*f.wickets)}))
     .sort((a,b)=>b.wickets-a.wickets||b.balls-a.balls);
   delete payload.match_stats;
+}
+
+// ── Match Signups Manager ─────────────────────────────────────────────────────
+let suMatches=[];
+
+async function loadSignupsAdmin(){
+  const sel=document.getElementById('su-match-sel');
+  sel.innerHTML='<option value="">Loading…</option>';
+  const{data}=await db.from('match_signups').select('match_date,venue_code');
+  if(!data||!data.length){sel.innerHTML='<option value="">No signups found</option>';return;}
+  const seen=new Set();
+  suMatches=[];
+  data.forEach(r=>{
+    const key=`${r.match_date}|${r.venue_code}`;
+    if(!seen.has(key)){seen.add(key);suMatches.push(r);}
+  });
+  suMatches.sort((a,b)=>a.match_date.localeCompare(b.match_date));
+  sel.innerHTML='<option value="">— select a match —</option>';
+  suMatches.forEach(m=>{
+    const opt=document.createElement('option');
+    opt.value=`${m.match_date}|${m.venue_code}`;
+    const d=new Date(m.match_date+'T12:00:00');
+    opt.textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+m.venue_code;
+    sel.appendChild(opt);
+  });
+}
+
+async function onSignupMatchSelect(){
+  const val=document.getElementById('su-match-sel').value;
+  const listEl=document.getElementById('su-list');
+  const addWrap=document.getElementById('su-add-wrap');
+  if(!val){listEl.innerHTML='';addWrap.style.display='none';return;}
+  const[date,venue]=val.split('|');
+  listEl.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Loading…</div>';
+  const{data}=await db.from('match_signups')
+    .select('id,canonical_name,order_id')
+    .eq('match_date',date).eq('venue_code',venue)
+    .order('canonical_name',{ascending:true});
+  renderSignupList(data||[],date,venue);
+  addWrap.style.display='block';
+  const{data:players}=await db.from('player_access').select('player_name').eq('is_active',true);
+  const dl=document.getElementById('su-datalist');
+  dl.innerHTML='';
+  (players||[]).forEach(p=>{const o=document.createElement('option');o.value=p.player_name;dl.appendChild(o);});
+}
+
+function renderSignupList(signups,date,venue){
+  const el=document.getElementById('su-list');
+  if(!signups.length){
+    el.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No signups yet for this match.</div>';
+    return;
+  }
+  const others=suMatches.filter(m=>!(m.match_date===date&&m.venue_code===venue));
+  el.innerHTML='';
+  signups.forEach(s=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap';
+    const badge=!s.order_id?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px">manual</span>':'';
+    const moveOpts=others.map(m=>{
+      const d=new Date(m.match_date+'T12:00:00');
+      const lbl=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+m.venue_code;
+      return `<option value="${m.match_date}|${m.venue_code}">${escHtml(lbl)}</option>`;
+    }).join('');
+    row.innerHTML=`<span style="flex:1;font-size:13px;font-weight:600">${escHtml(s.canonical_name)}</span>${badge}
+      <select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy)" onchange="moveSignup('${s.id}','${date}','${venue}',this)">
+        <option value="">Move to…</option>${moveOpts}
+      </select>
+      <button class="del-btn" onclick="removeSignup('${s.id}','${date}','${venue}')">Remove</button>`;
+    el.appendChild(row);
+  });
+}
+
+async function addManualSignup(){
+  const sel=document.getElementById('su-match-sel').value;
+  const name=document.getElementById('su-name').value.trim();
+  const status=document.getElementById('su-add-status');
+  if(!sel){status.textContent='Select a match first.';return;}
+  if(!name){status.textContent='Enter a player name.';return;}
+  const[date,venue]=sel.split('|');
+  const{error}=await db.from('match_signups').insert({
+    match_date:date,venue_code:venue,
+    canonical_name:name,raw_name:name,
+    email:'',product_name:'Manual entry',
+  });
+  if(error){status.textContent='Error: '+error.message;return;}
+  document.getElementById('su-name').value='';
+  status.textContent=name+' added.';
+  onSignupMatchSelect();
+}
+
+async function removeSignup(id,date,venue){
+  if(!confirm('Remove this signup?'))return;
+  await db.from('match_signups').delete().eq('id',id);
+  onSignupMatchSelect();
+}
+
+async function moveSignup(id,fromDate,fromVenue,sel){
+  const val=sel.value;
+  if(!val)return;
+  const[toDate,toVenue]=val.split('|');
+  const d=new Date(toDate+'T12:00:00');
+  const lbl=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})+' ('+toVenue+')';
+  if(!confirm('Move to '+lbl+'?')){sel.value='';return;}
+  const{error}=await db.from('match_signups').update({match_date:toDate,venue_code:toVenue}).eq('id',id);
+  if(error){toast('Error: '+error.message);return;}
+  toast('Signup moved.');
+  await loadSignupsAdmin();
+  document.getElementById('su-match-sel').value=fromDate+'|'+fromVenue;
+  onSignupMatchSelect();
 }
 
 window.addEventListener('DOMContentLoaded',init);
