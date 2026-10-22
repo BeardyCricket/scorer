@@ -250,20 +250,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
           <button class="match-load-btn" id="restore-date-btn" onclick="restoreMatchDate()" style="font-size:12px;padding:6px 12px;background:var(--amber)" title="Reset updated_at back to the original match start time">Restore match date</button>
         </div>
         <div style="background:#f8faff;border:1px solid #c7d7f5;border-radius:8px;padding:12px;margin-bottom:12px">
-          <div class="card-title" style="color:#1e40af;margin-bottom:8px">Rename player in this match</div>
-          <div class="form-row">
-            <div class="form-group">
-              <label class="lbl">Current name</label>
-              <select class="form-inp" id="rename-from"></select>
-            </div>
-            <div class="form-group">
-              <label class="lbl">Replace with</label>
-              <input class="form-inp" id="rename-to" list="rename-datalist" placeholder="New name">
-              <datalist id="rename-datalist"></datalist>
-            </div>
-            <button class="btn-add" onclick="renamePlayerInMatch()" style="background:#1e40af">Rename</button>
+          <div class="card-title" style="color:#1e40af;margin-bottom:8px">Edit pair roster</div>
+          <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Change who is listed in each pair — only affects that pair's history entries, not other pairs.</p>
+          <div id="pairs-edit-list"></div>
+          <datalist id="rename-datalist"></datalist>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+            <button class="btn-add" id="save-pairs-btn" onclick="savePairsEdit()" style="background:#1e40af">Save pair changes</button>
+            <div id="pairs-edit-status" style="font-size:12px;color:var(--muted)"></div>
           </div>
-          <div id="rename-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
         </div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="hist-tbl">
@@ -665,57 +659,68 @@ function onMatchSelect(){
   _editBallIdx=null;
   _changedBalls=new Set();
   renderHistory();
-  _populateRenameDropdowns();
+  _renderPairsEdit();
 }
 
-function _getMatchPlayers(){
-  const names=new Set();
-  (_editPayload.pairs||[]).forEach(p=>(p.players||[]).forEach(n=>n&&names.add(n)));
-  (_editPayload.history||[]).forEach(b=>{if(b.facing)names.add(b.facing);if(b.bowling)names.add(b.bowling);});
-  return [...names].sort();
-}
-
-function _populateRenameDropdowns(){
-  const players=_getMatchPlayers();
-  const fromSel=document.getElementById('rename-from');
+function _renderPairsEdit(){
+  const pairs=_editPayload.pairs||[];
+  const el=document.getElementById('pairs-edit-list');
+  const allNames=[...new Set([
+    ...pairs.flatMap(p=>p.players||[]),
+    ..._allKnownPlayers
+  ])].sort();
   const dl=document.getElementById('rename-datalist');
-  fromSel.innerHTML=players.map(n=>`<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
-  dl.innerHTML=[...players,..._allKnownPlayers].filter((v,i,a)=>a.indexOf(v)===i).sort().map(n=>`<option value="${escHtml(n)}">`).join('');
+  dl.innerHTML=allNames.map(n=>`<option value="${escHtml(n)}">`).join('');
+  if(!pairs.length){el.innerHTML='<div style="font-size:12px;color:var(--muted)">No pairs found in this match.</div>';return;}
+  el.innerHTML='';
+  pairs.forEach((p,i)=>{
+    const color=p.color||'#ccc';
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);flex-wrap:wrap';
+    const badge=`<span style="background:${escHtml(color)};color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;min-width:56px;text-align:center">${escHtml(p.cname||'Pair '+(i+1))}</span>`;
+    const inputs=(p.players||[]).map((name,j)=>
+      `<input class="form-inp" style="flex:1;min-width:120px" data-pair="${i}" data-player="${j}" data-orig="${escHtml(name)}" value="${escHtml(name)}" list="rename-datalist">`
+    ).join('');
+    row.innerHTML=badge+inputs;
+    el.appendChild(row);
+  });
 }
 
-async function renamePlayerInMatch(){
-  const oldName=document.getElementById('rename-from').value;
-  const newName=document.getElementById('rename-to').value.trim();
-  const status=document.getElementById('rename-status');
-  if(!oldName||!newName){status.textContent='Select a current name and enter a replacement.';return;}
-  if(oldName===newName){status.textContent='Names are the same.';return;}
-  if(!confirm(`Rename "${oldName}" → "${newName}" everywhere in this match?`))return;
-
-  // Update pairs players arrays
-  (_editPayload.pairs||[]).forEach(p=>{
-    p.players=(p.players||[]).map(n=>n===oldName?newName:n);
+async function savePairsEdit(){
+  const btn=document.getElementById('save-pairs-btn');
+  const status=document.getElementById('pairs-edit-status');
+  const inputs=document.querySelectorAll('#pairs-edit-list [data-pair]');
+  let changed=0;
+  inputs.forEach(inp=>{
+    const i=parseInt(inp.dataset.pair);
+    const j=parseInt(inp.dataset.player);
+    const oldName=inp.dataset.orig;
+    const newName=inp.value.trim();
+    if(!newName||oldName===newName)return;
+    // Update only this pair's player slot
+    if(_editPayload.pairs[i].players)_editPayload.pairs[i].players[j]=newName;
+    if(_editPayload.game_state?.pairs?.[i]?.players)
+      _editPayload.game_state.pairs[i].players[j]=newName;
+    // Update history entries scoped to this pair only
+    (_editPayload.history||[]).forEach(b=>{
+      if(b.batPair===i&&b.facing===oldName)b.facing=newName;
+      if(b.bowlPair===i&&b.bowling===oldName)b.bowling=newName;
+    });
+    inp.dataset.orig=newName;
+    changed++;
   });
-  // Update game_state pairs if present
-  ((_editPayload.game_state?.pairs)||[]).forEach(p=>{
-    if(p.players)p.players=p.players.map(n=>n===oldName?newName:n);
-  });
-  // Update ball-by-ball history
-  (_editPayload.history||[]).forEach(b=>{
-    if(b.facing===oldName)b.facing=newName;
-    if(b.bowling===oldName)b.bowling=newName;
-  });
-
+  if(!changed){status.textContent='No changes to save.';return;}
+  btn.disabled=true;btn.textContent='Saving…';
   recomputePayload(_editPayload);
   const upd={payload:_editPayload};
   if(_editOriginalDate)upd.updated_at=_editOriginalDate;
   const{error}=await db.from('live_scores').update(upd).eq('match_id',_editMatchId);
+  btn.disabled=false;btn.textContent='Save pair changes';
   if(error){status.textContent='Save failed: '+error.message;return;}
-
-  document.getElementById('rename-to').value='';
-  status.textContent=`Renamed "${oldName}" → "${newName}" ✓`;
-  _populateRenameDropdowns();
+  status.textContent=`${changed} change${changed!==1?'s':''} saved ✓`;
+  _renderPairsEdit();
   renderHistory();
-  toast('Player renamed ✓');
+  toast('Pair roster updated ✓');
 }
 
 function renderHistory(){
