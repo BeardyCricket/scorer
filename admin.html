@@ -249,6 +249,22 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
           <div id="hist-info" style="font-size:12px;color:var(--muted)"></div>
           <button class="match-load-btn" id="restore-date-btn" onclick="restoreMatchDate()" style="font-size:12px;padding:6px 12px;background:var(--amber)" title="Reset updated_at back to the original match start time">Restore match date</button>
         </div>
+        <div style="background:#f8faff;border:1px solid #c7d7f5;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div class="card-title" style="color:#1e40af;margin-bottom:8px">Rename player in this match</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="lbl">Current name</label>
+              <select class="form-inp" id="rename-from"></select>
+            </div>
+            <div class="form-group">
+              <label class="lbl">Replace with</label>
+              <input class="form-inp" id="rename-to" list="rename-datalist" placeholder="New name">
+              <datalist id="rename-datalist"></datalist>
+            </div>
+            <button class="btn-add" onclick="renamePlayerInMatch()" style="background:#1e40af">Rename</button>
+          </div>
+          <div id="rename-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+        </div>
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="hist-tbl">
             <colgroup>
@@ -649,6 +665,57 @@ function onMatchSelect(){
   _editBallIdx=null;
   _changedBalls=new Set();
   renderHistory();
+  _populateRenameDropdowns();
+}
+
+function _getMatchPlayers(){
+  const names=new Set();
+  (_editPayload.pairs||[]).forEach(p=>(p.players||[]).forEach(n=>n&&names.add(n)));
+  (_editPayload.history||[]).forEach(b=>{if(b.facing)names.add(b.facing);if(b.bowling)names.add(b.bowling);});
+  return [...names].sort();
+}
+
+function _populateRenameDropdowns(){
+  const players=_getMatchPlayers();
+  const fromSel=document.getElementById('rename-from');
+  const dl=document.getElementById('rename-datalist');
+  fromSel.innerHTML=players.map(n=>`<option value="${escHtml(n)}">${escHtml(n)}</option>`).join('');
+  dl.innerHTML=[...players,..._allKnownPlayers].filter((v,i,a)=>a.indexOf(v)===i).sort().map(n=>`<option value="${escHtml(n)}">`).join('');
+}
+
+async function renamePlayerInMatch(){
+  const oldName=document.getElementById('rename-from').value;
+  const newName=document.getElementById('rename-to').value.trim();
+  const status=document.getElementById('rename-status');
+  if(!oldName||!newName){status.textContent='Select a current name and enter a replacement.';return;}
+  if(oldName===newName){status.textContent='Names are the same.';return;}
+  if(!confirm(`Rename "${oldName}" → "${newName}" everywhere in this match?`))return;
+
+  // Update pairs players arrays
+  (_editPayload.pairs||[]).forEach(p=>{
+    p.players=(p.players||[]).map(n=>n===oldName?newName:n);
+  });
+  // Update game_state pairs if present
+  ((_editPayload.game_state?.pairs)||[]).forEach(p=>{
+    if(p.players)p.players=p.players.map(n=>n===oldName?newName:n);
+  });
+  // Update ball-by-ball history
+  (_editPayload.history||[]).forEach(b=>{
+    if(b.facing===oldName)b.facing=newName;
+    if(b.bowling===oldName)b.bowling=newName;
+  });
+
+  recomputePayload(_editPayload);
+  const upd={payload:_editPayload};
+  if(_editOriginalDate)upd.updated_at=_editOriginalDate;
+  const{error}=await db.from('live_scores').update(upd).eq('match_id',_editMatchId);
+  if(error){status.textContent='Save failed: '+error.message;return;}
+
+  document.getElementById('rename-to').value='';
+  status.textContent=`Renamed "${oldName}" → "${newName}" ✓`;
+  _populateRenameDropdowns();
+  renderHistory();
+  toast('Player renamed ✓');
 }
 
 function renderHistory(){
