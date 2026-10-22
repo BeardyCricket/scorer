@@ -222,9 +222,17 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
 
         <div id="su-list"></div>
-        <div id="su-mc-wrap" style="display:none;margin-top:10px;display:none;align-items:center;gap:10px">
-          <button class="match-load-btn" onclick="syncMailchimpMatch()" id="su-mc-btn" style="font-size:12px;padding:6px 14px;background:#f97316;white-space:nowrap">Sync Mailchimp tags</button>
-          <span id="su-mc-status" style="font-size:12px;color:var(--muted)"></span>
+        <div id="su-mc-wrap" style="display:none;margin-top:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px">
+          <div class="card-title" style="color:#c2410c;margin-bottom:8px">Mailchimp</div>
+          <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
+            <div class="form-group" style="max-width:110px;min-width:80px">
+              <label class="lbl">Match code</label>
+              <input class="form-inp" id="su-mc-code" type="text" placeholder="e.g. WM006" maxlength="10" style="text-transform:uppercase">
+            </div>
+            <button class="match-load-btn" onclick="syncMailchimpMatch()" id="su-mc-btn" style="font-size:12px;padding:6px 14px;background:#f97316;white-space:nowrap">Sync tags</button>
+            <span id="su-mc-status" style="font-size:12px;color:var(--muted);align-self:center"></span>
+          </div>
+          <p style="font-size:11px;color:#92400e;margin-top:6px">Auto-filled from SumUp orders if available. Tags everyone on this match and creates Mailchimp contacts for new players.</p>
         </div>
 
         <!-- Add player + bulk add (shown after match selected) -->
@@ -1052,8 +1060,14 @@ async function onSignupMatchSelect(){
     .order('canonical_name',{ascending:true});
   renderSignupList(data||[],date,venue);
   addWrap.style.display='block';
-  document.getElementById('su-mc-wrap').style.display='flex';
+  document.getElementById('su-mc-wrap').style.display='block';
   document.getElementById('su-mc-status').textContent='';
+  // Auto-fill match code from any SumUp order on this match
+  const{data:codes}=await db.from('match_signups')
+    .select('product_name').eq('match_date',date).eq('venue_code',venue)
+    .not('product_name','like','Manual%').limit(1);
+  const autoCode=(codes?.[0]?.product_name||'').match(/^([A-Z]{2,}\d+)/i)?.[1]?.toUpperCase()||'';
+  document.getElementById('su-mc-code').value=autoCode;
   const{data:players}=await db.from('player_access').select('player_name').eq('is_active',true);
   const dl=document.getElementById('su-datalist');
   dl.innerHTML='';
@@ -1095,10 +1109,11 @@ async function addManualSignup(){
   if(!name){status.textContent='Enter a player name.';return;}
   const[date,venue]=sel.split('|');
 
+  const matchCode=document.getElementById('su-mc-code').value.trim().toUpperCase();
   const{error}=await db.from('match_signups').insert({
     match_date:date,venue_code:venue,
     canonical_name:name,raw_name:name,
-    email:email||'',product_name:'Manual entry',
+    email:email||'',product_name:matchCode||'Manual entry',
   });
   if(error){status.textContent='Error: '+error.message;return;}
 
@@ -1133,10 +1148,11 @@ async function syncMailchimpMatch(){
   const btn=document.getElementById('su-mc-btn');
   btn.disabled=true;statusEl.textContent='Syncing…';
   const{data:{session}}=await db.auth.getSession();
+  const code=document.getElementById('su-mc-code').value.trim().toUpperCase();
   const res=await fetch(SUPABASE_URL+'/functions/v1/admin-mailchimp-sync',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
-    body:JSON.stringify({match_date:date,venue_code:venue}),
+    body:JSON.stringify({match_date:date,venue_code:venue,tag_override:code||undefined}),
   });
   btn.disabled=false;
   const j=await res.json().catch(()=>({}));
@@ -1226,10 +1242,11 @@ async function bulkAddToMatch(){
     const name=parts[0];
     const email=(parts[1]||'').toLowerCase();
     if(!name)continue;
+    const matchCode=document.getElementById('su-mc-code').value.trim().toUpperCase();
     const{error:insErr}=await db.from('match_signups').insert({
       match_date:date,venue_code:venue,
       canonical_name:name,raw_name:name,
-      email:email||'',product_name:'Manual bulk entry',
+      email:email||'',product_name:matchCode||'Manual bulk entry',
     });
     if(insErr){
       results.push({name,status:'error',msg:insErr.message});
