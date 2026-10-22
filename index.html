@@ -3823,7 +3823,7 @@ async function loadSignupsFromSupabase(){
   statusEl.textContent='Loading…';
   const{data,error}=await supabaseClient
     .from('match_signups')
-    .select('canonical_name')
+    .select('canonical_name,quantity')
     .eq('match_date',dateVal)
     .eq('venue_code',venueVal);
   btn.disabled=false;
@@ -3831,18 +3831,26 @@ async function loadSignupsFromSupabase(){
   if(!data||!data.length){statusEl.textContent='No signups found.';return;}
   const existing=new Set(rosterPlayers.map(p=>p.name.toLowerCase()));
   let added=0;
+  let totalSpaces=0;
   data.forEach(s=>{
     const name=s.canonical_name;
-    if(!existing.has(name.toLowerCase())){
-      rosterPlayers.push({name,seed:2,seedNum:null});
-      sessionStatuses[name]='present';
-      existing.add(name.toLowerCase());
-      added++;
+    const qty=Math.max(1,parseInt(s.quantity)||1);
+    totalSpaces+=qty;
+    for(let q=0;q<qty;q++){
+      // First space uses their name; additional spaces get a "(2)", "(3)" suffix
+      const slotName=q===0?name:name+' ('+(q+1)+')';
+      if(!existing.has(slotName.toLowerCase())){
+        rosterPlayers.push({name:slotName,seed:2,seedNum:null});
+        sessionStatuses[slotName]='present';
+        existing.add(slotName.toLowerCase());
+        added++;
+      }
     }
   });
   if(added>0){saveRoster();renderRoster();}
+  const extraNote=totalSpaces>data.length?` (${totalSpaces} spaces from ${data.length} bookings)`:'';
   statusEl.textContent=added>0
-    ?`Added ${added} player${added!==1?'s':''} (${data.length} signup${data.length!==1?'s':''} found).`
+    ?`Added ${added} player${added!==1?'s':''}${extraNote}.`
     :`${data.length} signup${data.length!==1?'s':''} found — all already in roster.`;
 }
 

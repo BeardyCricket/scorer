@@ -96,6 +96,7 @@ serve(async (req: Request) => {
   let rawName: string
   let productName: string
   let orderId: string
+  let quantity = 1
 
   if (body._source === 'make_email') {
     const html: string = body.html ?? ''
@@ -113,6 +114,10 @@ serve(async (req: Request) => {
 
     const orderMatch = subject.match(/#(\d+)/)
     orderId = orderMatch ? orderMatch[1] : ''
+
+    // "2 × TD010" or "2x TD010" or "2 x TD010"
+    const qtyMatch = html.match(/\b(\d+)\s*[×xX]\s*[A-Z]{2,}\d+/i)
+    if (qtyMatch) quantity = Math.max(1, parseInt(qtyMatch[1], 10))
   } else {
     const status = (body.status || '').toUpperCase()
     if (status !== 'PAID' && status !== 'SUCCESSFUL') {
@@ -143,6 +148,7 @@ serve(async (req: Request) => {
     ).trim()
 
     orderId = String(body.id ?? body.transaction_id ?? body.checkout_id ?? '')
+    quantity = Math.max(1, parseInt(String(items[0]?.quantity ?? 1), 10))
   }
 
   if (!email) {
@@ -206,6 +212,7 @@ serve(async (req: Request) => {
         raw_name:       rawName,
         email,
         product_name:   productName,
+        quantity,
       },
       { onConflict: 'order_id', ignoreDuplicates: false },
     )

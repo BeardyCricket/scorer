@@ -22,6 +22,15 @@ create policy "anon_read" on match_signups
 create policy "service_write" on match_signups
   for all to service_role using (true);
 
+-- Admin page (authenticated role) can read and write
+create policy "auth_write" on match_signups
+  for all to authenticated
+  using (true)
+  with check (true);
+
+-- Number of spaces booked (for multiple-booking support)
+alter table match_signups add column if not exists quantity integer default 1;
+
 -- Handy index for the roster screen query (lookup by date)
 create index if not exists match_signups_date_idx on match_signups (match_date);
 
