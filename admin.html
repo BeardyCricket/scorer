@@ -53,6 +53,13 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .hdr-sub{font-size:11px;color:rgba(255,255,255,.6);margin-top:2px}
 .signout{font-size:12px;color:rgba(255,255,255,.7);background:none;border:1px solid rgba(255,255,255,.25);border-radius:20px;padding:5px 12px;cursor:pointer}
 
+/* Tabs */
+.tab-bar{display:flex;background:var(--card);border-bottom:2px solid var(--border);position:sticky;top:60px;z-index:90;overflow-x:auto}
+.tab-btn{padding:11px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;flex-shrink:0}
+.tab-btn.tab-active{color:var(--navy);border-bottom-color:var(--navy)}
+.tab-panel{display:none}
+.tab-panel.tab-active{display:block}
+
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:12px}
 .card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
@@ -173,136 +180,178 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     </div>
   </div>
 
-  <div style="font-size:11px;font-weight:700;padding:6px 16px;background:#7F77DD;color:#fff;text-align:center">LOCAL v2 — premium fix active</div>
+  <div class="tab-bar">
+    <button class="tab-btn tab-active" id="tb-signups" onclick="switchTab('signups')">Signups</button>
+    <button class="tab-btn" id="tb-players" onclick="switchTab('players')">Players</button>
+    <button class="tab-btn" id="tb-history" onclick="switchTab('history')">History</button>
+  </div>
+
   <div class="wrap">
 
-    <!-- Instructions -->
-    <div class="card" style="background:#f8faff;border-color:#c7d7f5">
-      <div class="card-title" style="color:#1e40af">How to add a player</div>
-      <ol style="padding-left:18px;font-size:13px;color:#1A2744;line-height:1.9">
-        <li>Enter their <b>name</b> (exactly as typed in the scoring app) and <b>email</b> below → <b>+ Add</b></li>
-        <li>Go to <a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener" style="color:#1e40af;font-weight:600">Supabase → Authentication → Users → Add user → Create new user</a></li>
-        <li>Enter the same email and set a temporary password</li>
-        <li>Share the <b>stats.html URL</b> and their temporary password with them</li>
-      </ol>
-      <div class="card-title" style="color:#991b1b;margin-top:14px">How to revoke access</div>
-      <p style="font-size:13px;color:#1A2744;line-height:1.6">Click <b>Revoke</b> next to a player below. They will be blocked immediately on their next login attempt. Their Supabase account still exists but the stats page won't let them in.</p>
-      <div class="card-title" style="color:#92400e;margin-top:14px">How to change a player's email</div>
-      <ol style="padding-left:18px;font-size:13px;color:#1A2744;line-height:1.9">
-        <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/editor" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Table Editor → player_access</a> — click their row and update the email</li>
-        <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Authentication → Users</a> — delete their old account, then Add user → Create new user with the new email</li>
-        <li>Share the new login details with the player</li>
-      </ol>
-    </div>
+    <!-- ═══ SIGNUPS TAB ═══ -->
+    <div class="tab-panel tab-active" id="tab-signups">
 
-    <!-- Add player -->
-    <div class="card">
-      <div class="card-title">Add new player</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="lbl">Name</label>
-          <input class="form-inp" id="new-name" type="text" placeholder="e.g. Niro">
+      <div class="card">
+        <div class="card-title">Match Signups Manager</div>
+        <div class="form-row" style="margin-bottom:10px;align-items:flex-end">
+          <div class="form-group">
+            <label class="lbl">Match</label>
+            <select class="form-inp" id="su-match-sel" onchange="onSignupMatchSelect()">
+              <option value="">— select a match —</option>
+            </select>
+          </div>
+          <button class="match-load-btn" onclick="loadSignupsAdmin()" style="white-space:nowrap">↻ Refresh</button>
+          <button class="match-load-btn" onclick="toggleNewMatch()" id="new-match-toggle-btn" style="white-space:nowrap;background:var(--green)">✚ New Match</button>
         </div>
-        <div class="form-group">
-          <label class="lbl">Email</label>
-          <input class="form-inp" id="new-email" type="email" placeholder="player@email.com">
+
+        <!-- Create new match (collapsible) -->
+        <div id="new-match-form" style="display:none;background:#f8faff;border:1px solid #c7d7f5;border-radius:8px;padding:12px;margin-bottom:10px">
+          <div class="card-title" style="color:#1e40af;margin-bottom:8px">Create new match</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="lbl">Date</label>
+              <input class="form-inp" id="nm-date" type="date">
+            </div>
+            <div class="form-group" style="max-width:90px;min-width:70px">
+              <label class="lbl">Venue code</label>
+              <input class="form-inp" id="nm-venue" type="text" placeholder="TD" maxlength="8" style="text-transform:uppercase">
+            </div>
+            <button class="btn-add" onclick="createNewMatch()" style="background:#1e40af">Create</button>
+          </div>
+          <p style="font-size:11px;color:var(--muted);margin-top:6px">Adds the match to the dropdown — add players below once selected.</p>
         </div>
-        <button class="btn-add" id="add-btn" onclick="addPlayer()">+ Add</button>
-      </div>
-      <div class="invite-note" id="invite-note" style="display:none">
-        ✅ <b id="invite-name"></b> added. Now go to
-        <a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener">
-          Supabase → Authentication → Users → Add user → Create new user
-        </a>
-        and create an account for <b id="invite-email"></b>
-      </div>
-    </div>
 
-    <!-- Bulk import -->
-    <div class="card">
-      <div class="card-title">Bulk import players</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">One player per line: <code style="background:#f0f2f7;padding:1px 5px;border-radius:4px;font-size:11px">Name, email@address.com, password</code></p>
-      <textarea class="bulk-ta" id="bulk-input" placeholder="Tom Smith, tom@email.com, Cricket2024&#10;Dave Jones, dave@email.com, Cricket2024&#10;Ali Khan, ali@email.com, Cricket2024"></textarea>
-      <button class="btn-import" id="bulk-btn" onclick="bulkImport()">Import players</button>
-      <div id="bulk-results" style="margin-top:10px;display:none"></div>
-    </div>
+        <div id="su-list"></div>
 
-    <!-- Player list -->
-    <div class="card">
-      <div class="card-title">Current players</div>
-      <div id="player-list"><div class="empty">Loading…</div></div>
-    </div>
+        <!-- Add player + bulk add (shown after match selected) -->
+        <div id="su-add-wrap" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+          <div class="card-title">Add player manually</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="lbl">Name</label>
+              <input class="form-inp" id="su-name" list="su-datalist" placeholder="Type or select name">
+              <datalist id="su-datalist"></datalist>
+            </div>
+            <div class="form-group">
+              <label class="lbl">Email <span style="font-weight:400;text-transform:none;font-size:10px">(new players only)</span></label>
+              <input class="form-inp" id="su-email" type="email" placeholder="Leave blank if recurring">
+            </div>
+            <button class="btn-add" onclick="addManualSignup()">+ Add</button>
+          </div>
+          <div id="su-add-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
 
-    <!-- Match History Editor -->
-    <div class="card">
-      <div class="card-title">Match History Editor</div>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Fix scoring errors from past matches — correct who was batting, who bowled, run values, dismissal types. Changes update scores.html and stats.html immediately.</p>
-      <button class="match-load-btn" id="load-hist-btn" onclick="loadMatchList()">Load recent matches</button>
-      <div id="hist-sel-wrap" style="display:none;margin-top:10px">
-        <label class="lbl">Select match</label>
-        <select class="msel" id="match-sel" onchange="onMatchSelect()">
-          <option value="">— select a match —</option>
-        </select>
-      </div>
-      <div id="hist-wrap" style="display:none;margin-top:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <div id="hist-info" style="font-size:12px;color:var(--muted)"></div>
-          <button class="match-load-btn" id="restore-date-btn" onclick="restoreMatchDate()" style="font-size:12px;padding:6px 12px;background:var(--amber)" title="Reset updated_at back to the original match start time">Restore match date</button>
-        </div>
-        <div style="background:#f8faff;border:1px solid #c7d7f5;border-radius:8px;padding:12px;margin-bottom:12px">
-          <div class="card-title" style="color:#1e40af;margin-bottom:8px">Edit pair roster</div>
-          <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Change who is listed in each pair — only affects that pair's history entries, not other pairs.</p>
-          <div id="pairs-edit-list"></div>
-          <datalist id="rename-datalist"></datalist>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
-            <button class="btn-add" id="save-pairs-btn" onclick="savePairsEdit()" style="background:#1e40af">Save pair changes</button>
-            <div id="pairs-edit-status" style="font-size:12px;color:var(--muted)"></div>
+          <!-- Bulk add -->
+          <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+            <div class="card-title">Bulk add players</div>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:8px">One per line. For a <b>recurring player</b> just their name. For a <b>new player</b>: <code style="background:#f0f2f7;padding:1px 5px;border-radius:4px;font-size:11px">Name, email@address.com</code></p>
+            <textarea class="bulk-ta" id="bulk-signup-input" placeholder="Tom Smith&#10;Dave Jones, dave@email.com&#10;Ali Khan"></textarea>
+            <button class="btn-import" id="bulk-signup-btn" onclick="bulkAddToMatch()">Add all to match</button>
+            <div id="bulk-signup-results" style="margin-top:10px;display:none"></div>
           </div>
         </div>
-        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-          <table class="hist-tbl">
-            <colgroup>
-              <col style="width:46px"><col style="width:46px"><col><col><col style="width:32px"><col style="width:44px">
-            </colgroup>
-            <thead><tr>
-              <th>Ball</th><th>Type</th><th>Bat</th><th>Bowl</th><th>Runs</th><th></th>
-            </tr></thead>
-            <tbody id="hist-body"></tbody>
-          </table>
-        </div>
       </div>
-    </div>
 
-    <!-- Match Signups Manager -->
-    <div class="card">
-      <div class="card-title">Match Signups Manager</div>
-      <div class="form-row" style="margin-bottom:10px;align-items:flex-end">
-        <div class="form-group">
-          <label class="lbl">Match</label>
-          <select class="form-inp" id="su-match-sel" onchange="onSignupMatchSelect()">
-            <option value="">— select a match —</option>
-          </select>
-        </div>
-        <button class="match-load-btn" onclick="loadSignupsAdmin()" style="white-space:nowrap">↻ Refresh</button>
+    </div><!-- /tab-signups -->
+
+    <!-- ═══ PLAYERS TAB ═══ -->
+    <div class="tab-panel" id="tab-players">
+
+      <!-- Instructions -->
+      <div class="card" style="background:#f8faff;border-color:#c7d7f5">
+        <div class="card-title" style="color:#1e40af">How to add a player</div>
+        <ol style="padding-left:18px;font-size:13px;color:#1A2744;line-height:1.9">
+          <li>Enter their <b>name</b> (exactly as typed in the scoring app) and <b>email</b> below → <b>+ Add</b></li>
+          <li>A stats login is created automatically — they use <b>Forgot password</b> on stats.html to set their own password</li>
+        </ol>
+        <div class="card-title" style="color:#991b1b;margin-top:14px">How to revoke access</div>
+        <p style="font-size:13px;color:#1A2744;line-height:1.6">Click <b>Revoke</b> next to a player below. They will be blocked immediately on their next login attempt. Their Supabase account still exists but the stats page won't let them in.</p>
+        <div class="card-title" style="color:#92400e;margin-top:14px">How to change a player's email</div>
+        <ol style="padding-left:18px;font-size:13px;color:#1A2744;line-height:1.9">
+          <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/editor" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Table Editor → player_access</a> — click their row and update the email</li>
+          <li><a href="https://supabase.com/dashboard/project/gdhqqcqzshvomnyfhsya/auth/users" target="_blank" rel="noopener" style="color:#92400e;font-weight:600">Supabase → Authentication → Users</a> — delete their old account, then Add user → Create new user with the new email</li>
+          <li>Share the new login details with the player</li>
+        </ol>
       </div>
-      <div id="su-list"></div>
-      <div id="su-add-wrap" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
-        <div class="card-title">Add player manually</div>
+
+      <!-- Add player -->
+      <div class="card">
+        <div class="card-title">Add new player</div>
         <div class="form-row">
           <div class="form-group">
             <label class="lbl">Name</label>
-            <input class="form-inp" id="su-name" list="su-datalist" placeholder="Type or select name">
-            <datalist id="su-datalist"></datalist>
+            <input class="form-inp" id="new-name" type="text" placeholder="e.g. Niro">
           </div>
           <div class="form-group">
-            <label class="lbl">Email <span style="font-weight:400;text-transform:none;font-size:10px">(new players only)</span></label>
-            <input class="form-inp" id="su-email" type="email" placeholder="Leave blank if already has account">
+            <label class="lbl">Email</label>
+            <input class="form-inp" id="new-email" type="email" placeholder="player@email.com">
           </div>
-          <button class="btn-add" onclick="addManualSignup()">+ Add</button>
+          <button class="btn-add" id="add-btn" onclick="addPlayer()">+ Add</button>
         </div>
-        <div id="su-add-status" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+        <div class="invite-note" id="invite-note" style="display:none">
+          ✅ <b id="invite-name"></b> added — stats login created automatically. They can use <b>Forgot password</b> on the stats page to set their own password.
+        </div>
       </div>
-    </div>
+
+      <!-- Bulk import -->
+      <div class="card">
+        <div class="card-title">Bulk import players</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px">One player per line: <code style="background:#f0f2f7;padding:1px 5px;border-radius:4px;font-size:11px">Name, email@address.com</code></p>
+        <textarea class="bulk-ta" id="bulk-input" placeholder="Tom Smith, tom@email.com&#10;Dave Jones, dave@email.com&#10;Ali Khan, ali@email.com"></textarea>
+        <button class="btn-import" id="bulk-btn" onclick="bulkImport()">Import players</button>
+        <div id="bulk-results" style="margin-top:10px;display:none"></div>
+      </div>
+
+      <!-- Player list -->
+      <div class="card">
+        <div class="card-title">Current players</div>
+        <div id="player-list"><div class="empty">Loading…</div></div>
+      </div>
+
+    </div><!-- /tab-players -->
+
+    <!-- ═══ HISTORY TAB ═══ -->
+    <div class="tab-panel" id="tab-history">
+
+      <div class="card">
+        <div class="card-title">Match History Editor</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Fix scoring errors from past matches — correct who was batting, who bowled, run values, dismissal types. Changes update scores.html and stats.html immediately.</p>
+        <button class="match-load-btn" id="load-hist-btn" onclick="loadMatchList()">Load recent matches</button>
+        <div id="hist-sel-wrap" style="display:none;margin-top:10px">
+          <label class="lbl">Select match</label>
+          <select class="msel" id="match-sel" onchange="onMatchSelect()">
+            <option value="">— select a match —</option>
+          </select>
+        </div>
+        <div id="hist-wrap" style="display:none;margin-top:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+            <div id="hist-info" style="font-size:12px;color:var(--muted)"></div>
+            <button class="match-load-btn" id="restore-date-btn" onclick="restoreMatchDate()" style="font-size:12px;padding:6px 12px;background:var(--amber)" title="Reset updated_at back to the original match start time">Restore match date</button>
+          </div>
+          <div style="background:#f8faff;border:1px solid #c7d7f5;border-radius:8px;padding:12px;margin-bottom:12px">
+            <div class="card-title" style="color:#1e40af;margin-bottom:8px">Edit pair roster</div>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Change who is listed in each pair — only affects that pair's history entries, not other pairs.</p>
+            <div id="pairs-edit-list"></div>
+            <datalist id="rename-datalist"></datalist>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+              <button class="btn-add" id="save-pairs-btn" onclick="savePairsEdit()" style="background:#1e40af">Save pair changes</button>
+              <div id="pairs-edit-status" style="font-size:12px;color:var(--muted)"></div>
+            </div>
+          </div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+            <table class="hist-tbl">
+              <colgroup>
+                <col style="width:46px"><col style="width:46px"><col><col><col style="width:32px"><col style="width:44px">
+              </colgroup>
+              <thead><tr>
+                <th>Ball</th><th>Type</th><th>Bat</th><th>Bowl</th><th>Runs</th><th></th>
+              </tr></thead>
+              <tbody id="hist-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-history -->
 
   </div>
 </div>
@@ -330,6 +379,14 @@ function toast(msg,ms=2500){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+// ── Tab navigation ────────────────────────────────────────────────────────────
+function switchTab(tab){
+  ['signups','players','history'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('tab-active',t===tab);
+    document.getElementById('tb-'+t).classList.toggle('tab-active',t===tab);
+  });
 }
 
 async function fetchLoginStats(){
@@ -408,23 +465,25 @@ async function addPlayer(){
   btn.disabled=true;btn.textContent='Adding…';
 
   const{error}=await db.from('player_access').insert({player_name:name,email,is_active:true});
-  btn.disabled=false;btn.textContent='+ Add';
-
   if(error){
+    btn.disabled=false;btn.textContent='+ Add';
     if(error.code==='23505')toast('That email already exists.');
     else toast('Error: '+error.message);
     return;
   }
 
+  // Create stats login automatically
+  const{data:{session}}=await db.auth.getSession();
+  await fetch(SUPABASE_URL+'/functions/v1/admin-create-player',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+    body:JSON.stringify({name,email}),
+  });
+
+  btn.disabled=false;btn.textContent='+ Add';
   document.getElementById('new-name').value='';
   document.getElementById('new-email').value='';
-
-  // Show invite note
-  const note=document.getElementById('invite-note');
-  document.getElementById('invite-name').textContent=name;
-  document.getElementById('invite-email').textContent=email;
-  note.style.display='block';
-
+  document.getElementById('invite-note').style.display='block';
   toast(`${name} added ✓`);
   await refreshList();
 }
@@ -586,17 +645,25 @@ async function bulkImport(){
   const results=[];
   for(const line of lines){
     const parts=line.split(/\t|,/).map(p=>p.trim());
-    if(parts.length<3){results.push({name:line,status:'error',msg:'Need 3 fields: name, email, password'});continue;}
-    const[name,email,password]=parts;
+    if(parts.length<2){results.push({name:line,status:'error',msg:'Need at least 2 fields: name, email'});continue;}
+    const[name,email]=parts;
     const lcEmail=email.toLowerCase();
-    const{error:signUpErr}=await signupClient.auth.signUp({email:lcEmail,password});
-    await new Promise(r=>setTimeout(r,600));
-    if(signUpErr&&!signUpErr.message.toLowerCase().includes('already registered')){
-      results.push({name,status:'error',msg:'Auth: '+signUpErr.message});continue;
+    // Create stats login via Edge Function
+    const{data:{session}}=await db.auth.getSession();
+    const res=await fetch(SUPABASE_URL+'/functions/v1/admin-create-player',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+      body:JSON.stringify({name,email:lcEmail}),
+    });
+    if(!res.ok){
+      const body=await res.json().catch(()=>({}));
+      if(!(body.error||'').toLowerCase().includes('already')){
+        results.push({name,status:'error',msg:'Auth: '+(body.error||res.statusText)});continue;
+      }
     }
     const{error:insertErr}=await db.from('player_access').insert({player_name:name,email:lcEmail,is_active:true});
     if(insertErr){
-      if(insertErr.code==='23505')results.push({name,status:'warn',msg:'Already in player list (login created)'});
+      if(insertErr.code==='23505')results.push({name,status:'warn',msg:'Already in player list'});
       else results.push({name,status:'error',msg:'DB: '+insertErr.message});
       continue;
     }
@@ -614,7 +681,7 @@ async function bulkImport(){
   if(ok)await refreshList();
 }
 
-// ── MATCH HISTORY EDITOR ─────────────────────────────────────────────
+// ── MATCH HISTORY EDITOR ─────────────────────────────────────────────────────
 let _matchPayloads={},_matchOriginalDates={},_editMatchId=null,_editPayload=null,_editOriginalDate=null,_editBallIdx=null,_changedBalls=new Set(),_allKnownPlayers=new Set();
 
 async function loadMatchList(){
@@ -1022,7 +1089,6 @@ async function addManualSignup(){
   if(!name){status.textContent='Enter a player name.';return;}
   const[date,venue]=sel.split('|');
 
-  // Add to match_signups
   const{error}=await db.from('match_signups').insert({
     match_date:date,venue_code:venue,
     canonical_name:name,raw_name:name,
@@ -1030,21 +1096,16 @@ async function addManualSignup(){
   });
   if(error){status.textContent='Error: '+error.message;return;}
 
-  // If email provided and not already in player_access, create stats account
   if(email){
     const{data:existing}=await db.from('player_access').select('id').eq('email',email).maybeSingle();
     if(!existing){
       const{data:{session}}=await db.auth.getSession();
-      const res=await fetch('https://gdhqqcqzshvomnyfhsya.supabase.co/functions/v1/admin-create-player',{
+      const res=await fetch(SUPABASE_URL+'/functions/v1/admin-create-player',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
         body:JSON.stringify({name,email}),
       });
-      if(res.ok){
-        status.textContent=name+' added + stats account created.';
-      } else {
-        status.textContent=name+' added to match (stats account creation failed — add manually if needed).';
-      }
+      status.textContent=res.ok?name+' added + stats account created.':name+' added (stats account creation failed — add manually if needed).';
     } else {
       status.textContent=name+' added (already has a stats account).';
     }
@@ -1076,6 +1137,104 @@ async function moveSignup(id,fromDate,fromVenue,sel){
   await loadSignupsAdmin();
   document.getElementById('su-match-sel').value=fromDate+'|'+fromVenue;
   onSignupMatchSelect();
+}
+
+// ── New match (in Signups tab) ─────────────────────────────────────────────
+function toggleNewMatch(){
+  const form=document.getElementById('new-match-form');
+  const btn=document.getElementById('new-match-toggle-btn');
+  const open=form.style.display==='none';
+  form.style.display=open?'':'none';
+  btn.textContent=open?'✕ Cancel':'✚ New Match';
+  if(open){
+    const today=new Date().toISOString().slice(0,10);
+    document.getElementById('nm-date').value=today;
+    document.getElementById('nm-venue').focus();
+  }
+}
+
+function createNewMatch(){
+  const date=document.getElementById('nm-date').value;
+  const venue=document.getElementById('nm-venue').value.trim().toUpperCase();
+  if(!date){toast('Select a date.');return;}
+  if(!venue){toast('Enter a venue code (e.g. TD).');return;}
+  const key=date+'|'+venue;
+  if(!suMatches.find(m=>m.match_date===date&&m.venue_code===venue)){
+    suMatches.push({match_date:date,venue_code:venue});
+    suMatches.sort((a,b)=>a.match_date.localeCompare(b.match_date));
+    const sel=document.getElementById('su-match-sel');
+    const opt=document.createElement('option');
+    opt.value=key;
+    const d=new Date(date+'T12:00:00');
+    opt.textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+venue;
+    // Insert in sorted order
+    const existingOpts=[...sel.options].slice(1);
+    let insertBefore=null;
+    for(const o of existingOpts){if(o.value>key){insertBefore=o;break;}}
+    if(insertBefore)sel.insertBefore(opt,insertBefore);
+    else sel.appendChild(opt);
+  }
+  document.getElementById('su-match-sel').value=key;
+  onSignupMatchSelect();
+  toggleNewMatch();
+  toast('Match created — add players below.');
+}
+
+// ── Bulk add to match ─────────────────────────────────────────────────────────
+async function bulkAddToMatch(){
+  const sel=document.getElementById('su-match-sel').value;
+  if(!sel){toast('Select a match first.');return;}
+  const raw=document.getElementById('bulk-signup-input').value.trim();
+  if(!raw){toast('Enter at least one player.');return;}
+  const[date,venue]=sel.split('|');
+  const lines=raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const btn=document.getElementById('bulk-signup-btn');
+  const resEl=document.getElementById('bulk-signup-results');
+  btn.disabled=true;btn.textContent='Adding…';
+  resEl.style.display='none';resEl.innerHTML='';
+  const{data:{session}}=await db.auth.getSession();
+  const results=[];
+  for(const line of lines){
+    const parts=line.split(',').map(p=>p.trim());
+    const name=parts[0];
+    const email=(parts[1]||'').toLowerCase();
+    if(!name)continue;
+    const{error:insErr}=await db.from('match_signups').insert({
+      match_date:date,venue_code:venue,
+      canonical_name:name,raw_name:name,
+      email:email||'',product_name:'Manual bulk entry',
+    });
+    if(insErr){
+      results.push({name,status:'error',msg:insErr.message});
+      continue;
+    }
+    if(email){
+      const{data:existing}=await db.from('player_access').select('id').eq('email',email).maybeSingle();
+      if(!existing){
+        const res=await fetch(SUPABASE_URL+'/functions/v1/admin-create-player',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+          body:JSON.stringify({name,email}),
+        });
+        results.push({name,status:res.ok?'ok':'warn',msg:res.ok?'added + stats account':'added (stats account failed)'});
+      }else{
+        results.push({name,status:'ok',msg:'added (stats account exists)'});
+      }
+    }else{
+      results.push({name,status:'ok',msg:''});
+    }
+  }
+  resEl.innerHTML=results.map(r=>{
+    const col=r.status==='ok'?'var(--green)':r.status==='warn'?'var(--amber)':'var(--red)';
+    const icon=r.status==='ok'?'✓':r.status==='warn'?'⚠':'✗';
+    return`<div style="font-size:12px;color:${col};padding:2px 0">${icon} ${escHtml(r.name)}${r.msg?' — '+escHtml(r.msg):''}</div>`;
+  }).join('');
+  resEl.style.display='block';
+  btn.disabled=false;btn.textContent='Add all to match';
+  const ok=results.filter(r=>r.status==='ok'||r.status==='warn').length;
+  toast(`${ok} of ${results.length} added`);
+  document.getElementById('bulk-signup-input').value='';
+  if(ok)onSignupMatchSelect();
 }
 
 window.addEventListener('DOMContentLoaded',init);
