@@ -222,6 +222,10 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
 
         <div id="su-list"></div>
+        <div id="su-mc-wrap" style="display:none;margin-top:10px;display:none;align-items:center;gap:10px">
+          <button class="match-load-btn" onclick="syncMailchimpMatch()" id="su-mc-btn" style="font-size:12px;padding:6px 14px;background:#f97316;white-space:nowrap">Sync Mailchimp tags</button>
+          <span id="su-mc-status" style="font-size:12px;color:var(--muted)"></span>
+        </div>
 
         <!-- Add player + bulk add (shown after match selected) -->
         <div id="su-add-wrap" style="display:none;border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
@@ -1039,7 +1043,7 @@ async function onSignupMatchSelect(){
   const val=document.getElementById('su-match-sel').value;
   const listEl=document.getElementById('su-list');
   const addWrap=document.getElementById('su-add-wrap');
-  if(!val){listEl.innerHTML='';addWrap.style.display='none';return;}
+  if(!val){listEl.innerHTML='';addWrap.style.display='none';document.getElementById('su-mc-wrap').style.display='none';return;}
   const[date,venue]=val.split('|');
   listEl.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Loading…</div>';
   const{data}=await db.from('match_signups')
@@ -1048,6 +1052,8 @@ async function onSignupMatchSelect(){
     .order('canonical_name',{ascending:true});
   renderSignupList(data||[],date,venue);
   addWrap.style.display='block';
+  document.getElementById('su-mc-wrap').style.display='flex';
+  document.getElementById('su-mc-status').textContent='';
   const{data:players}=await db.from('player_access').select('player_name').eq('is_active',true);
   const dl=document.getElementById('su-datalist');
   dl.innerHTML='';
@@ -1116,6 +1122,27 @@ async function addManualSignup(){
   document.getElementById('su-name').value='';
   document.getElementById('su-email').value='';
   onSignupMatchSelect();
+  syncMailchimpMatch();
+}
+
+async function syncMailchimpMatch(){
+  const val=document.getElementById('su-match-sel').value;
+  if(!val)return;
+  const[date,venue]=val.split('|');
+  const statusEl=document.getElementById('su-mc-status');
+  const btn=document.getElementById('su-mc-btn');
+  btn.disabled=true;statusEl.textContent='Syncing…';
+  const{data:{session}}=await db.auth.getSession();
+  const res=await fetch(SUPABASE_URL+'/functions/v1/admin-mailchimp-sync',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token},
+    body:JSON.stringify({match_date:date,venue_code:venue}),
+  });
+  btn.disabled=false;
+  const j=await res.json().catch(()=>({}));
+  statusEl.textContent=res.ok
+    ?(j.tagged>0?`${j.tagged} tagged as ${j.tag}`+(j.skipped?`, ${j.skipped} skipped`:''):'Nothing to tag')
+    :'Sync failed';
 }
 
 async function removeSignup(id,date,venue){
@@ -1234,7 +1261,7 @@ async function bulkAddToMatch(){
   const ok=results.filter(r=>r.status==='ok'||r.status==='warn').length;
   toast(`${ok} of ${results.length} added`);
   document.getElementById('bulk-signup-input').value='';
-  if(ok)onSignupMatchSelect();
+  if(ok){onSignupMatchSelect();syncMailchimpMatch();}
 }
 
 window.addEventListener('DOMContentLoaded',init);
