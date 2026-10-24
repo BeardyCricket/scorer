@@ -49,7 +49,6 @@ async function tagInMailchimp(email: string, name: string, tag: string): Promise
   const fname  = parts[0] ?? ''
   const lname  = parts.slice(1).join(' ')
 
-  // Upsert subscriber (status_if_new keeps existing subscribers as-is)
   const subRes = await fetch(`${base}/members/${hash}`, {
     method: 'PUT',
     headers,
@@ -64,7 +63,6 @@ async function tagInMailchimp(email: string, name: string, tag: string): Promise
     return
   }
 
-  // Apply tag
   const tagRes = await fetch(`${base}/members/${hash}/tags`, {
     method: 'POST',
     headers,
@@ -94,9 +92,11 @@ serve(async (req: Request) => {
 
   let email: string
   let rawName: string
-  let productName: string
   let orderId: string
-  let quantity = 1
+
+  // Each entry in this array becomes one match_signups row
+  interface ProductEntry { productName: string; quantity: number; orderKey: string }
+  const products: ProductEntry[] = []
 
   if (body._source === 'make_email') {
     const html: string = body.html ?? ''
@@ -109,15 +109,32 @@ serve(async (req: Request) => {
     const nameMatch = html.match(/\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s+([^<\n\r]+)/)
     rawName = nameMatch ? nameMatch[1].trim() : ''
 
-    const productMatch = html.match(/([A-Z]{2,}\d+\s*-\s*[A-Za-z]+ \d{1,2}(?:st|nd|rd|th) [A-Za-z]+[^<]{0,80})/)
-    productName = productMatch ? productMatch[1].trim() : ''
-
     const orderMatch = subject.match(/#(\d+)/)
     orderId = orderMatch ? orderMatch[1] : ''
 
-    // "2 × TD010" or "2x TD010" or "2 x TD010"
-    const qtyMatch = html.match(/\b(\d+)\s*[×xX]\s*[A-Z]{2,}\d+/i)
-    if (qtyMatch) quantity = Math.max(1, parseInt(qtyMatch[1], 10))
+    // Find all product lines — "N × CODE - Day Nth Month..." or plain "CODE - Day Nth Month..."
+    const qtyProductRe = /\b(\d+)\s*[×x]\s*([A-Z]{2,}\d+\s*-\s*[A-Za-z]+ \d{1,2}(?:st|nd|rd|th) [A-Za-z]+[^<\n\r]{0,80})/gi
+    const plainProductRe = /([A-Z]{2,}\d+\s*-\s*[A-Za-z]+ \d{1,2}(?:st|nd|rd|th) [A-Za-z]+[^<\n\r]{0,80})/gi
+
+    const qtyMatches = [...html.matchAll(qtyProductRe)]
+    if (qtyMatches.length) {
+      qtyMatches.forEach((m, i) => {
+        products.push({
+          productName: m[2].trim(),
+          quantity:    Math.max(1, parseInt(m[1], 10)),
+          orderKey:    i === 0 ? orderId : `${orderId}-${i}`,
+        })
+      })
+    } else {
+      const plainMatches = [...html.matchAll(plainProductRe)]
+      if (plainMatches.length) {
+        plainMatches.forEach((m, i) => {
+          products.push({ productName: m[1].trim(), quantity: 1, orderKey: i === 0 ? orderId : `${orderId}-${i}` })
+        })
+      } else {
+        products.push({ productName: '', quantity: 1, orderKey: orderId })
+      }
+    }
   } else {
     const status = (body.status || '').toUpperCase()
     if (status !== 'PAID' && status !== 'SUCCESSFUL') {
@@ -138,28 +155,29 @@ serve(async (req: Request) => {
         : (body.customer?.name ?? body.buyer_name ?? '')
     ).trim()
 
-    const items: any[] = body.products ?? body.items ?? body.line_items ?? []
-    productName = (
-      items[0]?.name ??
-      items[0]?.description ??
-      body.description ??
-      body.checkout_reference ??
-      ''
-    ).trim()
-
     orderId = String(body.id ?? body.transaction_id ?? body.checkout_id ?? '')
-    quantity = Math.max(1, parseInt(String(items[0]?.quantity ?? 1), 10))
+
+    const items: any[] = body.products ?? body.items ?? body.line_items ?? []
+    if (items.length) {
+      items.forEach((item, i) => {
+        products.push({
+          productName: (item.name ?? item.description ?? '').trim(),
+          quantity:    Math.max(1, parseInt(String(item.quantity ?? 1), 10)),
+          orderKey:    i === 0 ? orderId : `${orderId}-${i}`,
+        })
+      })
+    } else {
+      products.push({
+        productName: (body.description ?? body.checkout_reference ?? '').trim(),
+        quantity:    1,
+        orderKey:    orderId,
+      })
+    }
   }
 
   if (!email) {
     console.log('No email in payload — cannot process')
     return new Response('OK', { status: 200 })
-  }
-
-  const { matchDate, venueCode } = parseProductName(productName)
-
-  if (!matchDate) {
-    console.log('Could not parse match date from:', productName)
   }
 
   // ── Supabase ──────────────────────────────────────────────────────────────
@@ -168,6 +186,7 @@ serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
+  // Resolve canonical name (once per order, not per product)
   let canonicalName = rawName
   const { data: player } = await supabase
     .from('player_access')
@@ -180,7 +199,6 @@ serve(async (req: Request) => {
     canonicalName = player.player_name
     console.log(`Email match: ${email} → ${canonicalName}`)
   } else {
-    // Auto-create Auth account (random password — they use "forgot password" to set their own)
     const { error: authErr } = await supabase.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -189,7 +207,6 @@ serve(async (req: Request) => {
     if (authErr && !authErr.message.includes('already registered')) {
       console.log(`Could not create auth account for ${email}:`, authErr.message)
     }
-    // Auto-create player_access record for name → stats mapping
     const { error: insertErr } = await supabase
       .from('player_access')
       .insert({ player_name: rawName, email, is_active: true })
@@ -201,33 +218,41 @@ serve(async (req: Request) => {
     canonicalName = rawName
   }
 
-  const { error } = await supabase
-    .from('match_signups')
-    .upsert(
-      {
-        order_id:       orderId || null,
-        match_date:     matchDate,
-        venue_code:     venueCode,
-        canonical_name: canonicalName,
-        raw_name:       rawName,
-        email,
-        product_name:   productName,
-        quantity,
-      },
-      { onConflict: 'order_id', ignoreDuplicates: false },
-    )
+  // ── Store each product as a separate signup row ───────────────────────────
+  for (const product of products) {
+    const { matchDate, venueCode } = parseProductName(product.productName)
 
-  if (error) {
-    console.error('Supabase insert error:', error)
-    return new Response('DB error', { status: 500 })
-  }
+    if (!matchDate) {
+      console.log('Could not parse match date from:', product.productName)
+    }
 
-  console.log(`Signup stored: ${canonicalName} → ${matchDate} [${venueCode}]`)
+    const { error } = await supabase
+      .from('match_signups')
+      .upsert(
+        {
+          order_id:       product.orderKey || null,
+          match_date:     matchDate,
+          venue_code:     venueCode,
+          canonical_name: canonicalName,
+          raw_name:       rawName,
+          email,
+          product_name:   product.productName,
+          quantity:       product.quantity,
+        },
+        { onConflict: 'order_id', ignoreDuplicates: false },
+      )
 
-  // ── Mailchimp ─────────────────────────────────────────────────────────────
-  const productCode = productName.match(/^([A-Z]{2,}\d+)/i)?.[1]?.toUpperCase()
-  if (productCode) {
-    await tagInMailchimp(email, rawName, productCode)
+    if (error) {
+      console.error('Supabase insert error:', error)
+    } else {
+      console.log(`Signup stored: ${canonicalName} → ${matchDate} [${venueCode}]`)
+    }
+
+    // ── Mailchimp tag per session ──────────────────────────────────────────
+    const productCode = product.productName.match(/^([A-Z]{2,}\d+)/i)?.[1]?.toUpperCase()
+    if (productCode) {
+      await tagInMailchimp(email, rawName, productCode)
+    }
   }
 
   return new Response('OK', { status: 200 })
