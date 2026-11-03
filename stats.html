@@ -1006,7 +1006,7 @@ function renderUpcomingSessions(){
   const list=document.getElementById('upcoming-list');
   if(!list)return;
   if(!upcomingSessions.length){
-    list.innerHTML='<div class="empty">No upcoming sessions booked</div>';
+    list.innerHTML='<div class="empty" style="padding-bottom:4px">No upcoming sessions booked</div><div style="text-align:center;margin-top:8px"><a href="https://www.beardycricket.com" target="_blank" rel="noopener" style="display:inline-block;font-size:13px;font-weight:600;color:#fff;background:var(--navy);border-radius:20px;padding:8px 20px;text-decoration:none">Book sessions here →</a></div>';
     return;
   }
   const rows=upcomingSessions.map(s=>{
