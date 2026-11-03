@@ -549,6 +549,11 @@ const SUPABASE_URL='https://gdhqqcqzshvomnyfhsya.supabase.co';
 const SUPABASE_KEY='sb_publishable_tYpM6ALOCT5Y39VjoKpSOw_QdL-K4Kv';
 const db=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
+const VENUES={WM:'Wimbledon',TD:'Thames Ditton',KN:'Kingston',SU:'Sunbury',NM:'New Malden'};
+const VENUE_URLS={
+  TD:'https://beardy-cricket.sumupstore.com/products?category=ff7f2ec6-96c3-4818-8316-e0c7ceee5a8e',
+  WM:'https://beardy-cricket.sumupstore.com/products?category=7e0901f6-bc38-4ed2-bbad-ff9ebb6fbbfb',
+};
 const NAME_CORRECTIONS={'Domi':'Dom','Jural':'Jarell','Nero':'Niro'};
 const cn=n=>(n&&NAME_CORRECTIONS[n])||n;
 
@@ -1004,14 +1009,14 @@ function renderUpcomingSessions(){
     list.innerHTML='<div class="empty">No upcoming sessions booked</div>';
     return;
   }
-  list.innerHTML=upcomingSessions.map(s=>{
+  const rows=upcomingSessions.map(s=>{
     const d=new Date(s.match_date+'T12:00:00');
     const dayName=d.toLocaleDateString('en-GB',{weekday:'long'});
     const dateStr=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
     const timeMatch=s.product_name?.match(/(\d{1,2}:\d{2}[–\-]\w+(?:am|pm))/i);
-    const venueMatch=s.product_name?.match(/\(([^)]+)\)/);
     const time=timeMatch?timeMatch[1]:null;
-    const venueName=venueMatch?venueMatch[1]:s.venue_code;
+    const code=s.venue_code?.toUpperCase();
+    const venueName=VENUES[code]?code+' · '+VENUES[code]:(s.product_name?.match(/\(([^)]+)\)/)?.[1]||code);
     return `<div class="upcoming-row">
       <div class="upcoming-date-wrap">
         <span class="upcoming-dayname">${escHtml(dayName)}</span>
@@ -1023,6 +1028,12 @@ function renderUpcomingSessions(){
       </div>
     </div>`;
   }).join('');
+  // Booking links for venues the player attends that have a store URL
+  const venueLinks=([...new Set(upcomingSessions.map(s=>s.venue_code?.toUpperCase()))])
+    .filter(c=>VENUE_URLS[c])
+    .map(c=>`<a href="${VENUE_URLS[c]}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px;margin-right:8px;font-size:12px;font-weight:600;color:var(--navy);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;text-decoration:none">Book more ${VENUES[c]} sessions →</a>`)
+    .join('');
+  list.innerHTML=rows+(venueLinks?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">${venueLinks}</div>`:'');
 }
 
 function renderAll(){
