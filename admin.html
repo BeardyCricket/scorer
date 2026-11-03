@@ -1127,12 +1127,15 @@ async function computeAndRenderPrediction(signups,date,venue){
   predDiv.style.display='block';
   predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">Calculating…</div>';
 
-  // Fetch in parallel: signups for this venue, all venue signups (for date→venue map), all live_scores
-  const[prevSuRes,allSuRes,lsRes]=await Promise.all([
+  // Fetch in parallel: historical signups at this venue, all venue signups (date→venue map),
+  // ALL-TIME signups at this venue (stable player pool), all live_scores
+  const[prevSuRes,allSuRes,allVenueSuRes,lsRes]=await Promise.all([
     db.from('match_signups').select('match_date,canonical_name')
       .eq('venue_code',venue).lt('match_date',date),
     db.from('match_signups').select('match_date,venue_code')
       .lt('match_date',date),
+    db.from('match_signups').select('canonical_name')
+      .eq('venue_code',venue),
     db.from('live_scores').select('updated_at,payload')
       .not('match_id','like','beardy-test-%')
   ]);
@@ -1140,6 +1143,14 @@ async function computeAndRenderPrediction(signups,date,venue){
   const prevSu=prevSuRes.data||[];
   const allSu=allSuRes.data||[];
   const lsMatches=lsRes.data||[];
+
+  // Stable player pool: ALL players ever signed up at this venue (no date filter).
+  // Using all-time data means the overlap inference gives the same results regardless
+  // of which future match date we're predicting for.
+  const venuePlayerPool=new Set([
+    ...signups.map(s=>s.canonical_name),
+    ...(allVenueSuRes.data||[]).map(r=>r.canonical_name)
+  ]);
 
   // Build date→venue map from all signups (tells us which live_scores date = which venue)
   const dateVenueMap=new Map();
@@ -1150,7 +1161,7 @@ async function computeAndRenderPrediction(signups,date,venue){
   for(const ls of lsMatches){
     if(!ls.payload?.history?.length||ls.payload?.status!=='finished')continue;
     const d=ls.updated_at.slice(0,10);
-    if(d>=date)continue; // only historical
+    if(d>=date)continue;
     if(!lsByDate.has(d))lsByDate.set(d,new Set());
     const pairs=ls.payload.pairs?.length?ls.payload.pairs:ls.payload.game_state?.pairs||[];
     for(const pair of pairs){for(const p of pair.players||[]){if(p)lsByDate.get(d).add(p);}}
@@ -1169,18 +1180,12 @@ async function computeAndRenderPrediction(signups,date,venue){
     }
   }
 
-  // Build known venue player pool (current signups + all historical attendees found so far)
-  const venuePlayerPool=new Set([
-    ...signups.map(s=>s.canonical_name),
-    ...[...attendanceByDate.values()].flatMap(s=>[...s])
-  ]);
-
-  // For live_scores matches with NO venue attribution, infer this venue via player overlap
-  // (catches historical sessions that pre-date the match_signups system)
+  // For live_scores matches with no venue attribution, infer this venue via player overlap
+  // against the stable all-time pool — consistent across all prediction dates
   let inferredCount=0;
   for(const[d,players]of lsByDate){
-    if(attendanceByDate.has(d))continue; // already covered
-    if(dateVenueMap.has(d))continue;     // attributed to a different venue
+    if(attendanceByDate.has(d))continue;
+    if(dateVenueMap.has(d))continue;
     let overlap=0;
     for(const p of players){if(venuePlayerPool.has(p))overlap++;}
     if(players.size>0&&overlap/players.size>=0.45){
