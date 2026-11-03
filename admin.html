@@ -1127,37 +1127,85 @@ async function computeAndRenderPrediction(signups,date,venue){
   predDiv.style.display='block';
   predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">Calculating…</div>';
 
-  // Fetch all signups at this venue before the selected date (for last-5 history)
-  const{data:prevRows}=await db.from('match_signups')
-    .select('match_date,canonical_name')
-    .eq('venue_code',venue)
-    .lt('match_date',date)
-    .order('match_date',{ascending:false});
+  // Fetch in parallel: signups for this venue, all venue signups (for date→venue map), all live_scores
+  const[prevSuRes,allSuRes,lsRes]=await Promise.all([
+    db.from('match_signups').select('match_date,canonical_name')
+      .eq('venue_code',venue).lt('match_date',date),
+    db.from('match_signups').select('match_date,venue_code')
+      .lt('match_date',date),
+    db.from('live_scores').select('updated_at,payload')
+      .not('match_id','like','beardy-test-%')
+  ]);
 
-  if(!prevRows||!prevRows.length){
-    predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">No previous matches at this venue — prediction unavailable.</div>';
+  const prevSu=prevSuRes.data||[];
+  const allSu=allSuRes.data||[];
+  const lsMatches=lsRes.data||[];
+
+  // Build date→venue map from all signups (tells us which live_scores date = which venue)
+  const dateVenueMap=new Map();
+  for(const r of allSu){if(r.match_date&&r.venue_code)dateVenueMap.set(r.match_date,r.venue_code);}
+
+  // Extract players from each live_scores match, keyed by date (updated_at)
+  const lsByDate=new Map();
+  for(const ls of lsMatches){
+    if(!ls.payload?.history?.length||ls.payload?.status!=='finished')continue;
+    const d=ls.updated_at.slice(0,10);
+    if(d>=date)continue; // only historical
+    if(!lsByDate.has(d))lsByDate.set(d,new Set());
+    const pairs=ls.payload.pairs?.length?ls.payload.pairs:ls.payload.game_state?.pairs||[];
+    for(const pair of pairs){for(const p of pair.players||[]){if(p)lsByDate.get(d).add(p);}}
+  }
+
+  // Build confirmed venue dates from match_signups + merge live_scores attendance for those dates
+  const attendanceByDate=new Map();
+  for(const r of prevSu){
+    if(!attendanceByDate.has(r.match_date))attendanceByDate.set(r.match_date,new Set());
+    attendanceByDate.get(r.match_date).add(r.canonical_name);
+  }
+  for(const[d,players]of lsByDate){
+    if(dateVenueMap.get(d)===venue){
+      if(!attendanceByDate.has(d))attendanceByDate.set(d,new Set());
+      for(const p of players)attendanceByDate.get(d).add(p);
+    }
+  }
+
+  // Build known venue player pool (current signups + all historical attendees found so far)
+  const venuePlayerPool=new Set([
+    ...signups.map(s=>s.canonical_name),
+    ...[...attendanceByDate.values()].flatMap(s=>[...s])
+  ]);
+
+  // For live_scores matches with NO venue attribution, infer this venue via player overlap
+  // (catches historical sessions that pre-date the match_signups system)
+  let inferredCount=0;
+  for(const[d,players]of lsByDate){
+    if(attendanceByDate.has(d))continue; // already covered
+    if(dateVenueMap.has(d))continue;     // attributed to a different venue
+    let overlap=0;
+    for(const p of players){if(venuePlayerPool.has(p))overlap++;}
+    if(players.size>0&&overlap/players.size>=0.45){
+      attendanceByDate.set(d,new Set(players));
+      inferredCount++;
+    }
+  }
+
+  // Sort all found dates descending, take last 5
+  const allDates=[...attendanceByDate.keys()].sort((a,b)=>b.localeCompare(a));
+  const prevDates=allDates.slice(0,5);
+
+  if(!prevDates.length){
+    predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">Not enough historical data yet to make a prediction — will improve after a few more sessions.</div>';
     return;
   }
 
-  // Extract up to 5 most recent distinct dates
-  const seenD=new Set();const prevDates=[];
-  for(const r of prevRows){
-    if(!seenD.has(r.match_date)){seenD.add(r.match_date);prevDates.push(r.match_date);}
-    if(prevDates.length===5)break;
-  }
-
-  // attendedSets[0] = most recent (L5), attendedSets[4] = oldest (L1)
-  const attendedSets=prevDates.map(d=>new Set(prevRows.filter(r=>r.match_date===d).map(r=>r.canonical_name)));
-
-  // All players seen in those matches
-  const allPrev=new Set(prevRows.filter(r=>prevDates.includes(r.match_date)).map(r=>r.canonical_name));
+  // attendedSets[0]=most recent (L5), attendedSets[4]=oldest (L1)
+  const attendedSets=prevDates.map(d=>attendanceByDate.get(d)||new Set());
+  const allPrev=new Set(prevDates.flatMap(d=>[...(attendanceByDate.get(d)||[])]));
   const currentSet=new Set(signups.map(s=>s.canonical_name));
 
-  // Score each unsigned player
   const preds=[];
   for(const player of allPrev){
     if(currentSet.has(player))continue;
-    // key = L1L2L3L4L5 (L1=oldest=index 4, L5=newest=index 0)
     const key=[4,3,2,1,0].map(i=>(i<attendedSets.length&&attendedSets[i].has(player))?'1':'0').join('');
     const prob=ATTEND_PROB[key]||0;
     if(prob>0)preds.push({player,prob});
@@ -1166,9 +1214,8 @@ async function computeAndRenderPrediction(signups,date,venue){
 
   const expectedExtra=preds.reduce((s,p)=>s+p.prob,0);
   const predictedTotal=currentSet.size+expectedExtra;
-  const basisNote=prevDates.length<5
-    ?`Based on last ${prevDates.length} match${prevDates.length===1?'':'es'} at ${venue}`
-    :`Based on last 5 matches at ${venue}`;
+  const basisNote=`Based on ${prevDates.length} previous session${prevDates.length===1?'':'s'} at ${venue}`
+    +(inferredCount?` (${inferredCount} inferred from match history)`:'');
   const nudge=preds.slice(0,5);
 
   predContent.innerHTML=`
