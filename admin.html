@@ -223,6 +223,13 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
 
         <div id="su-list"></div>
+
+        <!-- Attendance prediction -->
+        <div id="su-prediction" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <div class="card-title">Attendance prediction</div>
+          <div id="su-pred-content"></div>
+        </div>
+
         <div id="su-mc-wrap" style="display:none;margin-top:10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px">
           <div class="card-title" style="color:#c2410c;margin-bottom:8px">Mailchimp</div>
           <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap">
@@ -387,6 +394,18 @@ function show(id){
   });
 }
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Attendance probability lookup keyed by L1L2L3L4L5 (L5=most recent, L1=5 back). Values = p_model.
+const ATTEND_PROB={
+  '11111':0.7694,'11101':0.7101,'11110':0.6593,'11011':0.6552,
+  '11100':0.5868,'11001':0.5824,'10111':0.5406,'11010':0.5243,
+  '10101':0.4634,'11000':0.4471,'01111':0.4380,'10110':0.4057,
+  '10011':0.4013,'01101':0.3639,'10100':0.3337,'10001':0.3297,
+  '01110':0.3113,'01011':0.3074,'10010':0.2799,'01100':0.2491,
+  '01001':0.2457,'10000':0.2219,'00111':0.2156,'01010':0.2047,
+  '00101':0.1679,'01000':0.1589,'00110':0.1375,'00011':0.1354,
+  '00100':0.1047,'00001':0.1030,'00010':0.0832,
+};
 
 function toast(msg,ms=2500){
   const t=document.getElementById('toast');
@@ -1052,7 +1071,7 @@ async function onSignupMatchSelect(){
   const val=document.getElementById('su-match-sel').value;
   const listEl=document.getElementById('su-list');
   const addWrap=document.getElementById('su-add-wrap');
-  if(!val){listEl.innerHTML='';addWrap.style.display='none';document.getElementById('su-mc-wrap').style.display='none';return;}
+  if(!val){listEl.innerHTML='';addWrap.style.display='none';document.getElementById('su-mc-wrap').style.display='none';document.getElementById('su-prediction').style.display='none';return;}
   const[date,venue]=val.split('|');
   listEl.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Loading…</div>';
   const{data}=await db.from('match_signups')
@@ -1060,6 +1079,7 @@ async function onSignupMatchSelect(){
     .eq('match_date',date).eq('venue_code',venue)
     .order('canonical_name',{ascending:true});
   renderSignupList(data||[],date,venue);
+  computeAndRenderPrediction(data||[],date,venue);
   addWrap.style.display='block';
   document.getElementById('su-mc-wrap').style.display='block';
   document.getElementById('su-mc-status').textContent='';
@@ -1099,6 +1119,84 @@ function renderSignupList(signups,date,venue){
       <button class="del-btn" onclick="removeSignup('${s.id}','${date}','${venue}')">Remove</button>`;
     el.appendChild(row);
   });
+}
+
+async function computeAndRenderPrediction(signups,date,venue){
+  const predDiv=document.getElementById('su-prediction');
+  const predContent=document.getElementById('su-pred-content');
+  predDiv.style.display='block';
+  predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">Calculating…</div>';
+
+  // Fetch all signups at this venue before the selected date (for last-5 history)
+  const{data:prevRows}=await db.from('match_signups')
+    .select('match_date,canonical_name')
+    .eq('venue_code',venue)
+    .lt('match_date',date)
+    .order('match_date',{ascending:false});
+
+  if(!prevRows||!prevRows.length){
+    predContent.innerHTML='<div style="font-size:12px;color:var(--muted)">No previous matches at this venue — prediction unavailable.</div>';
+    return;
+  }
+
+  // Extract up to 5 most recent distinct dates
+  const seenD=new Set();const prevDates=[];
+  for(const r of prevRows){
+    if(!seenD.has(r.match_date)){seenD.add(r.match_date);prevDates.push(r.match_date);}
+    if(prevDates.length===5)break;
+  }
+
+  // attendedSets[0] = most recent (L5), attendedSets[4] = oldest (L1)
+  const attendedSets=prevDates.map(d=>new Set(prevRows.filter(r=>r.match_date===d).map(r=>r.canonical_name)));
+
+  // All players seen in those matches
+  const allPrev=new Set(prevRows.filter(r=>prevDates.includes(r.match_date)).map(r=>r.canonical_name));
+  const currentSet=new Set(signups.map(s=>s.canonical_name));
+
+  // Score each unsigned player
+  const preds=[];
+  for(const player of allPrev){
+    if(currentSet.has(player))continue;
+    // key = L1L2L3L4L5 (L1=oldest=index 4, L5=newest=index 0)
+    const key=[4,3,2,1,0].map(i=>(i<attendedSets.length&&attendedSets[i].has(player))?'1':'0').join('');
+    const prob=ATTEND_PROB[key]||0;
+    if(prob>0)preds.push({player,prob});
+  }
+  preds.sort((a,b)=>b.prob-a.prob);
+
+  const expectedExtra=preds.reduce((s,p)=>s+p.prob,0);
+  const predictedTotal=currentSet.size+expectedExtra;
+  const basisNote=prevDates.length<5
+    ?`Based on last ${prevDates.length} match${prevDates.length===1?'':'es'} at ${venue}`
+    :`Based on last 5 matches at ${venue}`;
+  const nudge=preds.slice(0,5);
+
+  predContent.innerHTML=`
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <div style="flex:1;text-align:center;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 4px">
+        <div style="font-size:26px;font-weight:800;color:#166534">${predictedTotal.toFixed(1)}</div>
+        <div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase;margin-top:2px">Predicted total</div>
+      </div>
+      <div style="flex:1;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 4px">
+        <div style="font-size:26px;font-weight:800">${currentSet.size}</div>
+        <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:2px">Signed up</div>
+      </div>
+      <div style="flex:1;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 4px">
+        <div style="font-size:26px;font-weight:800">+${expectedExtra.toFixed(1)}</div>
+        <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:2px">Expected more</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px">${escHtml(basisNote)}</div>
+    ${nudge.length?`
+      <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Nudge list — most likely unsigned players</div>
+      ${nudge.map((p,i)=>`
+        <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);gap:8px">
+          <span style="font-size:10px;font-weight:700;color:var(--muted);width:14px">${i+1}</span>
+          <span style="flex:1;font-size:13px;font-weight:600">${escHtml(p.player)}</span>
+          <span style="font-size:12px;font-weight:700;color:#166534">${Math.round(p.prob*100)}%</span>
+        </div>`).join('')}
+    `:'<div style="font-size:12px;color:var(--muted)">No unsigned players with recent history at this venue.</div>'}
+  `;
 }
 
 async function addManualSignup(){
