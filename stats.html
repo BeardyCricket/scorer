@@ -172,6 +172,16 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 .prem-chart-ph-bar{flex:1;border-radius:2px 2px 0 0;opacity:.55}
 .prem-blur-wz{filter:blur(6px);pointer-events:none;user-select:none;overflow:hidden}
 
+/* Upcoming sessions */
+.upcoming-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.upcoming-row:last-child{border-bottom:none}
+.upcoming-date-wrap{display:flex;flex-direction:column}
+.upcoming-dayname{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.upcoming-datestr{font-size:15px;font-weight:700;color:var(--navy);margin-top:1px}
+.upcoming-meta{text-align:right}
+.upcoming-venue{font-size:13px;font-weight:600;color:var(--green);display:block}
+.upcoming-time{font-size:11px;color:var(--muted);margin-top:2px;display:block}
+
 /* Canvas */
 canvas{display:block;width:100%}
 
@@ -279,6 +289,11 @@ canvas{display:block;width:100%}
   <div class="pad">
     <!-- OVERVIEW -->
     <div id="tab-overview">
+      <div class="card" id="upcoming-card">
+        <div class="card-title">Upcoming sessions</div>
+        <div id="upcoming-list"><div class="empty">Loading…</div></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:10px">New bookings can take 2–3 hours to appear here.</div>
+      </div>
       <div class="card" style="background:#fffbeb;border-color:#fde68a">
         <div style="font-size:12px;color:#92400e;font-weight:600">Stats available from May 2026 onwards — earlier matches are not included.</div>
       </div>
@@ -546,6 +561,7 @@ function batRun(b){return b.type==='nb'?Math.max(0,b.run-2):b.run;}
 let currentPlayer=null;
 let allMatches=[];
 let filteredMatches=[];
+let upcomingSessions=[];
 let activePeriod='all';
 let customFrom=null,customTo=null;
 let isPremium=false;
@@ -765,9 +781,22 @@ async function doSignOut(){
 
 // ── Data ─────────────────────────────────────────────────
 async function fetchAllData(){
-  const{data,error}=await db.from('live_scores')
-    .select('match_id,updated_at,payload')
-    .not('match_id','like','beardy-test-%');
+  const today=new Date().toISOString().slice(0,10);
+  const[scoresRes,signupsRes]=await Promise.all([
+    db.from('live_scores').select('match_id,updated_at,payload').not('match_id','like','beardy-test-%'),
+    db.from('match_signups').select('match_date,venue_code,product_name,quantity')
+      .eq('canonical_name',currentPlayer.player_name)
+      .gte('match_date',today)
+      .order('match_date',{ascending:true})
+  ]);
+  // Deduplicate by date+venue (in case of multiple rows for same session)
+  const seenSessions=new Set();
+  upcomingSessions=(signupsRes.data||[]).filter(s=>{
+    const k=s.match_date+'|'+s.venue_code;
+    if(seenSessions.has(k))return false;
+    seenSessions.add(k);return true;
+  });
+  const{data,error}={data:scoresRes.data,error:scoresRes.error};
   if(error||!data)return;
   allMatches=data
     .filter(r=>r.payload?.history?.length>0&&r.payload?.status==='finished')
@@ -968,12 +997,41 @@ function playerRank(s,pn){
 }
 
 // ── Render entry point ────────────────────────────────────
+function renderUpcomingSessions(){
+  const list=document.getElementById('upcoming-list');
+  if(!list)return;
+  if(!upcomingSessions.length){
+    list.innerHTML='<div class="empty">No upcoming sessions booked</div>';
+    return;
+  }
+  list.innerHTML=upcomingSessions.map(s=>{
+    const d=new Date(s.match_date+'T12:00:00');
+    const dayName=d.toLocaleDateString('en-GB',{weekday:'long'});
+    const dateStr=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const timeMatch=s.product_name?.match(/(\d{1,2}:\d{2}[–\-]\w+(?:am|pm))/i);
+    const venueMatch=s.product_name?.match(/\(([^)]+)\)/);
+    const time=timeMatch?timeMatch[1]:null;
+    const venueName=venueMatch?venueMatch[1]:s.venue_code;
+    return `<div class="upcoming-row">
+      <div class="upcoming-date-wrap">
+        <span class="upcoming-dayname">${escHtml(dayName)}</span>
+        <span class="upcoming-datestr">${escHtml(dateStr)}</span>
+      </div>
+      <div class="upcoming-meta">
+        <span class="upcoming-venue">${escHtml(venueName)}</span>
+        ${time?`<span class="upcoming-time">${escHtml(time)}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderAll(){
   const pn=currentPlayer?.player_name;
   if(!pn)return;
   const flat=filteredMatches.flatMap(m=>m.history.map(b=>({...b,matchId:m.matchId,matchDate:m.date})));
   const{pl,lg_bat,lg_bowl}=computeAllStats(flat);
   const ms=matchSummaries(filteredMatches);
+  renderUpcomingSessions();
   renderOverview(pn,pl,ms,flat,isPremium);
   renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
   renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
