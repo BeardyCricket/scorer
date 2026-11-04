@@ -439,6 +439,11 @@ async function init(){
 }
 
 async function verifyAdmin(email){
+  if(email!=='thomasretter@yahoo.co.uk'){
+    await db.auth.signOut();show('screen-login');
+    document.getElementById('login-err').textContent='Access denied. This page is admin-only.';
+    return;
+  }
   // Try to fetch all players — will fail if not admin (RLS will return empty or error)
   const{data,error}=await db.from('player_access')
     .select('id,player_name,email,is_active,created_at,is_premium,premium_until')
