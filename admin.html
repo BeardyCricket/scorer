@@ -312,6 +312,26 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
       </div>
 
+      <!-- Merge / rename player -->
+      <div class="card">
+        <div class="card-title">Merge / rename player in signups</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Updates all match signup rows from one name to another. Use when the same person has been recorded under two different names (e.g. "Noble" and "Noble Sekar"). Ball-by-ball match history is handled separately via NAME_CORRECTIONS in stats.html.</p>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group">
+            <label class="lbl">Old name</label>
+            <input class="form-inp" id="merge-from" placeholder="e.g. Noble Sekar" list="merge-datalist">
+          </div>
+          <div style="font-size:18px;color:var(--muted);padding-bottom:6px">→</div>
+          <div class="form-group">
+            <label class="lbl">New name</label>
+            <input class="form-inp" id="merge-to" placeholder="e.g. Noble" list="merge-datalist">
+          </div>
+          <button class="btn-add" onclick="mergePlayerName()">Merge</button>
+        </div>
+        <datalist id="merge-datalist"></datalist>
+        <div id="merge-status" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      </div>
+
       <!-- Bulk import -->
       <div class="card">
         <div class="card-title">Bulk import players</div>
@@ -463,6 +483,9 @@ async function verifyAdmin(email){
   (data||[]).forEach(p=>_allKnownPlayers.add(p.player_name));
   show('screen-admin');
   renderPlayers(data||[]);
+  // Populate merge datalist with known player names
+  const mergeDl=document.getElementById('merge-datalist');
+  if(mergeDl){mergeDl.innerHTML='';(data||[]).forEach(p=>{const o=document.createElement('option');o.value=p.player_name;mergeDl.appendChild(o);});}
   loadSignupsAdmin();
 }
 
@@ -1048,26 +1071,36 @@ function recomputePayload(payload){
 }
 
 // ── Match Signups Manager ─────────────────────────────────────────────────────
+const CREDIT_DATE='2099-01-01';
+const CREDIT_VENUE='CREDIT';
 let suMatches=[];
+
+function matchLabel(m){
+  if(m.venue_code===CREDIT_VENUE)return '★ Match credits (holding area)';
+  const d=new Date(m.match_date+'T12:00:00');
+  return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+m.venue_code;
+}
 
 async function loadSignupsAdmin(){
   const sel=document.getElementById('su-match-sel');
   sel.innerHTML='<option value="">Loading…</option>';
   const{data}=await db.from('match_signups').select('match_date,venue_code');
-  if(!data||!data.length){sel.innerHTML='<option value="">No signups found</option>';return;}
   const seen=new Set();
   suMatches=[];
-  data.forEach(r=>{
+  (data||[]).forEach(r=>{
     const key=`${r.match_date}|${r.venue_code}`;
     if(!seen.has(key)){seen.add(key);suMatches.push(r);}
   });
   suMatches.sort((a,b)=>a.match_date.localeCompare(b.match_date));
+  // Always ensure the credit list entry exists
+  if(!suMatches.find(m=>m.venue_code===CREDIT_VENUE)){
+    suMatches.unshift({match_date:CREDIT_DATE,venue_code:CREDIT_VENUE});
+  }
   sel.innerHTML='<option value="">— select a match —</option>';
   suMatches.forEach(m=>{
     const opt=document.createElement('option');
     opt.value=`${m.match_date}|${m.venue_code}`;
-    const d=new Date(m.match_date+'T12:00:00');
-    opt.textContent=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+m.venue_code;
+    opt.textContent=matchLabel(m);
     sel.appendChild(opt);
   });
 }
@@ -1078,15 +1111,17 @@ async function onSignupMatchSelect(){
   const addWrap=document.getElementById('su-add-wrap');
   if(!val){listEl.innerHTML='';addWrap.style.display='none';document.getElementById('su-mc-wrap').style.display='none';document.getElementById('su-prediction').style.display='none';return;}
   const[date,venue]=val.split('|');
+  const isCredit=venue===CREDIT_VENUE;
   listEl.innerHTML='<div style="font-size:12px;color:var(--muted);padding:6px 0">Loading…</div>';
   const{data}=await db.from('match_signups')
-    .select('id,canonical_name,order_id')
+    .select('id,canonical_name,order_id,quantity')
     .eq('match_date',date).eq('venue_code',venue)
     .order('canonical_name',{ascending:true});
   renderSignupList(data||[],date,venue);
-  computeAndRenderPrediction(data||[],date,venue);
+  if(!isCredit){computeAndRenderPrediction(data||[],date,venue);}
+  else{document.getElementById('su-prediction').style.display='none';}
   addWrap.style.display='block';
-  document.getElementById('su-mc-wrap').style.display='block';
+  document.getElementById('su-mc-wrap').style.display=isCredit?'none':'block';
   document.getElementById('su-mc-status').textContent='';
   // Auto-fill match code from any SumUp order on this match
   const{data:codes}=await db.from('match_signups')
@@ -1103,26 +1138,36 @@ async function onSignupMatchSelect(){
 function renderSignupList(signups,date,venue){
   const el=document.getElementById('su-list');
   if(!signups.length){
-    el.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No signups yet for this match.</div>';
+    el.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No signups yet.</div>';
     return;
   }
   const others=suMatches.filter(m=>!(m.match_date===date&&m.venue_code===venue));
+  const moveOpts=others.map(m=>`<option value="${m.match_date}|${m.venue_code}">${escHtml(matchLabel(m))}</option>`).join('');
   el.innerHTML='';
   signups.forEach(s=>{
+    const qty=Math.max(1,parseInt(s.quantity)||1);
+    const badge=!s.order_id?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px">manual</span>':'';
+    // Main row
     const row=document.createElement('div');
     row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap';
-    const badge=!s.order_id?'<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:10px">manual</span>':'';
-    const moveOpts=others.map(m=>{
-      const d=new Date(m.match_date+'T12:00:00');
-      const lbl=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'2-digit'})+' — '+m.venue_code;
-      return `<option value="${m.match_date}|${m.venue_code}">${escHtml(lbl)}</option>`;
-    }).join('');
     row.innerHTML=`<span style="flex:1;font-size:13px;font-weight:600">${escHtml(s.canonical_name)}</span>${badge}
+      ${qty>1?`<span style="font-size:10px;background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:10px">${qty} spaces</span>`:''}
       <select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--navy)" onchange="moveSignup('${s.id}','${date}','${venue}',this)">
         <option value="">Move to…</option>${moveOpts}
       </select>
       <button class="del-btn" onclick="removeSignup('${s.id}','${date}','${venue}')">Remove</button>`;
     el.appendChild(row);
+    // Extra unnamed slot rows for quantity > 1
+    for(let q=2;q<=qty;q++){
+      const uid=`extra-${s.id}-${q}`;
+      const extra=document.createElement('div');
+      extra.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;background:#f8faff';
+      extra.innerHTML=`<span style="font-size:11px;color:var(--muted);width:10px">↳</span>
+        <span style="font-size:11px;color:#0369a1;flex:0 0 auto">Guest slot ${q}</span>
+        <input id="${uid}" class="form-inp" style="flex:1;padding:5px 8px;font-size:12px;min-width:100px" placeholder="Assign to player name…" list="su-datalist">
+        <button style="font-size:12px;padding:4px 10px;background:var(--navy);color:#fff;border:none;border-radius:6px;cursor:pointer" onclick="assignExtraSlot('${s.id}','${date}','${venue}','${uid}')">Assign</button>`;
+      el.appendChild(extra);
+    }
   });
 }
 
@@ -1254,6 +1299,37 @@ async function computeAndRenderPrediction(signups,date,venue){
         </div>`).join('')}
     `:'<div style="font-size:12px;color:var(--muted)">No unsigned players with recent history at this venue.</div>'}
   `;
+}
+
+async function assignExtraSlot(origId,date,venue,inputId){
+  const name=document.getElementById(inputId)?.value.trim();
+  if(!name){toast('Enter a name to assign the slot to.');return;}
+  // Decrement quantity on original row and create a new row for the assigned player
+  const{data:orig}=await db.from('match_signups').select('quantity').eq('id',origId).single();
+  const newQty=Math.max(1,(parseInt(orig?.quantity)||2)-1);
+  const[,]=await Promise.all([
+    db.from('match_signups').update({quantity:newQty}).eq('id',origId),
+    db.from('match_signups').insert({match_date:date,venue_code:venue,canonical_name:name,raw_name:name,email:'',product_name:'Assigned from guest slot'})
+  ]);
+  toast(`Slot assigned to ${name}.`);
+  onSignupMatchSelect();
+}
+
+async function mergePlayerName(){
+  const from=document.getElementById('merge-from').value.trim();
+  const to=document.getElementById('merge-to').value.trim();
+  const statusEl=document.getElementById('merge-status');
+  if(!from||!to){statusEl.textContent='Enter both names.';return;}
+  if(from===to){statusEl.textContent='Names are the same.';return;}
+  statusEl.textContent='Updating…';
+  const{count,error}=await db.from('match_signups')
+    .update({canonical_name:to})
+    .eq('canonical_name',from)
+    .select('id',{count:'exact',head:true});
+  if(error){statusEl.textContent='Error: '+error.message;return;}
+  statusEl.textContent=`Done — ${count??'unknown number of'} signup row${count===1?'':'s'} updated from "${from}" to "${to}". Note: match history (ball data) uses NAME_CORRECTIONS in stats.html — add "${from}" → "${to}" there if needed.`;
+  document.getElementById('merge-from').value='';
+  document.getElementById('merge-to').value='';
 }
 
 async function addManualSignup(){

@@ -3794,6 +3794,7 @@ async function populateSignupsDropdown(){
   const matches=[];
   data.forEach(row=>{
     if(!row.match_date||row.match_date<cutoffStr)return;
+    if(row.venue_code==='CREDIT')return;
     const key=`${row.match_date}|${row.venue_code}`;
     if(!seen.has(key)){seen.add(key);matches.push(row);}
   });
@@ -3829,7 +3830,10 @@ async function loadSignupsFromSupabase(){
   btn.disabled=false;
   if(error){statusEl.textContent='Error loading signups.';return;}
   if(!data||!data.length){statusEl.textContent='No signups found.';return;}
-  const existing=new Set(rosterPlayers.map(p=>p.name.toLowerCase()));
+  // Replace roster rather than merge — clear existing names first
+  rosterPlayers=[];
+  sessionStatuses={};
+  const existing=new Set();
   let added=0;
   let totalSpaces=0;
   data.forEach(s=>{
