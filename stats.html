@@ -2904,6 +2904,19 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
 function renderVideoTab(){
   const sel=document.getElementById('video-match-select');
   if(!sel)return;
+  if(!isPremium){
+    document.getElementById('video-overs-content').innerHTML='';
+    sel.closest('.card').outerHTML=`<div class="card">
+      <div class="card-title">Ball-by-ball video <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
+      <p class="desc">Watch every delivery from every match — your batting, your bowling, your best moments.</p>
+      <div class="upgrade-card">
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px">Upgrade to Premium</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Unlock ball-by-ball video plus advanced batting and bowling charts.</div>
+        <a class="upgrade-cta" href="https://www.beardycricket.com">Find out more</a>
+      </div>
+    </div>`;
+    return;
+  }
   const matches=[...allMatches].reverse();
   const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let opts='<option value="">— Choose a match —</option>';
