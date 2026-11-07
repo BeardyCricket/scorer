@@ -198,6 +198,23 @@ canvas{display:block;width:100%}
 .pred-val{font-size:20px;font-weight:700}
 .pred-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
 
+/* Video tab */
+.vid-balls-row{display:flex;gap:6px;flex-wrap:wrap;padding-top:4px}
+.vid-ball-btn{width:46px;height:46px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:17px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;-webkit-tap-highlight-color:transparent}
+.vid-ball-btn.active{border-color:var(--navy);background:var(--navy);color:#fff}
+.vid-ball-btn.vwkt{border-color:var(--red);color:var(--red)}
+.vid-ball-btn.vwkt.active{background:var(--red);color:#fff;border-color:var(--red)}
+.vid-ball-btn.vfour{border-color:var(--green);color:var(--green)}
+.vid-ball-btn.vfour.active{background:var(--green);color:#fff;border-color:var(--green)}
+.vid-ball-btn.vsix{border-color:var(--amber);color:var(--amber)}
+.vid-ball-btn.vsix.active{background:var(--amber);color:#fff;border-color:var(--amber)}
+.vid-ball-sub{font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;line-height:1}
+.vid-ball-btn.active .vid-ball-sub{color:rgba(255,255,255,.75)}
+.vid-player-wrap{margin-top:10px;border-radius:10px;overflow:hidden;background:#000}
+.vid-player-wrap video{width:100%;display:block;max-height:60vh}
+.vid-info-bar{font-size:12px;color:var(--muted);padding:5px 2px;text-align:center}
+.vid-no-video{text-align:center;padding:16px;color:var(--muted);font-size:12px;background:var(--bg);border-radius:8px;margin-top:8px}
+
 /* Match stats */
 .ms-select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--navy);background:#fff;-webkit-appearance:none;appearance:none;cursor:pointer}
 .ms-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
@@ -284,6 +301,7 @@ canvas{display:block;width:100%}
     <button class="tab-btn" onclick="showTab('bowling',this)">Bowling</button>
     <button class="tab-btn" onclick="showTab('winzones',this)">Win zones</button>
     <button class="tab-btn" onclick="showTab('spirit',this)">Who is your spirit cricketer?</button>
+    <button class="tab-btn" onclick="showTab('videos',this)">Videos</button>
   </div>
 
   <div class="pad">
@@ -527,6 +545,18 @@ canvas{display:block;width:100%}
       <div id="spirit-content"><div class="empty">Loading…</div></div>
     </div>
 
+    <!-- VIDEOS -->
+    <div id="tab-videos" class="hidden">
+      <div class="card">
+        <div class="card-title">Select match</div>
+        <p class="desc">Choose a completed match to browse ball-by-ball video clips. Tap any delivery to watch.</p>
+        <select class="ms-select" id="video-match-select" onchange="onVideoMatchSelect()">
+          <option value="">— Choose a match —</option>
+        </select>
+      </div>
+      <div id="video-overs-content"></div>
+    </div>
+
     <!-- MATCH STATS -->
     <div id="tab-matchstats" class="hidden">
       <div class="card">
@@ -555,6 +585,7 @@ const VENUE_URLS={
   WM:'https://beardy-cricket.sumupstore.com/products?category=7e0901f6-bc38-4ed2-bbad-ff9ebb6fbbfb',
 };
 const NAME_CORRECTIONS={'Domi':'Dom','Jural':'Jarell','Nero':'Niro','Noble Sekar':'Noble'};
+const R2_BASE='https://pub-b3c7475c08524547a8ab44cff9b70045.r2.dev';
 const cn=n=>(n&&NAME_CORRECTIONS[n])||n;
 
 const BAT_TYPES=new Set(['normal','wkt','bye','lb','nb']);
@@ -886,7 +917,7 @@ function applyFilter(){
 
 // ── Tab switching ─────────────────────────────────────────
 function showTab(id,btn){
-  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards','tab-spirit','tab-matchstats'].forEach(t=>{
+  ['tab-overview','tab-batting','tab-bowling','tab-winzones','tab-leaderboards','tab-spirit','tab-matchstats','tab-videos'].forEach(t=>{
     document.getElementById(t).classList.toggle('hidden','tab-'+id!==t);
   });
   if(btn)document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
@@ -1061,6 +1092,7 @@ function renderAll(){
   renderLeaderboards(pn,ms,isPremium);
   renderSpiritCricketer(pn,pl,flat,ms);
   renderMatchStats(pn,ms,flat);
+  renderVideoTab();
 }
 
 // ── Format helpers ─────────────────────────────────────────
@@ -2861,6 +2893,81 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
     ctx.fillStyle=isMyBlock?'#7F77DD':'#1A2744';ctx.font=(isMyBlock?'bold ':'')+'10px -apple-system,sans-serif';
     ctx.fillText(block.pairTotal+(block.pairWkts>0?' ('+block.pairWkts+'w)':''),midX,padT-15);
   });
+}
+
+// ── Video tab ─────────────────────────────────────────────
+function renderVideoTab(){
+  const sel=document.getElementById('video-match-select');
+  if(!sel)return;
+  // Build newest-first list of completed matches
+  const matches=[...allMatches].reverse();
+  let opts='<option value="">— Choose a match —</option>';
+  matches.forEach(m=>{
+    const realIdx=allMatches.indexOf(m);
+    const dateStr=m.date.toISOString().slice(0,10);
+    const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const label=m.date.getDate()+' '+mn[m.date.getMonth()]+' '+m.date.getFullYear();
+    opts+=`<option value="${realIdx}">${label}</option>`;
+  });
+  sel.innerHTML=opts;
+}
+
+function onVideoMatchSelect(){
+  const val=document.getElementById('video-match-select').value;
+  const cont=document.getElementById('video-overs-content');
+  if(!val){cont.innerHTML='';return;}
+  const m=allMatches[parseInt(val)];
+  if(!m){cont.innerHTML='';return;}
+  const dateStr=m.date.toISOString().slice(0,10);
+
+  // Group balls by over
+  const overMap={};
+  m.history.forEach(b=>{
+    const ov=b.over??0;
+    if(!overMap[ov])overMap[ov]=[];
+    overMap[ov].push(b);
+  });
+  const overs=Object.keys(overMap).map(Number).sort((a,b)=>a-b);
+
+  let html='';
+  overs.forEach(ovIdx=>{
+    const balls=overMap[ovIdx].slice().sort((a,b)=>(a.ballNum??0)-(b.ballNum??0));
+    const overNum=ovIdx+1;
+    const ovPad=String(overNum).padStart(2,'0');
+    html+=`<div class="card"><div class="card-title">Over ${overNum}</div><div class="vid-balls-row">`;
+    balls.forEach(b=>{
+      const bn=(b.ballNum??0)+1;
+      const url=`${R2_BASE}/${dateStr}_ov${ovPad}.${bn}.mp4`;
+      let cls='';
+      if(b.type==='wkt')cls='vwkt';
+      else if(b.run===6&&b.type==='normal')cls='vsix';
+      else if(b.run===4&&(b.type==='normal'||b.code==='4b'))cls='vfour';
+      const lbl=b.type==='wkt'?'W':(b.run===6?'6':(b.run===4?'4':String(b.run??0)));
+      const sub=b.type==='wide'?'wd':(b.type==='nb'?'nb':(b.type==='bye'?'bye':(b.type==='lb'?'lb':'')));
+      const urlSafe=url.replace(/'/g,'%27');
+      const facingSafe=escHtml(b.facing||'');
+      const bowlingSafe=escHtml(b.bowling||'');
+      html+=`<button class="vid-ball-btn ${cls}" onclick="showVidBall(this,'${urlSafe}','${facingSafe}','${bowlingSafe}')" title="Over ${overNum} ball ${bn}">
+        <span>${lbl}</span>${sub?`<span class="vid-ball-sub">${sub}</span>`:''}
+      </button>`;
+    });
+    html+=`</div><div id="vid-player-ov${overNum}" class="vid-player-wrap hidden"></div></div>`;
+  });
+  if(!html)html='<div class="card"><div class="empty">No ball data for this match</div></div>';
+  cont.innerHTML=html;
+}
+
+function showVidBall(btn,url,facing,bowling){
+  // Deactivate any other active button
+  document.querySelectorAll('.vid-ball-btn.active').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const card=btn.closest('.card');
+  const wrap=card.querySelector('.vid-player-wrap');
+  wrap.classList.remove('hidden');
+  wrap.innerHTML=`<video src="${url}" controls autoplay playsinline
+    onerror="this.closest('.vid-player-wrap').innerHTML='<div class=\\'vid-no-video\\'>No clip uploaded for this delivery</div>'"
+    style="width:100%;display:block;max-height:60vh"></video>
+    <div class="vid-info-bar">${facing?escHtml(facing)+' batting · ':''}${bowling?escHtml(bowling)+' bowling':''}</div>`;
 }
 
 // ── Boot ──────────────────────────────────────────────────
