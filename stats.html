@@ -199,20 +199,25 @@ canvas{display:block;width:100%}
 .pred-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
 
 /* Video tab */
-.vid-balls-row{display:flex;gap:6px;flex-wrap:wrap;padding-top:4px}
-.vid-ball-btn{width:46px;height:46px;border-radius:10px;border:1.5px solid var(--border);background:var(--bg);font-size:17px;font-weight:800;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0;-webkit-tap-highlight-color:transparent}
-.vid-ball-btn.active{border-color:var(--navy);background:var(--navy);color:#fff}
-.vid-ball-btn.vwkt{border-color:var(--red);color:var(--red)}
-.vid-ball-btn.vwkt.active{background:var(--red);color:#fff;border-color:var(--red)}
-.vid-ball-btn.vfour{border-color:var(--green);color:var(--green)}
-.vid-ball-btn.vfour.active{background:var(--green);color:#fff;border-color:var(--green)}
-.vid-ball-btn.vsix{border-color:var(--amber);color:var(--amber)}
-.vid-ball-btn.vsix.active{background:var(--amber);color:#fff;border-color:var(--amber)}
-.vid-ball-sub{font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;line-height:1}
-.vid-ball-btn.active .vid-ball-sub{color:rgba(255,255,255,.75)}
+.vid-ball-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.vid-ball-row:last-child{border-bottom:none}
+.vid-ball-row.active{background:#f7f8fb;border-radius:8px;padding:10px 8px;margin:0 -8px}
+.vid-ball-num{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--bg);color:var(--muted)}
+.vid-ball-num.vwkt{background:#fff0f0;color:var(--red)}
+.vid-ball-num.vfour{background:#f0fdf4;color:var(--green)}
+.vid-ball-num.vsix{background:#fffbeb;color:var(--amber)}
+.vid-ball-detail{flex:1;min-width:0}
+.vid-ball-players{font-size:13px;font-weight:600;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vid-ball-outcome{font-size:11px;color:var(--muted);margin-top:2px}
+.vid-ball-outcome.vwkt{color:var(--red);font-weight:700}
+.vid-ball-outcome.vfour{color:var(--green);font-weight:700}
+.vid-ball-outcome.vsix{color:var(--amber);font-weight:700}
+.vid-ball-right{flex-shrink:0;text-align:right}
+.vid-ball-total{font-size:14px;font-weight:800;color:var(--navy)}
+.vid-ball-total-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-top:1px}
+.vid-play-btn{font-size:12px;color:var(--muted);margin-top:3px}
 .vid-player-wrap{margin-top:10px;border-radius:10px;overflow:hidden;background:#000}
 .vid-player-wrap video{width:100%;display:block;max-height:60vh}
-.vid-info-bar{font-size:12px;color:var(--muted);padding:5px 2px;text-align:center}
 .vid-no-video{text-align:center;padding:16px;color:var(--muted);font-size:12px;background:var(--bg);border-radius:8px;margin-top:8px}
 
 /* Match stats */
@@ -2899,17 +2904,26 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
 function renderVideoTab(){
   const sel=document.getElementById('video-match-select');
   if(!sel)return;
-  // Build newest-first list of completed matches
   const matches=[...allMatches].reverse();
+  const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let opts='<option value="">— Choose a match —</option>';
   matches.forEach(m=>{
-    const realIdx=allMatches.indexOf(m);
-    const dateStr=m.date.toISOString().slice(0,10);
-    const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const label=m.date.getDate()+' '+mn[m.date.getMonth()]+' '+m.date.getFullYear();
-    opts+=`<option value="${realIdx}">${label}</option>`;
+    opts+=`<option value="${allMatches.indexOf(m)}">${label}</option>`;
   });
   sel.innerHTML=opts;
+}
+
+function vidBallOutcome(b){
+  if(b.type==='wkt'){const d=b.dismissal||'Out';return'WICKET'+(d&&d!=='Out'?' ('+d+')':'');}
+  if(b.type==='wide')return b.run>1?'Wide +'+( b.run-1):'Wide';
+  if(b.type==='nb')return b.run>2?'No ball +'+( b.run-2):'No ball';
+  if(b.type==='bye')return b.run>0?'Bye ('+b.run+')':'Bye';
+  if(b.type==='lb')return b.run>0?'Leg bye ('+b.run+')':'Leg bye';
+  if(b.run===6)return 'SIX!';
+  if(b.run===4)return b.code==='4r'?'4 (ran)':'FOUR';
+  if(b.run===0)return 'Dot ball';
+  return b.run+' run'+(b.run!==1?'s':'');
 }
 
 function onVideoMatchSelect(){
@@ -2920,54 +2934,73 @@ function onVideoMatchSelect(){
   if(!m){cont.innerHTML='';return;}
   const dateStr=m.date.toISOString().slice(0,10);
 
-  // Group balls by over
+  // Pre-compute running pair totals in history order
+  const pairState={};
+  const enriched=m.history.map(b=>{
+    const pi=b.batPair??0;
+    if(!pairState[pi])pairState[pi]={runs:0,wkts:0};
+    pairState[pi].runs+=b.run??0;
+    if(b.type==='wkt')pairState[pi].wkts++;
+    return{...b,runRuns:pairState[pi].runs,runWkts:pairState[pi].wkts};
+  });
+
+  // Group by over
   const overMap={};
-  m.history.forEach(b=>{
+  enriched.forEach(b=>{
     const ov=b.over??0;
     if(!overMap[ov])overMap[ov]=[];
     overMap[ov].push(b);
   });
-  const overs=Object.keys(overMap).map(Number).sort((a,b)=>a-b);
+  const overs=Object.keys(overMap).map(Number).sort((a,c)=>a-c);
 
   let html='';
   overs.forEach(ovIdx=>{
-    const balls=overMap[ovIdx].slice().sort((a,b)=>(a.ballNum??0)-(b.ballNum??0));
+    const balls=overMap[ovIdx].slice().sort((a,c)=>(a.ballNum??0)-(c.ballNum??0));
     const overNum=ovIdx+1;
     const ovPad=String(overNum).padStart(2,'0');
-    html+=`<div class="card"><div class="card-title">Over ${overNum}</div><div class="vid-balls-row">`;
+    html+=`<div class="card"><div class="card-title">Over ${overNum}</div>`;
     balls.forEach(b=>{
       const bn=(b.ballNum??0)+1;
       const url=`${R2_BASE}/${dateStr}_ov${ovPad}.${bn}.mp4`;
       let cls='';
       if(b.type==='wkt')cls='vwkt';
       else if(b.run===6&&b.type==='normal')cls='vsix';
-      else if(b.run===4&&(b.type==='normal'||b.code==='4b'))cls='vfour';
-      const lbl=b.type==='wkt'?'W':(b.run===6?'6':(b.run===4?'4':String(b.run??0)));
-      const sub=b.type==='wide'?'wd':(b.type==='nb'?'nb':(b.type==='bye'?'bye':(b.type==='lb'?'lb':'')));
+      else if(b.run===4)cls='vfour';
+      const outcome=vidBallOutcome(b);
+      const batter=escHtml(b.facing||'—');
+      const bowler=escHtml(b.bowling||'—');
+      const total=b.runRuns+'/'+(b.runWkts);
       const urlSafe=url.replace(/'/g,'%27');
-      const facingSafe=escHtml(b.facing||'');
-      const bowlingSafe=escHtml(b.bowling||'');
-      html+=`<button class="vid-ball-btn ${cls}" onclick="showVidBall(this,'${urlSafe}','${facingSafe}','${bowlingSafe}')" title="Over ${overNum} ball ${bn}">
-        <span>${lbl}</span>${sub?`<span class="vid-ball-sub">${sub}</span>`:''}
-      </button>`;
+      html+=`<div class="vid-ball-row ${cls}" onclick="showVidBall(this,'${urlSafe}')">
+        <div class="vid-ball-num ${cls}">${bn}</div>
+        <div class="vid-ball-detail">
+          <div class="vid-ball-players">${batter} <span style="font-weight:400;color:var(--muted)">v</span> ${bowler}</div>
+          <div class="vid-ball-outcome ${cls}">${outcome}</div>
+        </div>
+        <div class="vid-ball-right">
+          <div class="vid-ball-total">${total}</div>
+          <div class="vid-ball-total-lbl">pair</div>
+          <div class="vid-play-btn">▶</div>
+        </div>
+      </div>`;
     });
-    html+=`</div><div id="vid-player-ov${overNum}" class="vid-player-wrap hidden"></div></div>`;
+    html+=`<div id="vid-player-ov${overNum}" class="vid-player-wrap hidden"></div></div>`;
   });
   if(!html)html='<div class="card"><div class="empty">No ball data for this match</div></div>';
   cont.innerHTML=html;
 }
 
-function showVidBall(btn,url,facing,bowling){
-  // Deactivate any other active button
-  document.querySelectorAll('.vid-ball-btn.active').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  const card=btn.closest('.card');
+function showVidBall(row,url){
+  document.querySelectorAll('.vid-ball-row.active').forEach(r=>r.classList.remove('active'));
+  row.classList.add('active');
+  const card=row.closest('.card');
   const wrap=card.querySelector('.vid-player-wrap');
+  // Pause any playing video elsewhere
+  document.querySelectorAll('.vid-player-wrap video').forEach(v=>{if(!card.contains(v)){v.pause();}});
   wrap.classList.remove('hidden');
   wrap.innerHTML=`<video src="${url}" controls autoplay playsinline
     onerror="this.closest('.vid-player-wrap').innerHTML='<div class=\\'vid-no-video\\'>No clip uploaded for this delivery</div>'"
-    style="width:100%;display:block;max-height:60vh"></video>
-    <div class="vid-info-bar">${facing?escHtml(facing)+' batting · ':''}${bowling?escHtml(bowling)+' bowling':''}</div>`;
+    style="width:100%;display:block;max-height:60vh"></video>`;
 }
 
 // ── Boot ──────────────────────────────────────────────────
