@@ -220,6 +220,21 @@ canvas{display:block;width:100%}
 .vid-player-wrap video{width:100%;display:block;max-height:60vh}
 .vid-no-video{text-align:center;padding:16px;color:var(--muted);font-size:12px;background:var(--bg);border-radius:8px;margin-top:8px}
 
+/* Challenges */
+.chal-section{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+.chal-section-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px}
+.chal-option{background:var(--bg);border-radius:8px;padding:10px 12px;margin-bottom:7px}
+.chal-option-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.chal-type-lbl{font-size:13px;font-weight:700;color:var(--navy)}
+.chal-vs{font-size:12px;color:var(--muted)}
+.chal-avgs{font-size:11px;color:var(--muted);line-height:1.4}
+.chal-accept-btn{padding:6px 14px;background:var(--navy);color:#fff;border:none;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.chal-accept-btn:disabled{opacity:.5}
+.chal-accepted{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;margin-top:10px}
+.chal-lock{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#166534;display:block;margin-bottom:3px}
+.chal-accepted-detail{font-size:13px;color:var(--navy)}
+.chal-incoming{font-size:12px;color:var(--navy);background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;margin-top:7px;line-height:1.4}
+
 /* Match stats */
 .ms-select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;color:var(--navy);background:#fff;-webkit-appearance:none;appearance:none;cursor:pointer}
 .ms-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
@@ -495,6 +510,12 @@ canvas{display:block;width:100%}
 
     <!-- LEADERBOARDS -->
     <div id="tab-leaderboards" class="hidden">
+      <div class="lb-section-hdr">⚡ Challenge Points</div>
+      <div class="card">
+        <div class="card-title">Challenge leaderboard</div>
+        <p class="desc">Challenger wins = 3pts · Opponent wins = 2pts · Tie = 1pt each</p>
+        <div id="lb-challenges"></div>
+      </div>
       <div class="lb-section-hdr">Pair Stats</div>
       <div class="card">
         <div class="card-title">Top 5 pair scores</div>
@@ -593,6 +614,87 @@ const NAME_CORRECTIONS={'Domi':'Dom','Jural':'Jarell','Nero':'Niro','Noble Sekar
 const R2_BASE='https://pub-b3c7475c08524547a8ab44cff9b70045.r2.dev';
 const cn=n=>(n&&NAME_CORRECTIONS[n])||n;
 
+const CHALLENGE_DEFS={
+  sixes:     {label:'Most sixes',         desc:'batting', higher:true},
+  boundaries:{label:'Most boundaries',    desc:'batting', higher:true},
+  wickets:   {label:'Most wickets taken', desc:'bowling', higher:true},
+  wides:     {label:'Fewest wides bowled',desc:'bowling', higher:false},
+  economy:   {label:'Best economy',       desc:'bowling', higher:false},
+};
+
+function chalPlayerAvg(name,type){
+  const played=allMatches.filter(m=>m.history.some(b=>b.facing===name||b.bowling===name));
+  if(played.length<2)return null;
+  if(type==='sixes'){
+    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length,0)/played.length;
+  }
+  if(type==='boundaries'){
+    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length,0)/played.length;
+  }
+  if(type==='wickets'){
+    return played.reduce((s,m)=>s+m.history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length,0)/played.length;
+  }
+  if(type==='wides'){
+    const bm=played.filter(m=>m.history.some(b=>b.bowling===name));
+    if(bm.length<2)return null;
+    return bm.reduce((s,m)=>s+m.history.filter(b=>b.bowling===name&&b.type==='wide').length,0)/bm.length;
+  }
+  if(type==='economy'){
+    const legal=played.flatMap(m=>m.history.filter(b=>b.bowling===name&&b.legal));
+    if(legal.length<12)return null;
+    return legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6);
+  }
+  return null;
+}
+
+function generateChallengeOptions(matchDate,venueCode){
+  const myName=currentPlayer.player_name;
+  const others=[...new Set(
+    upcomingMatchSignups
+      .filter(s=>s.match_date===matchDate&&s.venue_code===venueCode&&s.canonical_name!==myName)
+      .map(s=>s.canonical_name)
+  )];
+  if(!others.length)return[];
+  const options=[];
+  for(const[type,cfg]of Object.entries(CHALLENGE_DEFS)){
+    const myAvg=chalPlayerAvg(myName,type);
+    if(myAvg===null)continue;
+    let best=null,bestDiff=Infinity;
+    for(const opp of others){
+      const oa=chalPlayerAvg(opp,type);
+      if(oa===null)continue;
+      const diff=Math.abs(myAvg-oa)/(Math.max(myAvg,oa,0.1));
+      if(diff<bestDiff){bestDiff=diff;best={name:opp,avg:oa};}
+    }
+    if(best)options.push({type,...cfg,myAvg,oppName:best.name,oppAvg:best.avg,matchQuality:bestDiff});
+  }
+  return options.sort((a,b)=>a.matchQuality-b.matchQuality).slice(0,3);
+}
+
+async function acceptChallenge(matchDate,venueCode,type,oppName,btnEl){
+  btnEl.disabled=true;btnEl.textContent='Accepting…';
+  const myName=currentPlayer.player_name;
+  const{data,error}=await db.from('challenges').insert({
+    match_date:matchDate,venue_code:venueCode,
+    challenger_name:myName,opponent_name:oppName,
+    challenge_type:type,status:'accepted'
+  }).select().single();
+  if(error){
+    btnEl.disabled=false;btnEl.textContent='Accept';
+    btnEl.closest('.chal-option').querySelector('.chal-err').textContent='Could not accept. Try again.';
+    return;
+  }
+  myChallenges.push(data);
+  allChallenges.push(data);
+  renderUpcomingSessions();
+}
+
+function chalFmtAvg(avg,type){
+  if(avg===null||avg===undefined)return'—';
+  if(type==='economy')return avg.toFixed(1)+' econ';
+  return avg.toFixed(1)+'/match';
+}
+
 const BAT_TYPES=new Set(['normal','wkt','bye','lb','nb']);
 const RUN_TYPES=new Set(['normal','wkt','nb']);
 // For nb balls, the batter only scores b.run minus the 2-run no-ball penalty
@@ -603,6 +705,9 @@ let currentPlayer=null;
 let allMatches=[];
 let filteredMatches=[];
 let upcomingSessions=[];
+let upcomingMatchSignups=[];
+let myChallenges=[];
+let allChallenges=[];
 let activePeriod='all';
 let customFrom=null,customTo=null;
 let isPremium=false;
@@ -837,6 +942,18 @@ async function fetchAllData(){
     if(seenSessions.has(k))return false;
     seenSessions.add(k);return true;
   });
+  // Fetch match co-signups and challenge data in parallel
+  const futureDates=upcomingSessions.filter(s=>s.venue_code!=='CREDIT').map(s=>s.match_date);
+  const myName=currentPlayer.player_name;
+  const[coSignRes,chalRes]=await Promise.all([
+    futureDates.length
+      ?db.from('match_signups').select('match_date,venue_code,canonical_name').in('match_date',futureDates).neq('venue_code','CREDIT')
+      :Promise.resolve({data:[]}),
+    db.from('challenges').select('*')
+  ]);
+  upcomingMatchSignups=coSignRes.data||[];
+  allChallenges=chalRes.data||[];
+  myChallenges=allChallenges.filter(c=>c.challenger_name===myName||c.opponent_name===myName);
   const{data,error}={data:scoresRes.data,error:scoresRes.error};
   if(error||!data)return;
   allMatches=data
@@ -1045,6 +1162,7 @@ function renderUpcomingSessions(){
     list.innerHTML='<div class="empty" style="padding-bottom:4px">No upcoming sessions booked</div><div style="text-align:center;margin-top:8px"><a href="https://www.beardycricket.com" target="_blank" rel="noopener" style="display:inline-block;font-size:13px;font-weight:600;color:#fff;background:var(--navy);border-radius:20px;padding:8px 20px;text-decoration:none">Book sessions here →</a></div>';
     return;
   }
+  const myName=currentPlayer.player_name;
   const rows=upcomingSessions.map(s=>{
     const code=s.venue_code?.toUpperCase();
     if(code==='CREDIT'){
@@ -1064,23 +1182,83 @@ function renderUpcomingSessions(){
     const timeMatch=s.product_name?.match(/(\d{1,2}:\d{2}[–\-]\w+(?:am|pm))/i);
     const time=timeMatch?timeMatch[1]:null;
     const venueName=VENUES[code]?code+' · '+VENUES[code]:(s.product_name?.match(/\(([^)]+)\)/)?.[1]||code);
-    return `<div class="upcoming-row">
-      <div class="upcoming-date-wrap">
-        <span class="upcoming-dayname">${escHtml(dayName)}</span>
-        <span class="upcoming-datestr">${escHtml(dateStr)}</span>
+    const accepted=myChallenges.find(c=>c.challenger_name===myName&&c.match_date===s.match_date&&c.venue_code===code&&c.status==='accepted');
+    const incomingChallenges=myChallenges.filter(c=>c.opponent_name===myName&&c.match_date===s.match_date&&c.venue_code===code&&c.status==='accepted');
+    let chalHtml='';
+    if(accepted){
+      const cfg=CHALLENGE_DEFS[accepted.challenge_type]||{label:accepted.challenge_type};
+      chalHtml+=`<div class="chal-accepted">
+        <span class="chal-lock">⚡ Your challenge locked in</span>
+        <div class="chal-accepted-detail">${escHtml(cfg.label)} vs <b>${escHtml(accepted.opponent_name)}</b></div>
+      </div>`;
+    } else if(allMatches.length>0){
+      const opts=generateChallengeOptions(s.match_date,code);
+      if(opts.length){
+        chalHtml+=`<div class="chal-section"><div class="chal-section-hdr">⚡ Match challenges</div>`;
+        opts.forEach(opt=>{
+          chalHtml+=`<div class="chal-option">
+            <div class="chal-option-top">
+              <span class="chal-type-lbl">${escHtml(opt.label)}</span>
+              <span class="chal-vs">vs ${escHtml(opt.oppName)}</span>
+            </div>
+            <div class="chal-avgs">You avg ${chalFmtAvg(opt.myAvg,opt.type)} · ${escHtml(opt.oppName)} avg ${chalFmtAvg(opt.oppAvg,opt.type)}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+              <span class="chal-err" style="font-size:11px;color:var(--red)"></span>
+              <button class="chal-accept-btn" onclick="acceptChallenge('${s.match_date}','${escHtml(code)}','${opt.type}','${escHtml(opt.oppName)}',this)">Accept</button>
+            </div>
+          </div>`;
+        });
+        chalHtml+=`</div>`;
+      }
+    }
+    incomingChallenges.forEach(ic=>{
+      const cfg=CHALLENGE_DEFS[ic.challenge_type]||{label:ic.challenge_type};
+      chalHtml+=`<div class="chal-incoming">⚡ <b>${escHtml(ic.challenger_name)}</b> has challenged you: ${escHtml(cfg.label)}</div>`;
+    });
+    return `<div class="upcoming-row" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="upcoming-date-wrap">
+          <span class="upcoming-dayname">${escHtml(dayName)}</span>
+          <span class="upcoming-datestr">${escHtml(dateStr)}</span>
+        </div>
+        <div class="upcoming-meta">
+          <span class="upcoming-venue">${escHtml(venueName)}</span>
+          ${time?`<span class="upcoming-time">${escHtml(time)}</span>`:''}
+        </div>
       </div>
-      <div class="upcoming-meta">
-        <span class="upcoming-venue">${escHtml(venueName)}</span>
-        ${time?`<span class="upcoming-time">${escHtml(time)}</span>`:''}
-      </div>
+      ${chalHtml}
     </div>`;
   }).join('');
-  // Booking links for venues the player attends that have a store URL
   const venueLinks=([...new Set(upcomingSessions.map(s=>s.venue_code?.toUpperCase()))])
     .filter(c=>c!=='CREDIT'&&VENUE_URLS[c])
     .map(c=>`<a href="${VENUE_URLS[c]}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px;margin-right:8px;font-size:12px;font-weight:600;color:var(--navy);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 12px;text-decoration:none">Book more ${VENUES[c]} sessions →</a>`)
     .join('');
   list.innerHTML=rows+(venueLinks?`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">${venueLinks}</div>`:'');
+}
+
+function renderChallengeLeaderboard(){
+  const el=document.getElementById('lb-challenges');
+  if(!el)return;
+  const pts={};
+  allChallenges.filter(c=>c.status==='completed').forEach(c=>{
+    if(!pts[c.challenger_name])pts[c.challenger_name]=0;
+    if(!pts[c.opponent_name])pts[c.opponent_name]=0;
+    if(c.winner_name==='tie'){pts[c.challenger_name]+=1;pts[c.opponent_name]+=1;}
+    else if(c.winner_name===c.challenger_name){pts[c.challenger_name]+=3;}
+    else if(c.winner_name===c.opponent_name){pts[c.opponent_name]+=2;}
+  });
+  const sorted=Object.entries(pts).sort((a,b)=>b[1]-a[1]);
+  if(!sorted.length){el.innerHTML='<div class="empty">No completed challenges yet</div>';return;}
+  const myName=currentPlayer?.player_name;
+  el.innerHTML=sorted.map(([name,p],i)=>{
+    const rankCls=i===0?'lb-rank-1':i===1?'lb-rank-2':i===2?'lb-rank-3':'lb-rank-n';
+    const isMe=name===myName;
+    return `<div class="lb-row">
+      <div class="lb-rank ${rankCls}">${i+1}</div>
+      <div class="lb-name${isMe?' you':''}">${escHtml(name)}${isMe?'<span class="lb-you">YOU</span>':''}</div>
+      <div class="lb-val" style="margin-left:auto">${p}pts</div>
+    </div>`;
+  }).join('');
 }
 
 function renderAll(){
@@ -1090,6 +1268,7 @@ function renderAll(){
   const{pl,lg_bat,lg_bowl}=computeAllStats(flat);
   const ms=matchSummaries(filteredMatches);
   renderUpcomingSessions();
+  renderChallengeLeaderboard();
   renderOverview(pn,pl,ms,flat,isPremium);
   renderBatting(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
   renderBowling(pn,pl,lg_bat,lg_bowl,ms,flat,isPremium);
@@ -2278,6 +2457,12 @@ function renderLeaderboards(pn,ms,prem){
   if(!prem){
     const fakeLbRows=names=>names.map((n,i)=>{const rc=i===0?'lb-rank-1':i===1?'lb-rank-2':i===2?'lb-rank-3':'lb-rank-n';return`<div class="lb-row"><div class="lb-rank ${rc}">${i+1}</div><div style="flex:1"><div class="lb-name">${n}</div></div><div class="lb-val">—</div></div>`;}).join('');
     document.getElementById('tab-leaderboards').innerHTML=`
+      <div class="lb-section-hdr">⚡ Challenge Points</div>
+      <div class="card">
+        <div class="card-title">Challenge leaderboard</div>
+        <p class="desc">Challenger wins = 3pts · Opponent wins = 2pts · Tie = 1pt each</p>
+        <div id="lb-challenges"></div>
+      </div>
       <div class="lb-section-hdr">Pair Stats</div>
       <div class="card">
         <div class="card-title">Top golden beard badge winners 🏆</div>
@@ -2319,6 +2504,7 @@ function renderLeaderboards(pn,ms,prem){
         <div class="card-title">Most wickets per match</div>
         <div class="prem-blur-body">${fakeLbRows(['Player A','Player B','Player C','Player D','Player E'])}</div>
       </div>`;
+    renderChallengeLeaderboard();
     return;
   }
 

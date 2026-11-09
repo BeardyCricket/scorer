@@ -347,6 +347,11 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="player-list"><div class="empty">Loading…</div></div>
       </div>
 
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">⚡ Active Challenges</div>
+        <div id="admin-challenges-list"><div class="empty">Loading…</div></div>
+      </div>
+
     </div><!-- /tab-players -->
 
     <!-- ═══ HISTORY TAB ═══ -->
@@ -487,6 +492,7 @@ async function verifyAdmin(email){
   const mergeDl=document.getElementById('merge-datalist');
   if(mergeDl){mergeDl.innerHTML='';(data||[]).forEach(p=>{const o=document.createElement('option');o.value=p.player_name;mergeDl.appendChild(o);});}
   loadSignupsAdmin();
+  loadAdminChallenges();
 }
 
 async function doLogin(){
@@ -1511,6 +1517,33 @@ async function bulkAddToMatch(){
   toast(`${ok} of ${results.length} added`);
   document.getElementById('bulk-signup-input').value='';
   if(ok){onSignupMatchSelect();syncMailchimpMatch();}
+}
+
+async function loadAdminChallenges(){
+  const today=new Date().toISOString().slice(0,10);
+  const{data,error}=await db.from('challenges').select('*').gte('match_date',today).order('match_date',{ascending:true});
+  const el=document.getElementById('admin-challenges-list');
+  if(!el)return;
+  if(error||!data||!data.length){el.innerHTML='<div class="empty">No upcoming challenges</div>';return;}
+  const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets',wides:'Fewest wides',economy:'Best economy'};
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="border-bottom:1px solid #e2e6f0">
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Date</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Venue</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Challenger</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Opponent</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Challenge</th>
+    </tr></thead>
+    <tbody>
+    ${data.map(c=>`<tr style="border-bottom:1px solid #e2e6f0">
+      <td style="padding:6px 4px">${c.match_date}</td>
+      <td style="padding:6px 4px">${c.venue_code}</td>
+      <td style="padding:6px 4px;font-weight:600">${c.challenger_name}</td>
+      <td style="padding:6px 4px">${c.opponent_name}</td>
+      <td style="padding:6px 4px">${cfg[c.challenge_type]||c.challenge_type}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table>`;
 }
 
 window.addEventListener('DOMContentLoaded',init);

@@ -587,6 +587,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="bowl-grid" id="bowl-overs-grid"></div>
     <div class="bowl-warn-bar" id="bowl-warn-bar"></div>
   </div>
+  <div id="challenge-strip" style="display:none;padding:8px 16px 4px;border-top:1px solid var(--border)"></div>
 </div>
 
 <div class="overlay hidden" id="so-offer-modal">
@@ -653,6 +654,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div id="team-result-card" style="display:none" class="card"></div>
     <div class="card"><div class="card-title">Leaderboard</div><div id="leaderboard"></div></div>
     <div class="card"><div class="card-title">Match stats</div><div class="stat-grid" id="stat-grid"></div></div>
+    <div class="card" id="challenge-results-card" style="display:none"><div class="card-title">⚡ Challenge results</div><div id="challenge-results-list"></div></div>
     <div class="gap"></div>
     <button class="btn btn-primary" onclick="exportCSV()">📊 Export to CSV</button>
     <button class="btn btn-secondary" onclick="showStats()">📋 Player stats cards</button>
@@ -3597,6 +3599,7 @@ async function endMatch(){
     console.error('[Stats] match_stats computation FAILED:',e);
   }
   _lastMatchStats=matchStats;
+  await resolveMatchChallenges();
   await pushLiveScore('finished',matchStats);
   clearGameState();
   saveMatchToStorage();
@@ -3659,6 +3662,7 @@ function renderEndScreen(res,soWinnerPairIdx){
   const sixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
   const totRuns=G.scores.reduce((s,sc)=>s+sc.bat,0);
   document.getElementById('stat-grid').innerHTML=`<div class="stat-card"><div class="stat-val">${totRuns}</div><div class="stat-lbl">Total runs</div></div><div class="stat-card"><div class="stat-val">${wkts}</div><div class="stat-lbl">Wickets</div></div><div class="stat-card"><div class="stat-val">${fours}</div><div class="stat-lbl">Fours</div></div><div class="stat-card"><div class="stat-val">${sixes}</div><div class="stat-lbl">Sixes</div></div>`;
+  renderChallengeResults();
 }
 
 function buildCSV(){
@@ -3820,6 +3824,9 @@ async function loadSignupsFromSupabase(){
   const btn=document.getElementById('load-signups-btn');
   if(!val){statusEl.textContent='Please select a match.';return;}
   const[dateVal,venueVal]=val.split('|');
+  currentMatchDate=dateVal;
+  currentVenueCode=venueVal;
+  fetchMatchChallenges(dateVal,venueVal);
   btn.disabled=true;
   statusEl.textContent='Loading…';
   const{data,error}=await supabaseClient
@@ -4660,6 +4667,7 @@ function saveAndTestNtfy(){
 function pushBallUpdate(){
   if(G.ballInOver>=6)return; // over just ended — takeSnapshot() handles the push
   pushLiveScore();
+  renderChallengeStrip();
   if(testMode)return; // skip ntfy in test mode
   const topic=localStorage.getItem('cricket_ntfy_topic');
   if(!topic)return;
@@ -5480,6 +5488,91 @@ function _rebuildRemainingSchedule(){
     if(entered.length>0){entered=entered.slice(0,-1);render();}
   };
 })();
+
+// ── MATCH CHALLENGES ──────────────────────────────────────────────────────────
+let matchChallenges=[];
+let currentMatchDate=null;
+let currentVenueCode=null;
+
+async function fetchMatchChallenges(matchDate,venueCode){
+  if(!matchDate||!venueCode){matchChallenges=[];renderChallengeStrip();return;}
+  const{data}=await supabaseClient.from('challenges').select('*').eq('match_date',matchDate).eq('venue_code',venueCode).eq('status','accepted');
+  matchChallenges=data||[];
+  renderChallengeStrip();
+}
+
+function chalLiveResult(name,type,history){
+  if(type==='sixes')return history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length;
+  if(type==='boundaries')return history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length;
+  if(type==='wickets')return history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length;
+  if(type==='wides')return history.filter(b=>b.bowling===name&&b.type==='wide').length;
+  if(type==='economy'){
+    const legal=history.filter(b=>b.bowling===name&&b.legal);
+    if(!legal.length)return null;
+    return+(legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6)).toFixed(1);
+  }
+  return null;
+}
+
+const CHAL_LABELS_IDX={sixes:'Sixes',boundaries:'Boundaries',wickets:'Wickets',wides:'Wides',economy:'Economy'};
+
+function renderChallengeStrip(){
+  const el=document.getElementById('challenge-strip');
+  if(!el)return;
+  if(!matchChallenges.length){el.style.display='none';el.innerHTML='';return;}
+  const history=G?.history||[];
+  const rows=matchChallenges.map(c=>{
+    const cr=chalLiveResult(c.challenger_name,c.challenge_type,history);
+    const or=chalLiveResult(c.opponent_name,c.challenge_type,history);
+    const crStr=cr===null?'—':String(cr);
+    const orStr=or===null?'—':String(or);
+    const isClose=cr!==null&&or!==null&&Math.abs(Number(cr)-Number(or))<=1;
+    return `<div style="font-size:11px;padding:4px 0;border-bottom:1px solid var(--border,#E2E6F0);display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;font-weight:700;text-transform:uppercase;color:#6B7A99;min-width:72px">${CHAL_LABELS_IDX[c.challenge_type]||c.challenge_type}</span>
+      <span style="flex:1;font-size:12px;font-weight:600">${c.challenger_name} <span style="color:#6B7A99;font-weight:400">vs</span> ${c.opponent_name}</span>
+      <span style="font-weight:800;font-size:13px;color:${isClose?'#E24B4A':'#1A2744'}">${crStr}–${orStr}${isClose?' 🔥':''}</span>
+    </div>`;
+  });
+  el.style.display='block';
+  el.innerHTML=`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6B7A99;margin-bottom:4px">⚡ Live challenges</div>${rows.join('')}`;
+}
+
+async function resolveMatchChallenges(){
+  if(!matchChallenges.length)return;
+  const history=G?.history||[];
+  for(const c of matchChallenges){
+    const cr=chalLiveResult(c.challenger_name,c.challenge_type,history);
+    const or=chalLiveResult(c.opponent_name,c.challenge_type,history);
+    if(cr===null||or===null)continue;
+    const higher=!['wides','economy'].includes(c.challenge_type);
+    let winner;
+    if(cr===or)winner='tie';
+    else if(higher)winner=cr>or?c.challenger_name:c.opponent_name;
+    else winner=cr<or?c.challenger_name:c.opponent_name;
+    await supabaseClient.from('challenges').update({
+      challenger_result:cr,opponent_result:or,winner_name:winner,status:'completed'
+    }).eq('id',c.id);
+    c.status='completed';c.winner_name=winner;c.challenger_result=cr;c.opponent_result=or;
+  }
+}
+
+function renderChallengeResults(){
+  const card=document.getElementById('challenge-results-card');
+  const list=document.getElementById('challenge-results-list');
+  if(!card||!list)return;
+  const resolved=matchChallenges.filter(c=>c.status==='completed');
+  if(!resolved.length){card.style.display='none';return;}
+  const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets',wides:'Fewest wides',economy:'Best economy'};
+  list.innerHTML=resolved.map(c=>{
+    const lbl=cfg[c.challenge_type]||c.challenge_type;
+    const winnerStr=c.winner_name==='tie'?'Tie (1pt each)':`${c.winner_name} wins!`;
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border,#E2E6F0);font-size:12px">
+      <span style="color:#6B7A99">${lbl}: ${c.challenger_name} ${c.challenger_result}–${c.opponent_result} ${c.opponent_name}</span>
+      <span style="font-weight:700">${winnerStr}</span>
+    </div>`;
+  }).join('');
+  card.style.display='block';
+}
 </script>
 </body>
 </html>
