@@ -622,9 +622,17 @@ const CHALLENGE_DEFS={
   economy:   {label:'Best economy',       desc:'bowling', higher:false},
 };
 
-function chalPlayerAvg(name,type){
+function chalLeagueAvg(type){
+  // Compute league-wide average for a metric across all players with data
+  const players=[...new Set(allMatches.flatMap(m=>m.history.flatMap(b=>[b.facing,b.bowling]).filter(Boolean)))];
+  const avgs=players.map(p=>chalPlayerAvgRaw(p,type)).filter(v=>v!==null);
+  if(!avgs.length)return null;
+  return avgs.reduce((s,v)=>s+v,0)/avgs.length;
+}
+
+function chalPlayerAvgRaw(name,type){
   const played=allMatches.filter(m=>m.history.some(b=>b.facing===name||b.bowling===name));
-  if(played.length<2)return null;
+  if(!played.length)return null;
   if(type==='sixes'){
     return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length,0)/played.length;
   }
@@ -636,15 +644,22 @@ function chalPlayerAvg(name,type){
   }
   if(type==='wides'){
     const bm=played.filter(m=>m.history.some(b=>b.bowling===name));
-    if(bm.length<2)return null;
+    if(!bm.length)return null;
     return bm.reduce((s,m)=>s+m.history.filter(b=>b.bowling===name&&b.type==='wide').length,0)/bm.length;
   }
   if(type==='economy'){
     const legal=played.flatMap(m=>m.history.filter(b=>b.bowling===name&&b.legal));
-    if(legal.length<12)return null;
+    if(legal.length<6)return null;
     return legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6);
   }
   return null;
+}
+
+function chalPlayerAvg(name,type){
+  // Use player's own data if they have any; otherwise fall back to league average
+  const own=chalPlayerAvgRaw(name,type);
+  if(own!==null)return own;
+  return chalLeagueAvg(type);
 }
 
 function generateChallengeOptions(matchDate,venueCode){
@@ -655,6 +670,7 @@ function generateChallengeOptions(matchDate,venueCode){
       .map(s=>s.canonical_name)
   )];
   if(!others.length)return[];
+  const myIsNew=!allMatches.some(m=>m.history.some(b=>b.facing===myName||b.bowling===myName));
   const options=[];
   for(const[type,cfg]of Object.entries(CHALLENGE_DEFS)){
     const myAvg=chalPlayerAvg(myName,type);
@@ -666,7 +682,7 @@ function generateChallengeOptions(matchDate,venueCode){
       const diff=Math.abs(myAvg-oa)/(Math.max(myAvg,oa,0.1));
       if(diff<bestDiff){bestDiff=diff;best={name:opp,avg:oa};}
     }
-    if(best)options.push({type,...cfg,myAvg,oppName:best.name,oppAvg:best.avg,matchQuality:bestDiff});
+    if(best)options.push({type,...cfg,myAvg,oppName:best.name,oppAvg:best.avg,matchQuality:bestDiff,myIsNew});
   }
   return options.sort((a,b)=>a.matchQuality-b.matchQuality).slice(0,3);
 }
@@ -1183,9 +1199,23 @@ function renderUpcomingSessions(){
     const time=timeMatch?timeMatch[1]:null;
     const venueName=VENUES[code]?code+' · '+VENUES[code]:(s.product_name?.match(/\(([^)]+)\)/)?.[1]||code);
     const accepted=myChallenges.find(c=>c.challenger_name===myName&&c.match_date===s.match_date&&c.venue_code===code&&c.status==='accepted');
+    const completed=myChallenges.find(c=>(c.challenger_name===myName||c.opponent_name===myName)&&c.match_date===s.match_date&&c.venue_code===code&&c.status==='completed');
     const incomingChallenges=myChallenges.filter(c=>c.opponent_name===myName&&c.match_date===s.match_date&&c.venue_code===code&&c.status==='accepted');
     let chalHtml='';
-    if(accepted){
+    if(completed){
+      const cfg=CHALLENGE_DEFS[completed.challenge_type]||{label:completed.challenge_type};
+      const iAmChallenger=completed.challenger_name===myName;
+      const myResult=iAmChallenger?completed.challenger_result:completed.opponent_result;
+      const oppResult=iAmChallenger?completed.opponent_result:completed.challenger_result;
+      const oppName=iAmChallenger?completed.opponent_name:completed.challenger_name;
+      const iWon=completed.winner_name===myName;
+      const isTie=completed.winner_name==='tie';
+      const pts=isTie?1:(iWon?(iAmChallenger?3:2):0);
+      chalHtml+=`<div class="chal-accepted" style="background:${iWon?'#f0fdf4':isTie?'#fffbeb':'#fff5f5'};border-color:${iWon?'#86efac':isTie?'#fde68a':'#fca5a5'}">
+        <span class="chal-lock" style="color:${iWon?'#166534':isTie?'#92400e':'#991b1b'}">${iWon?'✅ Challenge won':''}${isTie?'🤝 Challenge tied':''}${!iWon&&!isTie?'❌ Challenge lost':''} · ${pts}pt${pts!==1?'s':''}</span>
+        <div class="chal-accepted-detail">${escHtml(cfg.label)} vs <b>${escHtml(oppName)}</b> · ${myResult??'—'}–${oppResult??'—'}</div>
+      </div>`;
+    } else if(accepted){
       const cfg=CHALLENGE_DEFS[accepted.challenge_type]||{label:accepted.challenge_type};
       chalHtml+=`<div class="chal-accepted">
         <span class="chal-lock">⚡ Your challenge locked in</span>
@@ -1201,7 +1231,7 @@ function renderUpcomingSessions(){
               <span class="chal-type-lbl">${escHtml(opt.label)}</span>
               <span class="chal-vs">vs ${escHtml(opt.oppName)}</span>
             </div>
-            <div class="chal-avgs">You avg ${chalFmtAvg(opt.myAvg,opt.type)} · ${escHtml(opt.oppName)} avg ${chalFmtAvg(opt.oppAvg,opt.type)}</div>
+            <div class="chal-avgs">${opt.myIsNew?'First match — based on group averages':'You avg '+chalFmtAvg(opt.myAvg,opt.type)+' · '+escHtml(opt.oppName)+' avg '+chalFmtAvg(opt.oppAvg,opt.type)}</div>
             <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
               <span class="chal-err" style="font-size:11px;color:var(--red)"></span>
               <button class="chal-accept-btn" onclick="acceptChallenge('${s.match_date}','${escHtml(code)}','${opt.type}','${escHtml(opt.oppName)}',this)">Accept</button>
@@ -1213,7 +1243,9 @@ function renderUpcomingSessions(){
     }
     incomingChallenges.forEach(ic=>{
       const cfg=CHALLENGE_DEFS[ic.challenge_type]||{label:ic.challenge_type};
-      chalHtml+=`<div class="chal-incoming">⚡ <b>${escHtml(ic.challenger_name)}</b> has challenged you: ${escHtml(cfg.label)}</div>`;
+      if(!completed||ic.challenger_name!==completed.challenger_name){
+        chalHtml+=`<div class="chal-incoming">⚡ <b>${escHtml(ic.challenger_name)}</b> has challenged you: ${escHtml(cfg.label)}</div>`;
+      }
     });
     return `<div class="upcoming-row" style="flex-direction:column;align-items:stretch;gap:8px">
       <div style="display:flex;align-items:center;justify-content:space-between">

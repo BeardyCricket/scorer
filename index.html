@@ -490,7 +490,23 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div class="pad">
     <div class="warn-bar" id="bowl-warn">⚠️ <span id="warn-txt"></span></div>
     <div class="card"><div class="card-title">Over by over</div><div id="bowl-list"></div></div>
-    <button class="btn btn-primary" onclick="startMatch()">Start match 🏏</button>
+    <button class="btn btn-primary" onclick="goToPreMatch()">Start match 🏏</button>
+  </div>
+</div>
+
+<!-- PRE-MATCH CHALLENGES -->
+<div id="s-prematch" class="screen">
+  <div class="hdr">
+    <div class="hdr-row">
+      <button class="back" onclick="show('s-bowling')">← Back</button>
+      <div class="hdr-title">Pre-match challenges</div>
+      <div style="width:48px"></div>
+    </div>
+    <div class="hdr-sub">Announce these to players before you start</div>
+  </div>
+  <div class="pad">
+    <div id="prematch-challenges-list"></div>
+    <button class="btn btn-primary" onclick="startMatch()" style="margin-top:12px">Kick off 🏏</button>
   </div>
 </div>
 
@@ -1905,6 +1921,23 @@ function validateBowling(){
 // ══════════════════════════════════════════
 // SCORING
 // ══════════════════════════════════════════
+function goToPreMatch(){
+  const el=document.getElementById('prematch-challenges-list');
+  if(el){
+    if(!matchChallenges.length){
+      el.innerHTML='<div style="text-align:center;padding:24px 0;color:#6B7A99;font-size:13px">No challenges set for this match</div>';
+    } else {
+      const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets taken',wides:'Fewest wides bowled',economy:'Best economy'};
+      el.innerHTML=matchChallenges.map(c=>`
+        <div style="background:#fff;border:1px solid #E2E6F0;border-radius:12px;padding:14px 16px;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6B7A99;margin-bottom:4px">⚡ Challenge · ${cfg[c.challenge_type]||c.challenge_type}</div>
+          <div style="font-size:17px;font-weight:700;color:#1A2744">${c.challenger_name} <span style="font-weight:400;color:#6B7A99;font-size:14px">vs</span> ${c.opponent_name}</div>
+        </div>`).join('');
+    }
+  }
+  show('s-prematch');
+}
+
 function startMatch(){
   G.scores=G.pairs.map(()=>({bat:0,bowl:0}));
   G.history=[];G.overIdx=0;G.ballInOver=0;G.matchStartMs=Date.now();G.matchId=(testMode?'beardy-test-':'beardy-')+Date.now().toString(36);
