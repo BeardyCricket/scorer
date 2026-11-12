@@ -198,6 +198,9 @@ canvas{display:block;width:100%}
 .pred-val{font-size:20px;font-weight:700}
 .pred-lbl{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-top:2px}
 
+/* Video filters */
+#video-filters .ms-select{font-size:13px;padding:9px 10px}
+
 /* Video tab */
 .vid-ball-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
 .vid-ball-row:last-child{border-bottom:none}
@@ -575,10 +578,27 @@ canvas{display:block;width:100%}
     <div id="tab-videos" class="hidden">
       <div class="card">
         <div class="card-title">Select match</div>
-        <p class="desc">Choose a completed match to browse ball-by-ball video clips. Tap any delivery to watch.</p>
+        <p class="desc">Only matches with clips uploaded are shown. Tap any delivery to watch.</p>
         <select class="ms-select" id="video-match-select" onchange="onVideoMatchSelect()">
-          <option value="">— Choose a match —</option>
+          <option value="">Checking for clips…</option>
         </select>
+      </div>
+      <div id="video-filters" class="hidden" style="padding:0 0 2px">
+        <div style="display:flex;gap:8px;margin-bottom:4px">
+          <select class="ms-select" id="video-player-filter" onchange="applyVideoFilters()" style="flex:1">
+            <option value="">All players</option>
+          </select>
+          <select class="ms-select" id="video-outcome-filter" onchange="applyVideoFilters()" style="flex:1">
+            <option value="">All outcomes</option>
+            <option value="six">Sixes</option>
+            <option value="four">Fours</option>
+            <option value="boundary">Boundaries (4s+6s)</option>
+            <option value="wicket">Wickets</option>
+            <option value="dot">Dot balls</option>
+            <option value="wide">Wides</option>
+            <option value="nb">No balls</option>
+          </select>
+        </div>
       </div>
       <div id="video-overs-content"></div>
     </div>
@@ -684,7 +704,14 @@ function generateChallengeOptions(matchDate,venueCode){
     }
     if(best)options.push({type,...cfg,myAvg,oppName:best.name,oppAvg:best.avg,matchQuality:bestDiff,myIsNew});
   }
-  return options.sort((a,b)=>a.matchQuality-b.matchQuality).slice(0,3);
+  const sorted=options.sort((a,b)=>a.matchQuality-b.matchQuality);
+  // Pick top 3 preferring a different opponent each time
+  const result=[];
+  const usedOpps=new Set();
+  for(const opt of sorted){if(result.length>=3)break;if(!usedOpps.has(opt.oppName)){result.push(opt);usedOpps.add(opt.oppName);}}
+  // Fill remaining slots (fewer than 3 unique opponents signed up)
+  for(const opt of sorted){if(result.length>=3)break;if(!result.includes(opt))result.push(opt);}
+  return result;
 }
 
 async function acceptChallenge(matchDate,venueCode,type,oppName,btnEl){
@@ -934,7 +961,7 @@ async function loadPlayer(email){
 
 async function doSignOut(){
   await db.auth.signOut();
-  currentPlayer=null;allMatches=[];filteredMatches=[];
+  currentPlayer=null;allMatches=[];filteredMatches=[];videoMatchCache=null;videoCurrentEnriched=null;
   document.getElementById('login-email').value='';
   document.getElementById('login-pw').value='';
   document.getElementById('login-err').textContent='';
@@ -3119,11 +3146,16 @@ function drawOverChart(pn,match,matchSummary,myPairIdx){
 }
 
 // ── Video tab ─────────────────────────────────────────────
+let videoMatchCache=null; // null=unchecked, array=checked indices into allMatches
+let videoCurrentEnriched=null; // enriched ball array for currently selected match
+let videoCurrentDate='';
+
 function renderVideoTab(){
   const sel=document.getElementById('video-match-select');
   if(!sel)return;
   if(!isPremium){
     document.getElementById('video-overs-content').innerHTML='';
+    document.getElementById('video-filters').classList.add('hidden');
     sel.closest('.card').outerHTML=`<div class="card">
       <div class="card-title">Ball-by-ball video <span style="font-size:9px;color:var(--purple);font-weight:600;background:#F5F3FF;padding:2px 6px;border-radius:8px;margin-left:4px">Premium</span></div>
       <p class="desc">Watch every delivery from every match — your batting, your bowling, your best moments.</p>
@@ -3135,39 +3167,71 @@ function renderVideoTab(){
     </div>`;
     return;
   }
-  const matches=[...allMatches].reverse();
+  if(videoMatchCache===null){
+    // Kick off async availability check — dropdown shows "Checking…" until done
+    checkVideoAvailability();
+    return;
+  }
   const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let opts='<option value="">— Choose a match —</option>';
-  matches.forEach(m=>{
+  videoMatchCache.forEach(idx=>{
+    const m=allMatches[idx];
     const label=m.date.getDate()+' '+mn[m.date.getMonth()]+' '+m.date.getFullYear();
-    opts+=`<option value="${allMatches.indexOf(m)}">${label}</option>`;
+    opts+=`<option value="${idx}">${label}</option>`;
   });
   sel.innerHTML=opts;
 }
 
+async function checkVideoAvailability(){
+  const matches=[...allMatches].reverse();
+  const results=await Promise.all(matches.map(async m=>{
+    const date=m.date.toISOString().slice(0,10);
+    try{
+      const res=await fetch(`${R2_BASE}/${date}_ov01.1.mp4`,{method:'HEAD'});
+      return{idx:allMatches.indexOf(m),ok:res.ok};
+    }catch{return{idx:allMatches.indexOf(m),ok:false};}
+  }));
+  // Keep newest-first order, only matches with video
+  videoMatchCache=results.filter(r=>r.ok).map(r=>r.idx);
+  renderVideoTab();
+}
+
 function vidBallOutcome(b){
   if(b.type==='wkt'){const d=b.dismissal||'Out';return'WICKET'+(d&&d!=='Out'?' ('+d+')':'');}
-  if(b.type==='wide')return b.run>1?'Wide +'+( b.run-1):'Wide';
-  if(b.type==='nb')return b.run>2?'No ball +'+( b.run-2):'No ball';
+  if(b.type==='wide')return b.run>1?'Wide +'+(b.run-1):'Wide';
+  if(b.type==='nb')return b.run>2?'No ball +'+(b.run-2):'No ball';
   if(b.type==='bye')return b.run>0?'Bye ('+b.run+')':'Bye';
   if(b.type==='lb')return b.run>0?'Leg bye ('+b.run+')':'Leg bye';
-  if(b.run===6)return 'SIX!';
+  if(b.run===6)return'SIX!';
   if(b.run===4)return b.code==='4r'?'4 (ran)':'FOUR';
-  if(b.run===0)return 'Dot ball';
+  if(b.run===0)return'Dot ball';
   return b.run+' run'+(b.run!==1?'s':'');
+}
+
+function vidBallMatchesOutcome(b,filter){
+  if(!filter)return true;
+  if(filter==='six')return b.run===6&&b.type==='normal';
+  if(filter==='four')return b.run===4&&(b.type==='normal'||b.type==='wide');
+  if(filter==='boundary')return(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide');
+  if(filter==='wicket')return b.type==='wkt';
+  if(filter==='dot')return b.run===0&&b.type==='normal';
+  if(filter==='wide')return b.type==='wide';
+  if(filter==='nb')return b.type==='nb';
+  return true;
 }
 
 function onVideoMatchSelect(){
   const val=document.getElementById('video-match-select').value;
   const cont=document.getElementById('video-overs-content');
-  if(!val){cont.innerHTML='';return;}
+  const filters=document.getElementById('video-filters');
+  if(!val){cont.innerHTML='';filters.classList.add('hidden');videoCurrentEnriched=null;return;}
   const m=allMatches[parseInt(val)];
-  if(!m){cont.innerHTML='';return;}
-  const dateStr=m.date.toISOString().slice(0,10);
+  if(!m){cont.innerHTML='';filters.classList.add('hidden');videoCurrentEnriched=null;return;}
+  videoCurrentDate=m.date.toISOString().slice(0,10);
 
-  // Pre-compute running pair totals in history order
+  // Pre-compute running pair totals
   const pairState={};
-  const enriched=m.history.map(b=>{
+  videoCurrentEnriched=m.history.map(b=>{
     const pi=b.batPair??0;
     if(!pairState[pi])pairState[pi]={runs:0,wkts:0};
     pairState[pi].runs+=b.run??0;
@@ -3175,15 +3239,37 @@ function onVideoMatchSelect(){
     return{...b,runRuns:pairState[pi].runs,runWkts:pairState[pi].wkts};
   });
 
-  // Group by over
+  // Populate player filter
+  const playerSel=document.getElementById('video-player-filter');
+  const players=[...new Set(m.history.flatMap(b=>[b.facing,b.bowling]).filter(Boolean))].sort();
+  playerSel.innerHTML='<option value="">All players</option>'+
+    players.map(p=>`<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+  document.getElementById('video-outcome-filter').value='';
+  filters.classList.remove('hidden');
+
+  renderVideoBalls();
+}
+
+function applyVideoFilters(){renderVideoBalls();}
+
+function renderVideoBalls(){
+  const cont=document.getElementById('video-overs-content');
+  if(!videoCurrentEnriched){cont.innerHTML='';return;}
+  const playerFilter=document.getElementById('video-player-filter')?.value||'';
+  const outcomeFilter=document.getElementById('video-outcome-filter')?.value||'';
+
+  // Filter and group by over
   const overMap={};
-  enriched.forEach(b=>{
+  videoCurrentEnriched.forEach(b=>{
+    const matchesPlayer=!playerFilter||(b.facing===playerFilter||b.bowling===playerFilter);
+    const matchesOutcome=vidBallMatchesOutcome(b,outcomeFilter);
+    if(!matchesPlayer||!matchesOutcome)return;
     const ov=b.over??0;
     if(!overMap[ov])overMap[ov]=[];
     overMap[ov].push(b);
   });
-  const overs=Object.keys(overMap).map(Number).sort((a,c)=>a-c);
 
+  const overs=Object.keys(overMap).map(Number).sort((a,c)=>a-c);
   let html='';
   overs.forEach(ovIdx=>{
     const balls=overMap[ovIdx].slice().sort((a,c)=>(a.ballNum??0)-(c.ballNum??0));
@@ -3192,7 +3278,7 @@ function onVideoMatchSelect(){
     html+=`<div class="card"><div class="card-title">Over ${overNum}</div>`;
     balls.forEach(b=>{
       const bn=(b.ballNum??0)+1;
-      const url=`${R2_BASE}/${dateStr}_ov${ovPad}.${bn}.mp4`;
+      const url=`${R2_BASE}/${videoCurrentDate}_ov${ovPad}.${bn}.mp4`;
       let cls='';
       if(b.type==='wkt')cls='vwkt';
       else if(b.run===6&&b.type==='normal')cls='vsix';
@@ -3215,9 +3301,9 @@ function onVideoMatchSelect(){
         </div>
       </div>`;
     });
-    html+=`<div id="vid-player-ov${overNum}" class="vid-player-wrap hidden"></div></div>`;
+    html+=`<div class="vid-player-wrap hidden"></div></div>`;
   });
-  if(!html)html='<div class="card"><div class="empty">No ball data for this match</div></div>';
+  if(!html)html='<div class="card"><div class="empty">No deliveries match the selected filters</div></div>';
   cont.innerHTML=html;
 }
 
@@ -3226,8 +3312,7 @@ function showVidBall(row,url){
   row.classList.add('active');
   const card=row.closest('.card');
   const wrap=card.querySelector('.vid-player-wrap');
-  // Pause any playing video elsewhere
-  document.querySelectorAll('.vid-player-wrap video').forEach(v=>{if(!card.contains(v)){v.pause();}});
+  document.querySelectorAll('.vid-player-wrap video').forEach(v=>{if(!card.contains(v))v.pause();});
   wrap.classList.remove('hidden');
   wrap.innerHTML=`<video src="${url}" controls autoplay playsinline
     onerror="this.closest('.vid-player-wrap').innerHTML='<div class=\\'vid-no-video\\'>No clip uploaded for this delivery</div>'"
