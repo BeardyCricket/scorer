@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Beardy Cricket — Challenge</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#EDE5D4;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+         display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .card{background:#FFFDF8;border-radius:16px;border:1px solid #DDD5C4;padding:32px 24px;
+          max-width:380px;width:100%;text-align:center}
+    .logo{width:72px;height:72px;border-radius:12px;display:block;margin:0 auto 16px}
+    h1{font-size:20px;font-weight:800;color:#1E3A28;margin-bottom:10px}
+    p{font-size:14px;color:#7A6A54;line-height:1.65;margin-bottom:20px}
+    .pill{display:inline-block;padding:6px 18px;border-radius:20px;
+          font-size:13px;font-weight:700;color:#fff;margin-bottom:16px}
+    .pill-green{background:#1E5C34}
+    .pill-red{background:#C83228}
+    a.btn{display:inline-block;color:#1E5C34;font-size:14px;font-weight:700;text-decoration:none;
+          border:2px solid #1E5C34;border-radius:8px;padding:9px 24px}
+    .icon{font-size:44px;margin-bottom:14px}
+  </style>
+</head>
+<body>
+<div class="card">
+  <img class="logo"
+       src="https://www.beardycricket.com/wp-content/uploads/go-x/u/c933ac9f-3656-4e33-8b09-af22e1fab398/image-640x640.png"
+       alt="Beardy Cricket">
+  <div id="content">
+    <div class="icon">&#9203;</div>
+    <h1>Loading…</h1>
+  </div>
+  <a class="btn" href="https://scorer.beardycricket.com/stats.html" style="display:none" id="stats-link">Go to my stats page &rarr;</a>
+</div>
+<script>
+  const p = new URLSearchParams(location.search)
+  const status = p.get('s')
+  const opponent = p.get('opp')
+  const type = p.get('type')
+  const content = document.getElementById('content')
+  const link = document.getElementById('stats-link')
+  link.style.display = 'inline-block'
+
+  const labels = {
+    sixes:      'Most sixes (batting)',
+    boundaries: 'Most boundaries (batting)',
+    wickets:    'Most wickets taken (bowling)',
+    wides:      'Fewest wides bowled (bowling)',
+    economy:    'Best economy rate (bowling)',
+  }
+
+  if (status === 'ok') {
+    content.innerHTML = `
+      <div class="icon">&#127955;</div>
+      <h1>Challenge accepted!</h1>
+      <span class="pill pill-green">Locked in</span>
+      <p>You&rsquo;re challenging <strong>${opponent}</strong> on <strong>${labels[type] || type}</strong>.<br>
+      The result is calculated automatically after the match. Good luck!</p>`
+  } else if (status === 'already') {
+    content.innerHTML = `
+      <div class="icon">&#127955;</div>
+      <h1>Already locked in</h1>
+      <span class="pill pill-green">Active</span>
+      <p>You already have an active challenge for this match.<br>Good luck today!</p>`
+  } else if (status === 'used') {
+    content.innerHTML = `
+      <div class="icon">&#127955;</div>
+      <h1>Already accepted</h1>
+      <span class="pill pill-green">Done</span>
+      <p>${opponent ? `You already accepted this challenge vs <strong>${opponent}</strong>.` : 'You already accepted a challenge for this match.'} Good luck today!</p>`
+  } else if (status === 'expired') {
+    content.innerHTML = `
+      <div class="icon">&#9203;</div>
+      <h1>Link expired</h1>
+      <span class="pill pill-red">Expired</span>
+      <p>This challenge link expired at midnight on match day. Challenges can only be accepted before the match starts.</p>`
+  } else if (status === 'err') {
+    content.innerHTML = `
+      <div class="icon">&#9888;&#65039;</div>
+      <h1>Something went wrong</h1>
+      <span class="pill pill-red">Error</span>
+      <p>We couldn&rsquo;t lock in your challenge. Please try again or use the stats page.</p>`
+  } else {
+    content.innerHTML = `
+      <div class="icon">&#9888;&#65039;</div>
+      <h1>Invalid link</h1>
+      <span class="pill pill-red">Not found</span>
+      <p>This challenge link is not valid. Please use the link from your email.</p>`
+  }
+</script>
+</body>
+</html>
