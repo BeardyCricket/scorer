@@ -364,6 +364,22 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="admin-behalf-options"></div>
       </div>
 
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">📍 Venue Booking Links</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Used in post-match summary emails. Add new venues here as you launch them.</p>
+        <div id="admin-venue-list"><div class="empty">Loading…</div></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px">Add new venue</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="new-venue-code" placeholder="Code e.g. KT" style="flex:0 0 80px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <input id="new-venue-name" placeholder="Name e.g. Kingston" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <input id="new-venue-url" placeholder="Booking URL" style="flex:2;min-width:160px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <button onclick="addVenueLink()" style="padding:7px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Add</button>
+          </div>
+          <div id="venue-add-err" style="font-size:12px;color:var(--red);margin-top:4px"></div>
+        </div>
+      </div>
+
     </div><!-- /tab-players -->
 
     <!-- ═══ HISTORY TAB ═══ -->
@@ -506,6 +522,7 @@ async function verifyAdmin(email){
   loadSignupsAdmin();
   loadAdminChallenges();
   loadBehalfMatchDropdown();
+  loadVenueLinks();
 }
 
 async function doLogin(){
@@ -1573,6 +1590,55 @@ async function voidChallenge(id,btn){
   btn.textContent='Voided';
 }
 
+// ── Venue booking links ───────────────────────────────────────────────────
+async function loadVenueLinks(){
+  const el=document.getElementById('admin-venue-list');
+  if(!el)return;
+  const{data,error}=await db.from('venue_links').select('*').order('venue_code',{ascending:true});
+  if(error||!data||!data.length){el.innerHTML='<div class="empty">No venues yet</div>';return;}
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="border-bottom:1px solid var(--border)">
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted)">Code</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted)">Venue</th>
+      <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:var(--muted)">Booking URL</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    ${data.map(v=>`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:7px 4px;font-weight:700">${v.venue_code}</td>
+      <td style="padding:7px 4px">${v.venue_name}</td>
+      <td style="padding:7px 4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="${v.booking_url}" target="_blank" style="color:var(--green);text-decoration:none;font-size:11px">${v.booking_url}</a></td>
+      <td style="padding:7px 4px;text-align:right">
+        <button onclick="deleteVenueLink('${v.id}',this)" style="font-size:11px;padding:3px 8px;background:#fff;border:1px solid var(--red);color:var(--red);border-radius:6px;cursor:pointer">Delete</button>
+      </td>
+    </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function addVenueLink(){
+  const code=document.getElementById('new-venue-code').value.trim().toUpperCase();
+  const name=document.getElementById('new-venue-name').value.trim();
+  const url=document.getElementById('new-venue-url').value.trim();
+  const errEl=document.getElementById('venue-add-err');
+  if(!code||!name||!url){errEl.textContent='Please fill in all three fields.';return;}
+  errEl.textContent='';
+  const{error}=await db.from('venue_links').insert({venue_code:code,venue_name:name,booking_url:url});
+  if(error){errEl.textContent='Error: '+error.message;return;}
+  document.getElementById('new-venue-code').value='';
+  document.getElementById('new-venue-name').value='';
+  document.getElementById('new-venue-url').value='';
+  loadVenueLinks();
+}
+
+async function deleteVenueLink(id,btn){
+  if(!confirm('Delete this venue link?'))return;
+  btn.disabled=true;
+  const{error}=await db.from('venue_links').delete().eq('id',id);
+  if(error){btn.disabled=false;alert('Error: '+error.message);return;}
+  loadVenueLinks();
+}
+
 // ── Accept on behalf ─────────────────────────────────────────────────────
 async function loadBehalfMatchDropdown(){
   const sel=document.getElementById('admin-behalf-match');
@@ -1627,11 +1693,31 @@ async function loadBehalfInvites(){
     return;
   }
 
-  // Load their unused invite tokens
+  // Load their invite tokens — ignore used_at since we already confirmed no active challenge
   const{data:invites}=await db.from('challenge_invites')
-    .select('*').eq('player_name',playerName).eq('match_date',matchDate).is('used_at',null);
+    .select('*').eq('player_name',playerName).eq('match_date',matchDate);
   if(!invites||!invites.length){
-    optionsDiv.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No challenge options found for this player — they may not have been emailed yet.</div>';
+    // Fall back to manual form
+    const[,venueCode]=matchVal.split('|');
+    const{data:signups}=await db.from('match_signups')
+      .select('canonical_name').eq('match_date',matchDate).eq('venue_code',venueCode);
+    const others=[...new Set((signups||[]).map(s=>s.canonical_name).filter(n=>n&&n!==playerName))].sort();
+    const chalTypes={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets taken',wides:'Fewest wides bowled',economy:'Best economy rate'};
+    optionsDiv.innerHTML=`
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">No email invites found — create manually:</div>
+      <select id="behalf-manual-opp" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px">
+        <option value="">— Select opponent —</option>
+        ${others.map(n=>`<option value="${n}">${n}</option>`).join('')}
+      </select>
+      <select id="behalf-manual-type" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:10px">
+        <option value="">— Select challenge type —</option>
+        ${Object.entries(chalTypes).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}
+      </select>
+      <button onclick="adminAcceptManual('${playerName}','${matchDate}','${venueCode}',this)"
+        style="padding:8px 20px;background:var(--green);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px">
+        Accept challenge
+      </button>
+      <div id="behalf-manual-err" style="font-size:12px;color:var(--red);margin-top:6px"></div>`;
     return;
   }
   const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets taken',wides:'Fewest wides bowled',economy:'Best economy rate'};
@@ -1643,6 +1729,23 @@ async function loadBehalfInvites(){
       </div>
       <button onclick="adminAcceptChallenge('${inv.id}',this)" style="font-size:12px;padding:5px 14px;background:var(--green);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600">Accept</button>
     </div>`).join('');
+}
+
+async function adminAcceptManual(playerName,matchDate,venueCode,btn){
+  const opp=document.getElementById('behalf-manual-opp').value;
+  const type=document.getElementById('behalf-manual-type').value;
+  const errEl=document.getElementById('behalf-manual-err');
+  if(!opp||!type){errEl.textContent='Please select both an opponent and a challenge type.';return;}
+  btn.disabled=true;btn.textContent='Accepting…';errEl.textContent='';
+  const{error}=await db.from('challenges').insert({
+    match_date:matchDate,venue_code:venueCode,
+    challenger_name:playerName,opponent_name:opp,
+    challenge_type:type,status:'accepted'
+  });
+  if(error){btn.disabled=false;btn.textContent='Accept challenge';errEl.textContent='Error: '+error.message;return;}
+  document.getElementById('admin-behalf-options').innerHTML=
+    `<div style="font-size:13px;color:var(--green);font-weight:600;padding:8px 0">✓ Challenge accepted for ${playerName}</div>`;
+  loadAdminChallenges();
 }
 
 async function adminAcceptChallenge(inviteId,btn){
@@ -1660,8 +1763,8 @@ async function adminAcceptChallenge(inviteId,btn){
   // Mark all this player's tokens for the match as used
   await db.from('challenge_invites').update({used_at:new Date().toISOString(),challenge_id:newChallenge.id})
     .eq('id',inviteId);
-  await db.from('challenge_invites').update({used_at:new Date().toISOString()})
-    .eq('player_name',invite.player_name).eq('match_date',invite.match_date).is('used_at',null);
+  await db.from('challenge_invites').update({used_at:new Date().toISOString(),challenge_id:null})
+    .eq('player_name',invite.player_name).eq('match_date',invite.match_date).neq('id',inviteId);
 
   document.getElementById('behalf-opt-'+inviteId).style.opacity='0.4';
   btn.textContent='Accepted';

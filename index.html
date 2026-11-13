@@ -3634,6 +3634,13 @@ async function endMatch(){
   _lastMatchStats=matchStats;
   await resolveMatchChallenges();
   await pushLiveScore('finished',matchStats);
+  if(!testMode&&G.matchId&&matchStats){
+    fetch('https://gdhqqcqzshvomnyfhsya.supabase.co/functions/v1/send-match-summary',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY},
+      body:JSON.stringify({match_id:G.matchId,match_date:currentMatchDate,venue_code:currentVenueCode,match_stats:matchStats})
+    }).catch(e=>console.error('Match summary email failed:',e));
+  }
   clearGameState();
   saveMatchToStorage();
   const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
