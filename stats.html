@@ -3063,8 +3063,36 @@ function renderMatchDetail(matchId){
     wHtml+='</table>';
   }else{wHtml+='<div class="empty">No pair data</div>';}
   wHtml+='</div>';
+
+  // Challenges for this match
+  const matchDate=m.date.toISOString().slice(0,10);
+  const matchChals=myChallenges.filter(c=>c.match_date===matchDate&&c.status==='completed');
+  let chalHtml='';
+  if(matchChals.length){
+    chalHtml='<div class="card"><div class="card-title">&#127951; Challenges</div>';
+    matchChals.forEach(c=>{
+      const cfg=CHALLENGE_DEFS[c.challenge_type]||{label:c.challenge_type};
+      const iAmChallenger=c.challenger_name===pn;
+      const myResult=iAmChallenger?c.challenger_result:c.opponent_result;
+      const oppResult=iAmChallenger?c.opponent_result:c.challenger_result;
+      const oppName=iAmChallenger?c.opponent_name:c.challenger_name;
+      const iWon=c.winner_name===pn;
+      const isTie=c.winner_name==='tie';
+      const pts=isTie?1:(iWon?(iAmChallenger?3:2):0);
+      const bg=iWon?'#f0fdf4':isTie?'#fffbeb':'#fff5f5';
+      const bc=iWon?'#86efac':isTie?'#fde68a':'#fca5a5';
+      const tc=iWon?'#166534':isTie?'#92400e':'#991b1b';
+      chalHtml+=`<div style="background:${bg};border:1px solid ${bc};border-radius:10px;padding:10px 12px;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;color:${tc};margin-bottom:4px">${iWon?'✅ Won':isTie?'🤝 Tied':'❌ Lost'} · ${pts}pt${pts!==1?'s':''}</div>
+        <div style="font-size:13px;color:var(--navy)">${escHtml(cfg.label)} vs <b>${escHtml(oppName)}</b></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">You: ${myResult??'—'} · ${escHtml(oppName)}: ${oppResult??'—'}</div>
+      </div>`;
+    });
+    chalHtml+='</div>';
+  }
+
   const oHtml=`<div class="card" style="padding-left:8px;padding-right:8px"><div class="card-title" style="padding-left:8px">Over-by-over <span style="font-size:9px;font-weight:400;color:var(--muted)">■ purple = your pair batting · ■ green = you bowling · ■ grey = other</span></div><canvas id="chart-over-detail"></canvas></div>`;
-  detail.innerHTML=bHtml+wHtml+oHtml;
+  detail.innerHTML=bHtml+wHtml+chalHtml+oHtml;
   drawOverChart(pn,m,s,myPairIdx);
 }
 
