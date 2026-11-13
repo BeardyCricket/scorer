@@ -1632,11 +1632,11 @@ async function adminResolveChallenges(){
 
   statusEl.textContent='Match found — loading challenges…';
 
-  // Get accepted challenges for this date
+  // Get accepted and already-completed challenges for this date (re-resolve both)
   const{data:challenges}=await db.from('challenges').select('*')
-    .eq('match_date',matchDate).eq('status','accepted');
+    .eq('match_date',matchDate).in('status',['accepted','completed']);
 
-  if(!challenges?.length){statusEl.style.color='var(--muted)';statusEl.textContent='No accepted challenges found for this date.';return;}
+  if(!challenges?.length){statusEl.style.color='var(--muted)';statusEl.textContent='No challenges found for this date.';return;}
 
   const played=name=>history.some(b=>b.facing===name||b.bowling===name);
   let resolved=0,voided=0;
