@@ -26,6 +26,7 @@
 <div class="card">
   <img class="logo"
        src="https://www.beardycricket.com/wp-content/uploads/go-x/u/c933ac9f-3656-4e33-8b09-af22e1fab398/image-640x640.png"
+
        alt="Beardy Cricket">
   <div id="content">
     <div class="icon">&#9203;</div>
@@ -52,20 +53,20 @@
 
   if (status === 'ok') {
     content.innerHTML = `
-      <div class="icon">&#127955;</div>
+      <div class="icon">&#127951;</div>
       <h1>Challenge accepted!</h1>
       <span class="pill pill-green">Locked in</span>
       <p>You&rsquo;re challenging <strong>${opponent}</strong> on <strong>${labels[type] || type}</strong>.<br>
       The result is calculated automatically after the match. Good luck!</p>`
   } else if (status === 'already') {
     content.innerHTML = `
-      <div class="icon">&#127955;</div>
+      <div class="icon">&#127951;</div>
       <h1>Already locked in</h1>
       <span class="pill pill-green">Active</span>
       <p>You already have an active challenge for this match.<br>Good luck today!</p>`
   } else if (status === 'used') {
     content.innerHTML = `
-      <div class="icon">&#127955;</div>
+      <div class="icon">&#127951;</div>
       <h1>Already accepted</h1>
       <span class="pill pill-green">Done</span>
       <p>${opponent ? `You already accepted this challenge vs <strong>${opponent}</strong>.` : 'You already accepted a challenge for this match.'} Good luck today!</p>`
