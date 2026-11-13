@@ -650,14 +650,18 @@ function chalLeagueAvg(type){
   return avgs.reduce((s,v)=>s+v,0)/avgs.length;
 }
 
+function isFour(b){return(b.type==='normal'&&b.code==='4b')||(b.type==='nb'&&b.run===6);}
+function isSix(b){return(b.type==='normal'&&b.run===6)||(b.type==='nb'&&b.run===8);}
+function isBoundary(b){return isFour(b)||isSix(b);}
+
 function chalPlayerAvgRaw(name,type){
   const played=allMatches.filter(m=>m.history.some(b=>b.facing===name||b.bowling===name));
   if(!played.length)return null;
   if(type==='sixes'){
-    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length,0)/played.length;
+    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&isSix(b)).length,0)/played.length;
   }
   if(type==='boundaries'){
-    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length,0)/played.length;
+    return played.reduce((s,m)=>s+m.history.filter(b=>b.facing===name&&isBoundary(b)).length,0)/played.length;
   }
   if(type==='wickets'){
     return played.reduce((s,m)=>s+m.history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length,0)/played.length;
@@ -1152,7 +1156,7 @@ function matchSummaries(matches){
       if(b.bowling&&b.bowlPair!=null){if(!pPl[b.bowlPair])pPl[b.bowlPair]=new Set();pPl[b.bowlPair].add(b.bowling);}
       if(RUN_TYPES.has(b.type)&&batRun(b)>0)pR[pi]+=batRun(b);
       if(b.type==='wkt')pW[pi]++;
-      if((b.run===4||b.run===6)&&b.type!=='wide')pB[pi]++;
+      if(isBoundary(b))pB[pi]++;
     }
     const pairs=Object.keys(pR).map(pi=>({
       idx:+pi,players:[...pPl[pi]],
@@ -2996,8 +3000,8 @@ function renderMatchDetail(matchId){
     if(BAT_TYPES.has(b.type))batSt[n].balls++;
     if(RUN_TYPES.has(b.type)&&batRun(b)>0)batSt[n].runs+=batRun(b);
     if(b.type==='wkt')batSt[n].wkts++;
-    if(b.type==='normal'&&b.code==='4b')batSt[n].fours++;
-    if(b.type==='normal'&&b.run===6)batSt[n].sixes++;
+    if(isFour(b))batSt[n].fours++;
+    if(isSix(b))batSt[n].sixes++;
   });
   const bowlSt={};
   balls.forEach(b=>{
@@ -3263,9 +3267,9 @@ function vidBallOutcome(b){
 
 function vidBallMatchesOutcome(b,filter){
   if(!filter)return true;
-  if(filter==='six')return b.run===6&&b.type==='normal';
-  if(filter==='four')return b.run===4&&(b.type==='normal'||b.type==='wide');
-  if(filter==='boundary')return(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide');
+  if(filter==='six')return isSix(b);
+  if(filter==='four')return isFour(b)||(b.run===4&&b.type==='wide');
+  if(filter==='boundary')return isBoundary(b)||(b.run===4&&b.type==='wide');
   if(filter==='wicket')return b.type==='wkt';
   if(filter==='dot')return b.run===0&&b.type==='normal';
   if(filter==='wide')return b.type==='wide';
@@ -3334,8 +3338,8 @@ function renderVideoBalls(){
       const url=`${R2_BASE}/${videoCurrentDate}_ov${ovPad}.${bn}.mp4`;
       let cls='';
       if(b.type==='wkt')cls='vwkt';
-      else if(b.run===6&&b.type==='normal')cls='vsix';
-      else if(b.run===4)cls='vfour';
+      else if(isSix(b))cls='vsix';
+      else if(isFour(b)||(b.run===4&&b.type==='wide'))cls='vfour';
       const outcome=vidBallOutcome(b);
       const batter=escHtml(b.facing||'—');
       const bowler=escHtml(b.bowling||'—');

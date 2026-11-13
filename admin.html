@@ -1599,9 +1599,13 @@ async function voidChallenge(id,btn){
 }
 
 // ── Manual challenge resolution ───────────────────────────────────────────
+function isFour(b){return(b.type==='normal'&&b.code==='4b')||(b.type==='nb'&&b.run===6);}
+function isSix(b){return(b.type==='normal'&&b.run===6)||(b.type==='nb'&&b.run===8);}
+function isBoundary(b){return isFour(b)||isSix(b);}
+
 function adminChalLiveResult(name,type,history){
-  if(type==='sixes')return history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length;
-  if(type==='boundaries')return history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length;
+  if(type==='sixes')return history.filter(b=>b.facing===name&&isSix(b)).length;
+  if(type==='boundaries')return history.filter(b=>b.facing===name&&isBoundary(b)).length;
   if(type==='wickets')return history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length;
   if(type==='wides')return history.filter(b=>b.bowling===name&&b.type==='wide').length;
   if(type==='economy'){

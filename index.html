@@ -2082,7 +2082,7 @@ function renderTotals(){
   const bi=batIdx(),bwi=bowlIdx();
   const useAdj=G.fiveBallStartOver>0;
   const adjTotals=useAdj?computeAdjustedScores():null;
-  const boundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&b.type==='normal').length);
+  const boundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&isBoundary(b)).length);
   // update title to reflect adjusted scoring
   const totTitle=document.querySelector('#s-score .tot-title');
   if(totTitle)totTitle.textContent=useAdj?'All pairs — adjusted totals (×1.2 on 5-ball overs)':'All pairs — running totals';
@@ -2102,7 +2102,7 @@ function renderTeamTotals(){
   const [ta,tb]=G.teamSizes;
   const c=document.getElementById('tot-list');c.innerHTML='';
   const bi=batIdx(),bwi=bowlIdx();
-  const boundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&b.type==='normal').length);
+  const boundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&isBoundary(b)).length);
   const teamATotal=G.scores.slice(0,ta).reduce((s,sc)=>s+sc.bat+sc.bowl,0);
   const teamBTotal=G.scores.slice(ta,ta+tb).reduce((s,sc)=>s+sc.bat+sc.bowl,0);
   function addPairRow(i){
@@ -2751,8 +2751,8 @@ function computeStats(){
     const extraBalls=G.history.filter(b=>b.batPair===pi&&(b.type==='wide'||b.type==='nb'||b.type==='bye'));
     const wkts=G.history.filter(b=>b.batPair===pi&&b.type==='wkt');
     const totalRuns=G.scores[pi].bat; // final bat score (includes penalties)
-    const fours=batBalls.filter(b=>b.run===4).length;
-    const sixes=batBalls.filter(b=>b.run===6).length;
+    const fours=G.history.filter(b=>b.batPair===pi&&isFour(b)).length;
+    const sixes=G.history.filter(b=>b.batPair===pi&&isSix(b)).length;
     const dotBalls=batBalls.filter(b=>b.run===0).length;
     // Individual runs per player: normal deliveries + nb runs minus 2-run penalty
     const playerRuns={};
@@ -2799,8 +2799,8 @@ function computeStats(){
       const runs=playerRuns[p]||0;
       const balls=myBalls.length;
       const sr=balls>0?Math.round(runs/balls*100):'—';
-      const fours4=myBalls.filter(b=>b.code==='4b').length;
-      const sixes6=myBalls.filter(b=>b.run===6&&b.type==='normal').length;
+      const fours4=myBalls.filter(b=>isFour(b)).length;
+      const sixes6=myBalls.filter(b=>isSix(b)).length;
       playerBatStats[p]={runs,balls,sr,fours:fours4,sixes:sixes6};
     });
 
@@ -3606,8 +3606,8 @@ async function endMatch(){
   let matchStats=null;
   try{
     const ms=computeStats();
-    const totFours=G.history.filter(b=>b.run===4&&(b.type==='normal'||b.type==='nb')).length;
-    const totSixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
+    const totFours=G.history.filter(b=>isFour(b)).length;
+    const totSixes=G.history.filter(b=>isSix(b)).length;
     matchStats={
       total_runs:G.scores.reduce((a,s)=>a+s.bat,0),
       wickets:G.history.filter(b=>b.type==='wkt').length,
@@ -3643,7 +3643,7 @@ async function endMatch(){
   }
   clearGameState();
   saveMatchToStorage();
-  const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&(b.run===4||b.run===6)&&(b.type==='normal'||b.type==='wide'||b.type==='nb')).length);
+  const pairBoundaries=G.pairs.map((_,i)=>G.history.filter(b=>b.batPair===i&&isBoundary(b)).length);
   const useAdj=G.fiveBallStartOver>0;
   const adjTotals=useAdj?computeAdjustedScores():null;
   const res=G.pairs.map((p,i)=>({p,i,bat:G.scores[i].bat,bowl:G.scores[i].bowl,total:G.scores[i].bat+G.scores[i].bowl,adjTotal:useAdj?adjTotals[i]:G.scores[i].bat+G.scores[i].bowl,boundaries:pairBoundaries[i]}))
@@ -3698,8 +3698,8 @@ function renderEndScreen(res,soWinnerPairIdx){
     lb.appendChild(row);
   });
   const wkts=G.history.filter(b=>b.type==='wkt').length;
-  const fours=G.history.filter(b=>b.run===4&&b.type==='normal').length;
-  const sixes=G.history.filter(b=>b.run===6&&b.type==='normal').length;
+  const fours=G.history.filter(b=>isFour(b)).length;
+  const sixes=G.history.filter(b=>isSix(b)).length;
   const totRuns=G.scores.reduce((s,sc)=>s+sc.bat,0);
   document.getElementById('stat-grid').innerHTML=`<div class="stat-card"><div class="stat-val">${totRuns}</div><div class="stat-lbl">Total runs</div></div><div class="stat-card"><div class="stat-val">${wkts}</div><div class="stat-lbl">Wickets</div></div><div class="stat-card"><div class="stat-val">${fours}</div><div class="stat-lbl">Fours</div></div><div class="stat-card"><div class="stat-val">${sixes}</div><div class="stat-lbl">Sixes</div></div>`;
   renderChallengeResults();
@@ -4817,9 +4817,9 @@ async function pushLiveScore(status='in_progress',matchStats=null){
         .forEach(b=>{pRuns[b.facing]+=Math.max(0,b.run-2);});
       G.history.filter(b=>b.batPair===i&&b.legal&&b.type!=='wide'&&b.facing&&pBalls[b.facing]!==undefined)
         .forEach(b=>{pBalls[b.facing]++;});
-      G.history.filter(b=>b.batPair===i&&b.code==='4b'&&b.facing&&pFours[b.facing]!==undefined)
+      G.history.filter(b=>b.batPair===i&&isFour(b)&&b.facing&&pFours[b.facing]!==undefined)
         .forEach(b=>{pFours[b.facing]++;});
-      G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal'&&b.facing&&pSixes[b.facing]!==undefined)
+      G.history.filter(b=>b.batPair===i&&isSix(b)&&b.facing&&pSixes[b.facing]!==undefined)
         .forEach(b=>{pSixes[b.facing]++;});
       const pBowlBalls={},pBowlRuns={},pBowlWkts={};
       p.players.forEach(pl=>{pBowlBalls[pl]=0;pBowlRuns[pl]=0;pBowlWkts[pl]=0;});
@@ -4830,8 +4830,8 @@ async function pushLiveScore(status='in_progress',matchStats=null){
       });
       return{cname:p.cname,players:p.players,color:p.color,...sc(i),balls_faced:facedMap[i]||0,
         wickets:G.history.filter(b=>b.batPair===i&&b.type==='wkt').length,
-        fours:G.history.filter(b=>b.batPair===i&&b.code==='4b').length,
-        sixes:G.history.filter(b=>b.batPair===i&&b.run===6&&b.type==='normal').length,
+        fours:G.history.filter(b=>b.batPair===i&&isFour(b)).length,
+        sixes:G.history.filter(b=>b.batPair===i&&isSix(b)).length,
         players_bat:p.players.map(pl=>({name:pl,runs:pRuns[pl]||0,balls:pBalls[pl]||0,fours:pFours[pl]||0,sixes:pSixes[pl]||0})),
         players_bowl:p.players.map(pl=>{
           const balls=pBowlBalls[pl]||0,runs=pBowlRuns[pl]||0,wkts=pBowlWkts[pl]||0;
@@ -5541,9 +5541,13 @@ async function fetchMatchChallenges(matchDate,venueCode){
   renderChallengeStrip();
 }
 
+function isFour(b){return(b.type==='normal'&&b.code==='4b')||(b.type==='nb'&&b.run===6);}
+function isSix(b){return(b.type==='normal'&&b.run===6)||(b.type==='nb'&&b.run===8);}
+function isBoundary(b){return isFour(b)||isSix(b);}
+
 function chalLiveResult(name,type,history){
-  if(type==='sixes')return history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length;
-  if(type==='boundaries')return history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length;
+  if(type==='sixes')return history.filter(b=>b.facing===name&&isSix(b)).length;
+  if(type==='boundaries')return history.filter(b=>b.facing===name&&isBoundary(b)).length;
   if(type==='wickets')return history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length;
   if(type==='wides')return history.filter(b=>b.bowling===name&&b.type==='wide').length;
   if(type==='economy'){
