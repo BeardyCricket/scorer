@@ -388,6 +388,16 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
       </div>
 
+      <div class="card">
+        <div class="card-title">📧 Send Match Summary Emails</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Manually trigger the post-match summary email for a specific match date. Use this if the match was run in test mode or the automatic trigger didn't fire.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <input type="date" id="summary-date" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <button onclick="adminSendSummary()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Send emails</button>
+        </div>
+        <div id="summary-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
+      </div>
+
     </div><!-- /tab-players -->
 
     <!-- ═══ HISTORY TAB ═══ -->
@@ -1850,6 +1860,44 @@ async function adminAcceptChallenge(inviteId,btn){
   // Reload the challenges list
   loadAdminChallenges();
   loadBehalfInvites();
+}
+
+// ── Send match summary ────────────────────────────────────────────────────
+async function adminSendSummary(){
+  const matchDate=document.getElementById('summary-date').value;
+  const statusEl=document.getElementById('summary-status');
+  if(!matchDate){statusEl.style.color='var(--red)';statusEl.textContent='Please select a date.';return;}
+  statusEl.style.color='var(--muted)';statusEl.textContent='Looking up match…';
+
+  const{data:dated}=await db.from('live_scores')
+    .select('match_id,payload,updated_at')
+    .not('match_id','like','beardy-test-%')
+    .gte('updated_at',matchDate+'T00:00:00Z')
+    .lte('updated_at',matchDate+'T23:59:59Z');
+
+  if(!dated?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match found for '+matchDate;return;}
+
+  const matchRow=dated.find(r=>r.payload?.status==='finished')||dated[0];
+  const ms=matchRow?.payload?.match_stats;
+  if(!ms?.pairs?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match_stats in payload — match may not have been finalised.';return;}
+
+  const venueCode=matchRow.payload?.game_state?.venueCode||'';
+  statusEl.textContent='Sending emails…';
+
+  const res=await fetch('https://gdhqqcqzshvomnyfhsya.supabase.co/functions/v1/send-match-summary',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY},
+    body:JSON.stringify({match_id:matchRow.match_id,match_date:matchDate,venue_code:venueCode,match_stats:ms})
+  });
+
+  const json=await res.json().catch(()=>({}));
+  if(res.ok&&json.ok){
+    statusEl.style.color='var(--green)';
+    statusEl.textContent=`Done — ${json.sent} sent, ${json.skipped} skipped.`;
+  }else{
+    statusEl.style.color='var(--red)';
+    statusEl.textContent='Error: '+(json.error||res.status);
+  }
 }
 
 window.addEventListener('DOMContentLoaded',init);
