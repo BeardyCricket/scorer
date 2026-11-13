@@ -5571,9 +5571,15 @@ function renderChallengeStrip(){
 }
 
 async function resolveMatchChallenges(){
-  if(!matchChallenges.length)return;
+  if(testMode||!matchChallenges.length)return;
   const history=G?.history||[];
+  const played=name=>history.some(b=>b.facing===name||b.bowling===name);
   for(const c of matchChallenges){
+    if(!played(c.challenger_name)||!played(c.opponent_name)){
+      await supabaseClient.from('challenges').update({status:'void'}).eq('id',c.id);
+      c.status='void';
+      continue;
+    }
     const cr=chalLiveResult(c.challenger_name,c.challenge_type,history);
     const or=chalLiveResult(c.opponent_name,c.challenge_type,history);
     if(cr===null||or===null)continue;
@@ -5586,6 +5592,14 @@ async function resolveMatchChallenges(){
       challenger_result:cr,opponent_result:or,winner_name:winner,status:'completed'
     }).eq('id',c.id);
     c.status='completed';c.winner_name=winner;c.challenger_result=cr;c.opponent_result=or;
+  }
+  // Void any late-accepted challenges for this match that weren't tracked
+  if(currentMatchDate&&currentVenueCode){
+    await supabaseClient.from('challenges')
+      .update({status:'void'})
+      .eq('match_date',currentMatchDate)
+      .eq('venue_code',currentVenueCode)
+      .eq('status','accepted');
   }
 }
 

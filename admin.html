@@ -1533,17 +1533,31 @@ async function loadAdminChallenges(){
       <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Challenger</th>
       <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Opponent</th>
       <th style="text-align:left;padding:5px 4px;font-size:9px;font-weight:700;text-transform:uppercase;color:#6B7A99">Challenge</th>
+      <th style="padding:5px 4px"></th>
     </tr></thead>
     <tbody>
-    ${data.map(c=>`<tr style="border-bottom:1px solid #e2e6f0">
+    ${data.map(c=>`<tr id="chalrow-${c.id}" style="border-bottom:1px solid #e2e6f0">
       <td style="padding:6px 4px">${c.match_date}</td>
       <td style="padding:6px 4px">${c.venue_code}</td>
       <td style="padding:6px 4px;font-weight:600">${c.challenger_name}</td>
       <td style="padding:6px 4px">${c.opponent_name}</td>
       <td style="padding:6px 4px">${cfg[c.challenge_type]||c.challenge_type}</td>
+      <td style="padding:6px 4px;text-align:right">
+        <button onclick="voidChallenge('${c.id}',this)" style="font-size:11px;padding:3px 8px;background:#fff;border:1px solid #E24B4A;color:#E24B4A;border-radius:6px;cursor:pointer">Void</button>
+      </td>
     </tr>`).join('')}
     </tbody>
   </table>`;
+}
+
+async function voidChallenge(id,btn){
+  if(!confirm('Void this challenge? The challenger will be able to pick a new one when they next log in.'))return;
+  btn.disabled=true;btn.textContent='Voiding…';
+  const{error}=await db.from('challenges').update({status:'void'}).eq('id',id);
+  if(error){btn.disabled=false;btn.textContent='Void';alert('Error: '+error.message);return;}
+  const row=document.getElementById('chalrow-'+id);
+  if(row)row.style.opacity='0.4';
+  btn.textContent='Voided';
 }
 
 window.addEventListener('DOMContentLoaded',init);
