@@ -350,6 +350,14 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       <div class="card" style="margin-top:12px">
         <div class="card-title">⚡ Active Challenges</div>
         <div id="admin-challenges-list"><div class="empty">Loading…</div></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px">Manually resolve challenges for a match</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="date" id="resolve-date" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <button onclick="adminResolveChallenges()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Resolve</button>
+          </div>
+          <div id="resolve-status" style="font-size:12px;margin-top:6px;color:var(--muted)"></div>
+        </div>
       </div>
 
       <div class="card" style="margin-top:12px">
@@ -1588,6 +1596,86 @@ async function voidChallenge(id,btn){
   const row=document.getElementById('chalrow-'+id);
   if(row)row.style.opacity='0.4';
   btn.textContent='Voided';
+}
+
+// ── Manual challenge resolution ───────────────────────────────────────────
+function adminChalLiveResult(name,type,history){
+  if(type==='sixes')return history.filter(b=>b.facing===name&&b.run===6&&b.type==='normal').length;
+  if(type==='boundaries')return history.filter(b=>b.facing===name&&(b.run===4||b.run===6)&&b.type==='normal').length;
+  if(type==='wickets')return history.filter(b=>b.bowling===name&&b.type==='wkt'&&!b.isRunout).length;
+  if(type==='wides')return history.filter(b=>b.bowling===name&&b.type==='wide').length;
+  if(type==='economy'){
+    const legal=history.filter(b=>b.bowling===name&&b.legal);
+    if(!legal.length)return null;
+    return+(legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6)).toFixed(1);
+  }
+  return null;
+}
+
+async function adminResolveChallenges(){
+  const matchDate=document.getElementById('resolve-date').value;
+  const statusEl=document.getElementById('resolve-status');
+  if(!matchDate){statusEl.style.color='var(--red)';statusEl.textContent='Please select a date.';return;}
+  statusEl.style.color='var(--muted)';statusEl.textContent='Looking up match…';
+
+  // Find the match in live_scores for this date
+  const{data:scores,error:se}=await db.from('live_scores')
+    .select('match_id,payload').not('match_id','like','beardy-test-%');
+  if(se||!scores?.length){statusEl.style.color='var(--red)';statusEl.textContent='Could not load match data.';return;}
+
+  // Find match(es) updated on this date
+  const match=scores.find(r=>{
+    const d=new Date(r.payload?.updated_at||'').toISOString().slice(0,10);
+    // updated_at may be in payload or use the row's updated_at — check payload.status too
+    return r.payload?.status==='finished'&&r.payload?.history?.length>0;
+  });
+
+  // Better: re-fetch with updated_at filter
+  const{data:dated}=await db.from('live_scores')
+    .select('match_id,payload,updated_at')
+    .not('match_id','like','beardy-test-%')
+    .gte('updated_at',matchDate+'T00:00:00Z')
+    .lte('updated_at',matchDate+'T23:59:59Z');
+
+  if(!dated?.length){statusEl.style.color='var(--red)';statusEl.textContent='No finished match found for '+matchDate;return;}
+
+  const matchRow=dated.find(r=>r.payload?.status==='finished')||dated[0];
+  const history=(matchRow.payload?.history||[]).filter(Boolean);
+  if(!history.length){statusEl.style.color='var(--red)';statusEl.textContent='Match has no ball data.';return;}
+
+  statusEl.textContent='Match found — loading challenges…';
+
+  // Get accepted challenges for this date
+  const{data:challenges}=await db.from('challenges').select('*')
+    .eq('match_date',matchDate).eq('status','accepted');
+
+  if(!challenges?.length){statusEl.style.color='var(--muted)';statusEl.textContent='No accepted challenges found for this date.';return;}
+
+  const played=name=>history.some(b=>b.facing===name||b.bowling===name);
+  let resolved=0,voided=0;
+
+  for(const c of challenges){
+    if(!played(c.challenger_name)||!played(c.opponent_name)){
+      await db.from('challenges').update({status:'void'}).eq('id',c.id);
+      voided++;continue;
+    }
+    const cr=adminChalLiveResult(c.challenger_name,c.challenge_type,history);
+    const or=adminChalLiveResult(c.opponent_name,c.challenge_type,history);
+    if(cr===null||or===null){voided++;continue;}
+    const higher=!['wides','economy'].includes(c.challenge_type);
+    let winner;
+    if(cr===or)winner='tie';
+    else if(higher)winner=cr>or?c.challenger_name:c.opponent_name;
+    else winner=cr<or?c.challenger_name:c.opponent_name;
+    await db.from('challenges').update({
+      challenger_result:cr,opponent_result:or,winner_name:winner,status:'completed'
+    }).eq('id',c.id);
+    resolved++;
+  }
+
+  statusEl.style.color='var(--green)';
+  statusEl.textContent=`Done — ${resolved} resolved, ${voided} voided.`;
+  loadAdminChallenges();
 }
 
 // ── Venue booking links ───────────────────────────────────────────────────
