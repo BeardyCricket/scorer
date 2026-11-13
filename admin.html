@@ -1869,34 +1869,51 @@ async function adminSendSummary(){
   if(!matchDate){statusEl.style.color='var(--red)';statusEl.textContent='Please select a date.';return;}
   statusEl.style.color='var(--muted)';statusEl.textContent='Looking up match…';
 
-  const{data:dated}=await db.from('live_scores')
-    .select('match_id,payload,updated_at')
-    .not('match_id','like','beardy-test-%')
-    .gte('updated_at',matchDate+'T00:00:00Z')
-    .lte('updated_at',matchDate+'T23:59:59Z');
+  try{
+    const{data:dated}=await db.from('live_scores')
+      .select('match_id,payload,updated_at')
+      .not('match_id','like','beardy-test-%')
+      .gte('updated_at',matchDate+'T00:00:00Z')
+      .lte('updated_at',matchDate+'T23:59:59Z');
 
-  if(!dated?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match found for '+matchDate;return;}
+    if(!dated?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match found for '+matchDate;return;}
 
-  const matchRow=dated.find(r=>r.payload?.status==='finished')||dated[0];
-  const ms=matchRow?.payload?.match_stats;
-  if(!ms?.pairs?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match_stats in payload — match may not have been finalised.';return;}
+    const matchRow=dated.find(r=>r.payload?.status==='finished')||dated[0];
+    const ms=matchRow?.payload?.match_stats;
+    if(!ms?.pairs?.length){statusEl.style.color='var(--red)';statusEl.textContent='No match_stats in payload — match may not have been finalised.';return;}
 
-  const venueCode=matchRow.payload?.game_state?.venueCode||'';
-  statusEl.textContent='Sending emails…';
+    // venue_code stored in payload from index.html; fall back to match_signups lookup
+    let venueCode=matchRow.payload?.venue_code||matchRow.payload?.game_state?.venueCode||'';
+    if(!venueCode){
+      const{data:signup}=await db.from('match_signups').select('venue_code')
+        .eq('match_date',matchDate).neq('venue_code','CREDIT').limit(1).maybeSingle();
+      venueCode=signup?.venue_code||'';
+    }
+    statusEl.textContent='Sending emails (this may take 20–30 seconds)…';
 
-  const res=await fetch('https://gdhqqcqzshvomnyfhsya.supabase.co/functions/v1/send-match-summary',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_KEY},
-    body:JSON.stringify({match_id:matchRow.match_id,match_date:matchDate,venue_code:venueCode,match_stats:ms})
-  });
+    const{data:{session}}=await db.auth.getSession();
+    const token=session?.access_token||SUPABASE_KEY;
 
-  const json=await res.json().catch(()=>({}));
-  if(res.ok&&json.ok){
-    statusEl.style.color='var(--green)';
-    statusEl.textContent=`Done — ${json.sent} sent, ${json.skipped} skipped.`;
-  }else{
+    const res=await fetch(SUPABASE_URL+'/functions/v1/send-match-summary',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({match_id:matchRow.match_id,match_date:matchDate,venue_code:venueCode,match_stats:ms})
+    });
+
+    const text=await res.text();
+    let json={};
+    try{json=JSON.parse(text);}catch{}
+
+    if(res.ok&&json.ok){
+      statusEl.style.color='var(--green)';
+      statusEl.textContent=`Done — ${json.sent} sent, ${json.skipped} skipped.`;
+    }else{
+      statusEl.style.color='var(--red)';
+      statusEl.textContent='Error '+res.status+': '+(json.error||text.slice(0,120));
+    }
+  }catch(e){
     statusEl.style.color='var(--red)';
-    statusEl.textContent='Error: '+(json.error||res.status);
+    statusEl.textContent='Error: '+e.message;
   }
 }
 

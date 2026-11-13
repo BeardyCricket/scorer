@@ -4799,6 +4799,8 @@ async function pushLiveScore(status='in_progress',matchStats=null){
     .sort((a,b)=>b.wickets-a.wickets||b.balls-a.balls);
   const payload={
     status,
+    match_date:currentMatchDate||null,
+    venue_code:currentVenueCode||null,
     started_at:new Date(G.matchStartMs).toISOString(),
     over:Math.min(G.overIdx+(finished?0:1),G.totalOvers),
     ball:G.ballInOver,
