@@ -670,7 +670,7 @@ function chalPlayerAvgRaw(name,type){
   if(type==='economy'){
     const legal=played.flatMap(m=>m.history.filter(b=>b.bowling===name&&b.legal));
     if(legal.length<6)return null;
-    return legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6);
+    return legal.reduce((s,b)=>s+(b.type!=='wkt'&&b.run>0?b.run:0),0)/(legal.length/6);
   }
   return null;
 }

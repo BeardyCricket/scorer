@@ -5549,7 +5549,7 @@ function chalLiveResult(name,type,history){
   if(type==='economy'){
     const legal=history.filter(b=>b.bowling===name&&b.legal);
     if(!legal.length)return null;
-    return+(legal.reduce((s,b)=>s+(b.run||0),0)/(legal.length/6)).toFixed(1);
+    return+(legal.reduce((s,b)=>s+(b.type!=='wkt'&&b.run>0?b.run:0),0)/(legal.length/6)).toFixed(1);
   }
   return null;
 }
