@@ -1618,19 +1618,6 @@ async function adminResolveChallenges(){
   if(!matchDate){statusEl.style.color='var(--red)';statusEl.textContent='Please select a date.';return;}
   statusEl.style.color='var(--muted)';statusEl.textContent='Looking up match…';
 
-  // Find the match in live_scores for this date
-  const{data:scores,error:se}=await db.from('live_scores')
-    .select('match_id,payload').not('match_id','like','beardy-test-%');
-  if(se||!scores?.length){statusEl.style.color='var(--red)';statusEl.textContent='Could not load match data.';return;}
-
-  // Find match(es) updated on this date
-  const match=scores.find(r=>{
-    const d=new Date(r.payload?.updated_at||'').toISOString().slice(0,10);
-    // updated_at may be in payload or use the row's updated_at — check payload.status too
-    return r.payload?.status==='finished'&&r.payload?.history?.length>0;
-  });
-
-  // Better: re-fetch with updated_at filter
   const{data:dated}=await db.from('live_scores')
     .select('match_id,payload,updated_at')
     .not('match_id','like','beardy-test-%')
