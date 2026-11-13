@@ -352,6 +352,18 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="admin-challenges-list"><div class="empty">Loading…</div></div>
       </div>
 
+      <div class="card" style="margin-top:12px">
+        <div class="card-title">🎯 Accept Challenge on Behalf</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Use this if a player needs you to lock in their challenge for them.</p>
+        <select id="admin-behalf-match" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:10px" onchange="loadBehalfPlayers()">
+          <option value="">— Select a match —</option>
+        </select>
+        <select id="admin-behalf-player" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:12px;display:none" onchange="loadBehalfInvites()">
+          <option value="">— Select a player —</option>
+        </select>
+        <div id="admin-behalf-options"></div>
+      </div>
+
     </div><!-- /tab-players -->
 
     <!-- ═══ HISTORY TAB ═══ -->
@@ -493,6 +505,7 @@ async function verifyAdmin(email){
   if(mergeDl){mergeDl.innerHTML='';(data||[]).forEach(p=>{const o=document.createElement('option');o.value=p.player_name;mergeDl.appendChild(o);});}
   loadSignupsAdmin();
   loadAdminChallenges();
+  loadBehalfMatchDropdown();
 }
 
 async function doLogin(){
@@ -1558,6 +1571,103 @@ async function voidChallenge(id,btn){
   const row=document.getElementById('chalrow-'+id);
   if(row)row.style.opacity='0.4';
   btn.textContent='Voided';
+}
+
+// ── Accept on behalf ─────────────────────────────────────────────────────
+async function loadBehalfMatchDropdown(){
+  const sel=document.getElementById('admin-behalf-match');
+  if(!sel)return;
+  const today=new Date().toISOString().slice(0,10);
+  const{data}=await db.from('match_signups')
+    .select('match_date,venue_code').gte('match_date',today)
+    .neq('venue_code','CREDIT').order('match_date',{ascending:true});
+  if(!data||!data.length)return;
+  const seen=new Set();
+  const opts=['<option value="">— Select a match —</option>'];
+  for(const s of data){
+    const k=s.match_date+'|'+s.venue_code;
+    if(seen.has(k))continue;seen.add(k);
+    opts.push(`<option value="${k}">${s.match_date} — ${s.venue_code}</option>`);
+  }
+  sel.innerHTML=opts.join('');
+}
+
+async function loadBehalfPlayers(){
+  const matchVal=document.getElementById('admin-behalf-match').value;
+  const playerSel=document.getElementById('admin-behalf-player');
+  const optionsDiv=document.getElementById('admin-behalf-options');
+  playerSel.style.display='none';
+  optionsDiv.innerHTML='';
+  if(!matchVal)return;
+  const[matchDate,venueCode]=matchVal.split('|');
+  const{data}=await db.from('match_signups')
+    .select('canonical_name').eq('match_date',matchDate).eq('venue_code',venueCode);
+  if(!data||!data.length)return;
+  const names=[...new Set(data.map(s=>s.canonical_name).filter(Boolean))].sort();
+  playerSel.innerHTML='<option value="">— Select a player —</option>'+
+    names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  playerSel.style.display='block';
+}
+
+async function loadBehalfInvites(){
+  const matchVal=document.getElementById('admin-behalf-match').value;
+  const playerName=document.getElementById('admin-behalf-player').value;
+  const optionsDiv=document.getElementById('admin-behalf-options');
+  optionsDiv.innerHTML='';
+  if(!matchVal||!playerName)return;
+  const[matchDate]=matchVal.split('|');
+
+  // Check if player already has an accepted challenge
+  const{data:existing}=await db.from('challenges').select('challenge_type,opponent_name')
+    .eq('match_date',matchDate).eq('challenger_name',playerName).eq('status','accepted').maybeSingle();
+  if(existing){
+    const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets',wides:'Fewest wides',economy:'Best economy'};
+    optionsDiv.innerHTML=`<div style="font-size:13px;color:var(--green);font-weight:600;padding:8px 0">
+      ✓ ${playerName} already has an active challenge: ${cfg[existing.challenge_type]||existing.challenge_type} vs ${existing.opponent_name}</div>`;
+    return;
+  }
+
+  // Load their unused invite tokens
+  const{data:invites}=await db.from('challenge_invites')
+    .select('*').eq('player_name',playerName).eq('match_date',matchDate).is('used_at',null);
+  if(!invites||!invites.length){
+    optionsDiv.innerHTML='<div style="font-size:13px;color:var(--muted);padding:8px 0">No challenge options found for this player — they may not have been emailed yet.</div>';
+    return;
+  }
+  const cfg={sixes:'Most sixes',boundaries:'Most boundaries',wickets:'Most wickets taken',wides:'Fewest wides bowled',economy:'Best economy rate'};
+  optionsDiv.innerHTML=invites.map((inv,i)=>`
+    <div id="behalf-opt-${inv.id}" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--navy)">${cfg[inv.challenge_type]||inv.challenge_type}</div>
+        <div style="font-size:11px;color:var(--muted)">vs ${inv.opponent_name}</div>
+      </div>
+      <button onclick="adminAcceptChallenge('${inv.id}',this)" style="font-size:12px;padding:5px 14px;background:var(--green);color:#fff;border:none;border-radius:7px;cursor:pointer;font-weight:600">Accept</button>
+    </div>`).join('');
+}
+
+async function adminAcceptChallenge(inviteId,btn){
+  btn.disabled=true;btn.textContent='Accepting…';
+  const{data:invite,error:fe}=await db.from('challenge_invites').select('*').eq('id',inviteId).single();
+  if(fe||!invite){btn.disabled=false;btn.textContent='Accept';alert('Could not load invite');return;}
+
+  const{data:newChallenge,error:ie}=await db.from('challenges').insert({
+    match_date:invite.match_date,venue_code:invite.venue_code,
+    challenger_name:invite.player_name,opponent_name:invite.opponent_name,
+    challenge_type:invite.challenge_type,status:'accepted'
+  }).select().single();
+  if(ie){btn.disabled=false;btn.textContent='Accept';alert('Error: '+ie.message);return;}
+
+  // Mark all this player's tokens for the match as used
+  await db.from('challenge_invites').update({used_at:new Date().toISOString(),challenge_id:newChallenge.id})
+    .eq('id',inviteId);
+  await db.from('challenge_invites').update({used_at:new Date().toISOString()})
+    .eq('player_name',invite.player_name).eq('match_date',invite.match_date).is('used_at',null);
+
+  document.getElementById('behalf-opt-'+inviteId).style.opacity='0.4';
+  btn.textContent='Accepted';
+  // Reload the challenges list
+  loadAdminChallenges();
+  loadBehalfInvites();
 }
 
 window.addEventListener('DOMContentLoaded',init);
