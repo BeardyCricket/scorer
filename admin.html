@@ -1957,7 +1957,7 @@ async function adminSendConfirmations(){
   const{data:{session}}=await db.auth.getSession();
   const token=session?.access_token||SUPABASE_KEY;
 
-  let sent=0,skipped=0;
+  let sent=0,failed=0;
   for(const s of withEmail){
     try{
       const res=await fetch(SUPABASE_URL+'/functions/v1/send-signup-confirmation',{
@@ -1965,13 +1965,14 @@ async function adminSendConfirmations(){
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
         body:JSON.stringify({record:s})
       });
-      if(res.ok) sent++; else skipped++;
-    }catch{skipped++;}
+      const json=await res.json().catch(()=>({}));
+      if(json.ok||json.sent) sent++; else failed++;
+    }catch{failed++;}
   }
 
   const noEmail=signups.length-withEmail.length;
-  statusEl.style.color=skipped?'var(--red)':'var(--green,#166534)';
-  statusEl.textContent=`Done — ${sent} sent${skipped?', '+skipped+' failed':''}${noEmail?', '+noEmail+' skipped (no email)':''}.`;
+  statusEl.style.color=failed?'var(--red)':'#166534';
+  statusEl.textContent=`Done — ${sent} sent${failed?', '+failed+' failed':''}${noEmail?', '+noEmail+' skipped (no email)':''}.`;
 }
 
 // ── Send match summary ────────────────────────────────────────────────────
