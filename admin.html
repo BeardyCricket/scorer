@@ -389,6 +389,23 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       </div>
 
       <div class="card">
+        <div class="card-title">📝 Session Note</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Add an optional note to the signup confirmation email for a specific session — e.g. pub after, changed entrance, special instructions. Leave blank to clear any existing note.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <select id="session-note-venue" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <option value="WM">WM — Wimbledon</option>
+            <option value="TD">TD — Thames Ditton</option>
+          </select>
+          <input type="date" id="session-note-date" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <textarea id="session-note-text" rows="2" placeholder="e.g. We'll be heading to the George &amp; Dragon after if you fancy it!" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit"></textarea>
+          <button onclick="adminSaveSessionNote()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Save</button>
+        </div>
+        <div id="session-note-status" style="font-size:12px;margin-top:6px;color:var(--muted)"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">📧 Send Match Summary Emails</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Manually trigger the post-match summary email for a specific match date. Use this if the match was run in test mode or the automatic trigger didn't fire.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -1860,6 +1877,22 @@ async function adminAcceptChallenge(inviteId,btn){
   // Reload the challenges list
   loadAdminChallenges();
   loadBehalfInvites();
+}
+
+// ── Session note ──────────────────────────────────────────────────────────
+async function adminSaveSessionNote(){
+  const venue    = document.getElementById('session-note-venue').value;
+  const date     = document.getElementById('session-note-date').value;
+  const note     = document.getElementById('session-note-text').value.trim();
+  const statusEl = document.getElementById('session-note-status');
+  if(!date){statusEl.textContent='Pick a date first.';return;}
+  statusEl.textContent='Saving…';
+  const {error} = await db.from('sessions').upsert(
+    {venue_code:venue, match_date:date, session_note:note||null},
+    {onConflict:'venue_code,match_date'}
+  );
+  if(error){statusEl.textContent='Error: '+error.message;return;}
+  statusEl.textContent = note ? 'Saved — note will appear in confirmation emails for this session.' : 'Cleared — no note will be shown for this session.';
 }
 
 // ── Send match summary ────────────────────────────────────────────────────
