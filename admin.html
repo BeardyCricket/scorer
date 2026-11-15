@@ -406,6 +406,20 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
       </div>
 
       <div class="card">
+        <div class="card-title">📨 Send Signup Confirmation Emails</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Send confirmation emails to players already signed up for a session — use this for anyone who signed up before the automatic trigger was set up.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <select id="confirm-venue" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+            <option value="WM">WM — Wimbledon</option>
+            <option value="TD">TD — Thames Ditton</option>
+          </select>
+          <input type="date" id="confirm-date" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <button onclick="adminSendConfirmations()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Send emails</button>
+        </div>
+        <div id="confirm-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
+      </div>
+
+      <div class="card">
         <div class="card-title">📧 Send Match Summary Emails</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Manually trigger the post-match summary email for a specific match date. Use this if the match was run in test mode or the automatic trigger didn't fire.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -1889,7 +1903,13 @@ async function loadSessionNote(){
   const {data} = await db.from('sessions').select('session_note')
     .eq('venue_code',venue).eq('match_date',date).maybeSingle();
   document.getElementById('session-note-text').value = data?.session_note || '';
-  statusEl.textContent = data?.session_note ? 'Existing note loaded.' : 'No note set for this session.';
+  if(data?.session_note){
+    statusEl.style.color='#166534';
+    statusEl.textContent='✅ Note active for this session — will appear in confirmation emails.';
+  } else {
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent='No note set for this session.';
+  }
 }
 
 async function adminSaveSessionNote(){
@@ -1903,8 +1923,55 @@ async function adminSaveSessionNote(){
     {venue_code:venue, match_date:date, session_note:note||null},
     {onConflict:'venue_code,match_date'}
   );
-  if(error){statusEl.textContent='Error: '+error.message;return;}
-  statusEl.textContent = note ? 'Saved — note will appear in confirmation emails for this session.' : 'Cleared — no note will be shown for this session.';
+  if(error){statusEl.style.color='var(--red)';statusEl.textContent='Error: '+error.message;return;}
+  if(note){
+    statusEl.style.color='#166534';
+    statusEl.textContent='✅ Note saved — will appear in confirmation emails for this session.';
+  } else {
+    statusEl.style.color='var(--muted)';
+    statusEl.textContent='Note cleared — no note will be shown for this session.';
+  }
+}
+
+// ── Send signup confirmation emails ───────────────────────────────────────
+async function adminSendConfirmations(){
+  const venue    = document.getElementById('confirm-venue').value;
+  const date     = document.getElementById('confirm-date').value;
+  const statusEl = document.getElementById('confirm-status');
+  if(!date){statusEl.style.color='var(--red)';statusEl.textContent='Pick a date first.';return;}
+
+  statusEl.style.color='var(--muted)';statusEl.textContent='Looking up signups…';
+
+  const{data:signups}=await db.from('match_signups')
+    .select('canonical_name,email,venue_code,match_date')
+    .eq('venue_code',venue)
+    .eq('match_date',date);
+
+  if(!signups?.length){statusEl.style.color='var(--red)';statusEl.textContent='No signups found for that venue and date.';return;}
+
+  const withEmail=signups.filter(s=>s.email);
+  if(!withEmail.length){statusEl.style.color='var(--red)';statusEl.textContent='No signups have an email address recorded.';return;}
+
+  statusEl.textContent=`Sending to ${withEmail.length} player${withEmail.length!==1?'s':''}…`;
+
+  const{data:{session}}=await db.auth.getSession();
+  const token=session?.access_token||SUPABASE_KEY;
+
+  let sent=0,skipped=0;
+  for(const s of withEmail){
+    try{
+      const res=await fetch(SUPABASE_URL+'/functions/v1/send-signup-confirmation',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body:JSON.stringify({record:s})
+      });
+      if(res.ok) sent++; else skipped++;
+    }catch{skipped++;}
+  }
+
+  const noEmail=signups.length-withEmail.length;
+  statusEl.style.color=skipped?'var(--red)':'var(--green,#166534)';
+  statusEl.textContent=`Done — ${sent} sent${skipped?', '+skipped+' failed':''}${noEmail?', '+noEmail+' skipped (no email)':''}.`;
 }
 
 // ── Send match summary ────────────────────────────────────────────────────
