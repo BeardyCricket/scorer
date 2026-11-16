@@ -183,6 +183,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
   <div class="tab-bar">
     <button class="tab-btn tab-active" id="tb-signups" onclick="switchTab('signups')">Signups</button>
     <button class="tab-btn" id="tb-players" onclick="switchTab('players')">Players</button>
+    <button class="tab-btn" id="tb-sessions" onclick="switchTab('sessions')">Sessions</button>
     <button class="tab-btn" id="tb-history" onclick="switchTab('history')">History</button>
   </div>
 
@@ -347,7 +348,12 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="player-list"><div class="empty">Loading…</div></div>
       </div>
 
-      <div class="card" style="margin-top:12px">
+    </div><!-- /tab-players -->
+
+    <!-- ═══ SESSIONS TAB ═══ -->
+    <div class="tab-panel" id="tab-sessions">
+
+      <div class="card">
         <div class="card-title">⚡ Active Challenges</div>
         <div id="admin-challenges-list"><div class="empty">Loading…</div></div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -388,7 +394,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" style="margin-top:12px">
         <div class="card-title">📝 Session Note</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Add an optional note to the signup confirmation email for a specific session — e.g. pub after, changed entrance, special instructions. Leave blank to clear any existing note.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
@@ -405,7 +411,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="session-note-status" style="font-size:12px;margin-top:6px;color:var(--muted)"></div>
       </div>
 
-      <div class="card">
+      <div class="card" style="margin-top:12px">
         <div class="card-title">📨 Send Signup Confirmation Emails</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Send confirmation emails to players already signed up for a session — use this for anyone who signed up before the automatic trigger was set up.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
@@ -419,7 +425,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="confirm-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
       </div>
 
-      <div class="card">
+      <div class="card" style="margin-top:12px">
         <div class="card-title">📧 Send Match Summary Emails</div>
         <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Manually trigger the post-match summary email for a specific match date. Use this if the match was run in test mode or the automatic trigger didn't fire.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
@@ -429,7 +435,7 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
         <div id="summary-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
       </div>
 
-    </div><!-- /tab-players -->
+    </div><!-- /tab-sessions -->
 
     <!-- ═══ HISTORY TAB ═══ -->
     <div class="tab-panel" id="tab-history">
@@ -517,7 +523,7 @@ function toast(msg,ms=2500){
 
 // ── Tab navigation ────────────────────────────────────────────────────────────
 function switchTab(tab){
-  ['signups','players','history'].forEach(t=>{
+  ['signups','players','sessions','history'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('tab-active',t===tab);
     document.getElementById('tb-'+t).classList.toggle('tab-active',t===tab);
   });
@@ -1172,11 +1178,11 @@ async function loadSignupsAdmin(){
   const{data}=await db.from('match_signups').select('match_date,venue_code');
   const seen=new Set();
   suMatches=[];
-  (data||[]).forEach(r=>{
+  (data||[]).filter(r=>r.match_date&&r.venue_code).forEach(r=>{
     const key=`${r.match_date}|${r.venue_code}`;
     if(!seen.has(key)){seen.add(key);suMatches.push(r);}
   });
-  suMatches.sort((a,b)=>a.match_date.localeCompare(b.match_date));
+  suMatches.sort((a,b)=>(a.match_date||'').localeCompare(b.match_date||''));
   // Always ensure the credit list entry exists
   if(!suMatches.find(m=>m.venue_code===CREDIT_VENUE)){
     suMatches.unshift({match_date:CREDIT_DATE,venue_code:CREDIT_VENUE});
@@ -1427,10 +1433,16 @@ async function addManualSignup(){
   const[date,venue]=sel.split('|');
 
   const matchCode=document.getElementById('su-mc-code').value.trim().toUpperCase();
+  // If no email provided, look up from player_access for recurring players
+  let resolvedEmail=email;
+  if(!resolvedEmail){
+    const{data:pa}=await db.from('player_access').select('email').eq('player_name',name).maybeSingle();
+    resolvedEmail=pa?.email||'';
+  }
   const{error}=await db.from('match_signups').insert({
     match_date:date,venue_code:venue,
     canonical_name:name,raw_name:name,
-    email:email||'',product_name:matchCode||'Manual entry',
+    email:resolvedEmail,product_name:matchCode||'Manual entry',
   });
   if(error){status.textContent='Error: '+error.message;return;}
 
