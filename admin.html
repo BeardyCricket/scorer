@@ -354,6 +354,13 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
     <div class="tab-panel" id="tab-sessions">
 
       <div class="card">
+        <div class="card-title">📨 Send Challenge Emails (late signups)</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Re-runs today's challenge email for anyone who signed up after the 8am send. Already-emailed players are skipped automatically.</p>
+        <button onclick="adminSendChallengeEmails()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Send now</button>
+        <div id="challenge-email-status" style="font-size:12px;margin-top:8px;color:var(--muted)"></div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
         <div class="card-title">⚡ Active Challenges</div>
         <div id="admin-challenges-list"><div class="empty">Loading…</div></div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
@@ -1903,6 +1910,31 @@ async function adminAcceptChallenge(inviteId,btn){
   // Reload the challenges list
   loadAdminChallenges();
   loadBehalfInvites();
+}
+
+// ── Send challenge emails (late signups) ──────────────────────────────────
+async function adminSendChallengeEmails(){
+  const statusEl=document.getElementById('challenge-email-status');
+  statusEl.style.color='var(--muted)';statusEl.textContent='Sending…';
+  try{
+    const{data:{session}}=await db.auth.getSession();
+    const token=session?.access_token||SUPABASE_KEY;
+    const res=await fetch(SUPABASE_URL+'/functions/v1/send-challenge-emails',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({})
+    });
+    const json=await res.json().catch(()=>({}));
+    if(res.ok){
+      statusEl.style.color='#166534';
+      statusEl.textContent=`Done — ${json.sent??0} sent, ${json.skipped??0} skipped (already emailed).`;
+    } else {
+      statusEl.style.color='var(--red)';
+      statusEl.textContent='Error: '+(json.error||res.status);
+    }
+  }catch(e){
+    statusEl.style.color='var(--red)';statusEl.textContent='Error: '+e.message;
+  }
 }
 
 // ── Session note ──────────────────────────────────────────────────────────
