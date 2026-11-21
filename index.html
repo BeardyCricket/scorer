@@ -5023,6 +5023,8 @@ async function resumeFromCloud(matchId){
     gs.lateCheckedOvers=new Set(gs.lateCheckedOvers||[]);
     if(!gs.snapshots)gs.snapshots=[];
     G=gs;
+    if(data.payload.match_date) currentMatchDate=data.payload.match_date;
+    if(data.payload.venue_code) currentVenueCode=data.payload.venue_code;
     saveGameState(); // persist locally so same-device reload also works
     show('s-score');
     updateUI();
