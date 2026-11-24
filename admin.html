@@ -420,16 +420,19 @@ html,body{background:var(--bg);font-family:-apple-system,'SF Pro Text','Helvetic
 
       <div class="card" style="margin-top:12px">
         <div class="card-title">📨 Send Signup Confirmation Emails</div>
-        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Send confirmation emails to players already signed up for a session — use this for anyone who signed up before the automatic trigger was set up.</p>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Send confirmation emails to players signed up for a session. Select venue and date to load the player list, then choose who to email.</p>
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-          <select id="confirm-venue" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <select id="confirm-venue" onchange="loadConfirmList()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
             <option value="WM">WM — Wimbledon</option>
             <option value="TD">TD — Thames Ditton</option>
           </select>
-          <input type="date" id="confirm-date" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
-          <button onclick="adminSendConfirmations()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Send emails</button>
+          <input type="date" id="confirm-date" onchange="loadConfirmList()" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
         </div>
-        <div id="confirm-status" style="font-size:12px;margin-top:4px;color:var(--muted)"></div>
+        <div id="confirm-list" style="display:none;margin-bottom:10px;padding:10px;background:#f8f8f6;border-radius:8px;border:1px solid var(--border)"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="adminSendConfirmations()" style="padding:7px 16px;background:var(--navy);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Send to selected</button>
+          <div id="confirm-status" style="font-size:12px;color:var(--muted)"></div>
+        </div>
       </div>
 
       <div class="card" style="margin-top:12px">
@@ -1981,43 +1984,84 @@ async function adminSaveSessionNote(){
 }
 
 // ── Send signup confirmation emails ───────────────────────────────────────
-async function adminSendConfirmations(){
-  const venue    = document.getElementById('confirm-venue').value;
-  const date     = document.getElementById('confirm-date').value;
-  const statusEl = document.getElementById('confirm-status');
-  if(!date){statusEl.style.color='var(--red)';statusEl.textContent='Pick a date first.';return;}
+async function loadConfirmList(){
+  const venue   = document.getElementById('confirm-venue').value;
+  const date    = document.getElementById('confirm-date').value;
+  const listEl  = document.getElementById('confirm-list');
+  const statusEl= document.getElementById('confirm-status');
+  if(!date){listEl.style.display='none';statusEl.textContent='';return;}
 
-  statusEl.style.color='var(--muted)';statusEl.textContent='Looking up signups…';
+  statusEl.style.color='var(--muted)';statusEl.textContent='Loading…';
 
   const{data:signups}=await db.from('match_signups')
     .select('canonical_name,email,venue_code,match_date')
-    .eq('venue_code',venue)
-    .eq('match_date',date);
+    .eq('venue_code',venue).eq('match_date',date);
 
-  if(!signups?.length){statusEl.style.color='var(--red)';statusEl.textContent='No signups found for that venue and date.';return;}
+  if(!signups?.length){
+    statusEl.textContent='No signups found for that venue and date.';
+    listEl.style.display='none';return;
+  }
 
-  const withEmail=signups.filter(s=>s.email);
-  if(!withEmail.length){statusEl.style.color='var(--red)';statusEl.textContent='No signups have an email address recorded.';return;}
+  // Look up emails for manually-added players with no email on signup row
+  const missing=signups.filter(s=>!s.email).map(s=>s.canonical_name);
+  const emailMap={};
+  if(missing.length){
+    const{data:pa}=await db.from('player_access').select('player_name,email').in('player_name',missing);
+    if(pa) pa.forEach(r=>{emailMap[r.player_name]=r.email;});
+  }
 
-  statusEl.textContent=`Sending to ${withEmail.length} player${withEmail.length!==1?'s':''}…`;
+  let html=`<div style="margin-bottom:8px;font-size:12px"><a href="#" onclick="confirmSelectAll(true);return false" style="color:var(--navy)">Select all</a> &nbsp;·&nbsp; <a href="#" onclick="confirmSelectAll(false);return false" style="color:var(--navy)">Deselect all</a></div>`;
+  for(const s of signups){
+    const email=s.email||emailMap[s.canonical_name]||'';
+    const badge=email
+      ?`<span style="color:var(--muted);font-size:11px">${email}</span>`
+      :`<span style="color:var(--red);font-size:11px">no email</span>`;
+    html+=`<label style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:13px;cursor:pointer">
+      <input type="checkbox" class="confirm-check" value="${s.canonical_name}" data-email="${email}" data-venue="${venue}" data-date="${date}"${email?' checked':''}>
+      <span>${s.canonical_name}</span>${badge}
+    </label>`;
+  }
+  listEl.innerHTML=html;
+  listEl.style.display='block';
+  statusEl.textContent='';
+}
+
+function confirmSelectAll(state){
+  document.querySelectorAll('.confirm-check').forEach(cb=>cb.checked=state);
+}
+
+async function adminSendConfirmations(){
+  const statusEl=document.getElementById('confirm-status');
+  const checks=[...document.querySelectorAll('.confirm-check:checked')];
+  if(!checks.length){statusEl.style.color='var(--red)';statusEl.textContent='No players selected.';return;}
+
+  const withEmail=checks.filter(cb=>cb.dataset.email);
+  const noEmail=checks.length-withEmail.length;
+  if(!withEmail.length){statusEl.style.color='var(--red)';statusEl.textContent='None of the selected players have an email address.';return;}
+
+  statusEl.style.color='var(--muted)';statusEl.textContent=`Sending to ${withEmail.length}…`;
 
   const{data:{session}}=await db.auth.getSession();
   const token=session?.access_token||SUPABASE_KEY;
 
   let sent=0,failed=0;
-  for(const s of withEmail){
+  for(const cb of withEmail){
     try{
       const res=await fetch(SUPABASE_URL+'/functions/v1/send-signup-confirmation',{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-        body:JSON.stringify({record:s})
+        body:JSON.stringify({record:{
+          canonical_name:cb.value,
+          email:cb.dataset.email,
+          venue_code:cb.dataset.venue,
+          match_date:cb.dataset.date
+        }})
       });
       const json=await res.json().catch(()=>({}));
       if(json.ok||json.sent) sent++; else failed++;
     }catch{failed++;}
   }
 
-  const noEmail=signups.length-withEmail.length;
   statusEl.style.color=failed?'var(--red)':'#166534';
   statusEl.textContent=`Done — ${sent} sent${failed?', '+failed+' failed':''}${noEmail?', '+noEmail+' skipped (no email)':''}.`;
 }
