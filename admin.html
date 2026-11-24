@@ -1372,7 +1372,8 @@ async function computeAndRenderPrediction(signups,date,venue){
   preds.sort((a,b)=>b.prob-a.prob);
 
   const expectedExtra=preds.reduce((s,p)=>s+p.prob,0);
-  const predictedTotal=currentSet.size+expectedExtra;
+  const totalSpaces=signups.reduce((sum,s)=>sum+Math.max(1,parseInt(s.quantity)||1),0);
+  const predictedTotal=totalSpaces+expectedExtra;
   const basisNote=`Based on ${prevDates.length} previous session${prevDates.length===1?'':'s'} at ${venue}`
     +(inferredCount?` (${inferredCount} inferred from match history)`:'');
   const nudge=preds.slice(0,5);
@@ -1384,8 +1385,8 @@ async function computeAndRenderPrediction(signups,date,venue){
         <div style="font-size:9px;font-weight:700;color:#166534;text-transform:uppercase;margin-top:2px">Predicted total</div>
       </div>
       <div style="flex:1;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 4px">
-        <div style="font-size:26px;font-weight:800">${currentSet.size}</div>
-        <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:2px">Signed up</div>
+        <div style="font-size:26px;font-weight:800">${totalSpaces}</div>
+        <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-top:2px">Spaces booked</div>
       </div>
       <div style="flex:1;text-align:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 4px">
         <div style="font-size:26px;font-weight:800">+${expectedExtra.toFixed(1)}</div>
