@@ -293,6 +293,7 @@ canvas{display:block;width:100%}
       <div>
         <div class="stats-hdr-name" id="player-name-hdr">Player</div>
         <div class="stats-hdr-sub">Beardy Cricket · Personal stats</div>
+        <div id="prem-status-hdr" style="display:none;font-size:11px;font-weight:600;color:#7F77DD;margin-top:2px"></div>
       </div>
       <button class="signout-btn" onclick="doSignOut()">Sign out</button>
     </div>
@@ -952,6 +953,14 @@ async function loadPlayer(email){
     const today=new Date().toISOString().slice(0,10);
     isPremium=data.is_premium===true&&(data.premium_until==null||data.premium_until>=today);
     document.getElementById('player-name-hdr').textContent=data.player_name;
+    const premHdr=document.getElementById('prem-status-hdr');
+    if(premHdr&&isPremium){
+      const expiry=data.premium_until
+        ?new Date(data.premium_until+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})
+        :null;
+      premHdr.textContent=expiry?`⭐ Stats for Balls · until ${expiry}`:'⭐ Stats for Balls';
+      premHdr.style.display='block';
+    }
     await fetchAllData();
     applyFilter();
     show('screen-stats');
@@ -1313,7 +1322,10 @@ function renderChallengeLeaderboard(){
   const sorted=Object.entries(pts).sort((a,b)=>b[1]-a[1]);
   if(!sorted.length){el.innerHTML='<div class="empty">No completed challenges yet</div>';return;}
   const myName=currentPlayer?.player_name;
-  el.innerHTML=sorted.map(([name,p],i)=>{
+  const top5=sorted.slice(0,5);
+  const myIdx=sorted.findIndex(([name])=>name===myName);
+  const myInTop5=myIdx>=0&&myIdx<5;
+  let html=top5.map(([name,p],i)=>{
     const rankCls=i===0?'lb-rank-1':i===1?'lb-rank-2':i===2?'lb-rank-3':'lb-rank-n';
     const isMe=name===myName;
     return `<div class="lb-row">
@@ -1322,6 +1334,17 @@ function renderChallengeLeaderboard(){
       <div class="lb-val" style="margin-left:auto">${p}pts</div>
     </div>`;
   }).join('');
+  if(!myInTop5&&myIdx>=0){
+    const[myNameEntry,myPts]=sorted[myIdx];
+    const rankCls='lb-rank-n';
+    html+=`<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 0">· · ·</div>
+    <div class="lb-row">
+      <div class="lb-rank ${rankCls}">${myIdx+1}</div>
+      <div class="lb-name you">${escHtml(myNameEntry)}<span class="lb-you">YOU</span></div>
+      <div class="lb-val" style="margin-left:auto">${myPts}pts</div>
+    </div>`;
+  }
+  el.innerHTML=html;
 }
 
 function renderAll(){
